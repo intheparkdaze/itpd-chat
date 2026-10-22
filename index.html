@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1830">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="robots" content="noindex, nofollow">
+<title>ITPD Chat</title>
+<style>
+:root{
+  --bg:#f3f1f8; --panel:#ffffff; --ink:#1b1830; --muted:#625c7a; --line:#dcd7ea;
+  --yt:#d61f1f; --tw:#7a3ff0; --tt:#0e9e9a; --gold:#a26a00; --ok:#1d8a47; --warn:#b26b00; --bad:#c42b2b;
+  --gift:#fff3d6;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1b1830; --panel:#252140; --ink:#efeaff; --muted:#a59fc2; --line:#3a345c;
+    --yt:#ff5a5a; --tw:#b28bff; --tt:#3fd6cf; --gold:#ffc94d; --ok:#4fd27f; --warn:#ffb340; --bad:#ff6b6b;
+    --gift:#3a3020;
+    color-scheme: dark;
+  }
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;display:flex;flex-direction:column;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--tw);outline-offset:2px}
+
+/* Status strip: the one thing that matters at a glance */
+.strip{display:flex;gap:6px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);align-items:stretch}
+.lamp{flex:1;min-width:0;border-radius:10px;padding:6px 8px;border:2px solid var(--line);display:flex;flex-direction:column;justify-content:center}
+.lamp b{font-size:.95rem;display:flex;align-items:center;gap:6px}
+.lamp b::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
+.lamp span{font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lamp.fresh{border-color:var(--ok)} .lamp.fresh b::before{background:var(--ok)}
+.lamp.aging{border-color:var(--warn)} .lamp.aging b::before{background:var(--warn)}
+.lamp.stale{border-color:var(--bad)} .lamp.stale b::before{background:var(--bad)}
+.lamp.link.down{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.lamp.link.down b::before{background:var(--bad)}
+.lamp.link.up b::before{background:var(--ok)}
+.lamp.link.up{border-color:var(--ok)}
+.menu{flex:none;width:44px;border-radius:10px;border:2px solid var(--line);background:transparent;font-size:1.3rem}
+
+/* Chat */
+#log{flex:1;overflow-y:auto;padding:6px 10px 80px;-webkit-overflow-scrolling:touch}
+.msg{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.msg img.av{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;background:var(--line)}
+.msg .body{min-width:0;flex:1;overflow-wrap:anywhere}
+.msg .who{font-weight:700;font-size:.9rem;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
+.msg .who .t{font-weight:400;color:var(--muted);font-size:.75rem;margin-left:auto}
+.plat{font-size:.68rem;font-weight:800;padding:1px 5px;border-radius:4px;color:#fff;letter-spacing:.02em}
+.plat.youtube{background:var(--yt)} .plat.twitch{background:var(--tw)} .plat.tiktok{background:var(--tt)} .plat.other{background:var(--muted)}
+.mod{font-size:.7rem;font-weight:700;color:var(--tw)}
+.text{font-size:1rem}
+.text img{height:1.35em;vertical-align:-.3em}
+.msg.paid{background:var(--gift);border-radius:8px;padding:8px;border:none;margin:4px 0}
+.paid-line{font-weight:800;color:var(--gold);font-size:.9rem}
+.msg.gone .text{text-decoration:line-through;opacity:.5}
+.note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
+.note.gap{color:var(--warn);font-weight:600}
+#jump{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));border:none;border-radius:20px;padding:10px 18px;background:var(--tw);color:#fff;font-weight:700;display:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+/* Settings sheet */
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:20}
+#sheet.open{display:flex}
+.card{background:var(--panel);width:100%;max-width:560px;margin:0 auto;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.card h2{margin:0 0 12px;font-size:1.15rem}
+.card label{display:block;font-size:.9rem;color:var(--muted);margin:12px 0 4px}
+.card input[type=text],.card input[type=password]{width:100%;padding:12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font-size:1rem}
+.row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btn{flex:1;min-width:120px;padding:12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700}
+.btn.primary{background:var(--tw);border-color:var(--tw);color:#fff}
+.check{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:.95rem}
+.check input{width:22px;height:22px}
+.small{font-size:.8rem;color:var(--muted);margin-top:10px}
+#diag{font-size:.75rem;color:var(--muted);white-space:pre-wrap;margin-top:10px;max-height:120px;overflow:auto}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<div class="strip" role="status" aria-live="polite">
+  <div class="lamp link down" id="lampLink"><b>Relay</b><span id="linkTxt">Not connected</span></div>
+  <div class="lamp" id="lamp-youtube"><b>YouTube</b><span>No messages yet</span></div>
+  <div class="lamp" id="lamp-twitch"><b>Twitch</b><span>No messages yet</span></div>
+  <div class="lamp" id="lamp-tiktok"><b>TikTok</b><span>No messages yet</span></div>
+  <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
+</div>
+
+<div id="log" aria-live="off"></div>
+<button id="jump">Jump to newest</button>
+
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="card">
+    <h2 id="sheetTitle">Chat settings</h2>
+    <label for="sid">Social Stream Ninja session ID</label>
+    <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
+    <div class="small">Saved only on this phone. It’s never in the page’s code, so the GitHub repo can stay public.</div>
+    <label class="check"><input type="checkbox" id="wake"> Keep the screen on while this page is open</label>
+    <label class="check"><input type="checkbox" id="showGone" checked> Show deleted messages crossed out</label>
+    <div class="row">
+      <button class="btn primary" id="saveBtn">Save and connect</button>
+      <button class="btn" id="testBtn">Show a test message</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="reconnectBtn">Reconnect now</button>
+      <button class="btn" id="clearBtn">Clear chat</button>
+      <button class="btn" id="closeBtn">Close</button>
+    </div>
+    <div id="diag"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var RELAY = "wss://io.socialstream.ninja/join/";
+  var CHANNEL = "4";            // same channel the alerts controller listens on
+  var MAX_MSGS = 300;
+  var FRESH_S = 120, AGING_S = 600;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var logEl = $("log");
+  var store = {
+    get: function(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+    set: function(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  };
+
+  var ws = null, retry = 0, retryTimer = null, wantOpen = false;
+  var downSince = null, lastPacket = 0, connectedOnce = false;
+  var lastByPlat = { youtube:0, twitch:0, tiktok:0 };
+  var seen = new Map();          // id -> element, for de-dup and deletes
+  var diagLines = [];
+  var wakeLock = null, hiddenAt = 0;
+
+  function diag(s){
+    var t = new Date().toLocaleTimeString();
+    diagLines.push(t + "  " + s);
+    if (diagLines.length > 30) diagLines.shift();
+    $("diag").textContent = diagLines.join("\n");
+  }
+
+  function fmtAge(sec){
+    if (sec < 60) return sec + "s ago";
+    if (sec < 3600) return Math.floor(sec/60) + "m ago";
+    return Math.floor(sec/3600) + "h " + Math.floor((sec%3600)/60) + "m ago";
+  }
+  function clock(d){ return d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }
+
+  // ---- status strip ----
+  function paintLamps(){
+    var now = Date.now();
+    ["youtube","twitch","tiktok"].forEach(function(p){
+      var el = $("lamp-"+p), t = lastByPlat[p];
+      el.classList.remove("fresh","aging","stale");
+      if (!t){ el.querySelector("span").textContent = "No messages yet"; return; }
+      var s = Math.round((now - t)/1000);
+      el.querySelector("span").textContent = "Last " + fmtAge(s);
+      el.classList.add(s <= FRESH_S ? "fresh" : s <= AGING_S ? "aging" : "stale");
+    });
+    var link = $("lampLink"), up = ws && ws.readyState === 1;
+    link.classList.toggle("up", !!up);
+    link.classList.toggle("down", !up);
+    if (up) $("linkTxt").textContent = lastPacket ? "Connected, data " + fmtAge(Math.round((now-lastPacket)/1000)) : "Connected";
+    else if (!store.get("itpd_phonechat_sid")) $("linkTxt").textContent = "Add session ID";
+    else $("linkTxt").textContent = downSince ? "Down " + fmtAge(Math.round((now-downSince)/1000)).replace(" ago","") : "Connecting";
+  }
+  setInterval(paintLamps, 5000);
+
+  // ---- safe rendering of chatmessage (may contain HTML from SSN) ----
+  function safeFragment(html){
+    var frag = document.createDocumentFragment();
+    if (html == null) return frag;
+    var doc = new DOMParser().parseFromString("<div>" + String(html) + "</div>", "text/html");
+    (function walk(node, out){
+      node.childNodes.forEach(function(n){
+        if (n.nodeType === 3){ out.appendChild(document.createTextNode(n.nodeValue)); }
+        else if (n.nodeType === 1){
+          var tag = n.tagName.toLowerCase();
+          if (tag === "img"){
+            var src = n.getAttribute("src") || "";
+            if (/^https:\/\//i.test(src)){
+              var im = document.createElement("img");
+              im.src = src; im.alt = n.getAttribute("alt") || ""; im.loading = "lazy";
+              im.referrerPolicy = "no-referrer";
+              out.appendChild(im);
+            } else if (n.getAttribute("alt")) {
+              out.appendChild(document.createTextNode(n.getAttribute("alt")));
+            }
+          } else if (tag === "script" || tag === "style" || tag === "noscript"){ /* drop entirely */ }
+          else if (tag === "br"){ out.appendChild(document.createTextNode(" ")); }
+          else { walk(n, out); }   // drop the tag, keep its text
+        }
+      });
+    })(doc.body.firstChild || doc.body, frag);
+    return frag;
+  }
+
+  function platOf(m){
+    var t = String(m.type || "").toLowerCase();
+    if (t.indexOf("youtube") === 0) return "youtube";
+    if (t.indexOf("twitch") === 0) return "twitch";
+    if (t.indexOf("tiktok") === 0) return "tiktok";
+    return t ? "other" : "other";
+  }
+
+  // ---- scrolling ----
+  function nearBottom(){ return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 80; }
+  function toBottom(){ logEl.scrollTop = logEl.scrollHeight; $("jump").style.display = "none"; }
+  logEl.addEventListener("scroll", function(){ if (nearBottom()) $("jump").style.display = "none"; });
+  $("jump").addEventListener("click", toBottom);
+
+  function append(el){
+    var stick = nearBottom();
+    logEl.appendChild(el);
+    while (logEl.children.length > MAX_MSGS){
+      var first = logEl.firstElementChild;
+      if (first && first.dataset.key) seen.delete(first.dataset.key);
+      logEl.removeChild(first);
+    }
+    if (stick) toBottom(); else $("jump").style.display = "block";
+  }
+
+  function note(text, cls){
+    var d = document.createElement("div");
+    d.className = "note" + (cls ? " " + cls : "");
+    d.textContent = text;
+    append(d);
+  }
+
+  // ---- message handling ----
+  function keyOf(m){
+    if (m.id != null && m.id !== "") return String(m.type||"") + ":" + String(m.id);
+    return String(m.type||"") + "|" + String(m.chatname||"") + "|" + String(m.chatmessage||"").slice(0,200);
+  }
+
+  function markDeleted(d){
+    var hit = null;
+    if (d.id != null){
+      seen.forEach(function(el, k){ if (!hit && k.split(":").pop() === String(d.id)) hit = el; });
+    }
+    if (!hit && d.chatname){
+      var nodes = logEl.querySelectorAll(".msg");
+      for (var i = nodes.length - 1; i >= 0; i--){
+        var n = nodes[i];
+        if (n.dataset.name === String(d.chatname) && (!d.chatmessage || n.dataset.raw === String(d.chatmessage))){ hit = n; break; }
+      }
+    }
+    if (hit){
+      hit.classList.add("gone");
+      if (!$("showGone").checked) hit.style.display = "none";
+    }
+  }
+
+  function render(m){
+    var key = keyOf(m);
+    if (seen.has(key)) return;               // de-dup
+    var plat = platOf(m);
+    if (lastByPlat[plat] !== undefined) lastByPlat[plat] = Date.now();
+
+    var row = document.createElement("div");
+    row.className = "msg";
+    row.dataset.key = key;
+    row.dataset.name = String(m.chatname || "");
+    row.dataset.raw = String(m.chatmessage || "");
+
+    var av = document.createElement("img");
+    av.className = "av"; av.alt = ""; av.loading = "lazy"; av.referrerPolicy = "no-referrer";
+    if (m.chatimg && /^https:\/\//i.test(m.chatimg)) av.src = m.chatimg;
+    row.appendChild(av);
+
+    var body = document.createElement("div"); body.className = "body";
+    var who = document.createElement("div"); who.className = "who";
+    var pl = document.createElement("span"); pl.className = "plat " + plat;
+    pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : String(m.type || "?").slice(0,3).toUpperCase();
+    who.appendChild(pl);
+    var nm = document.createElement("span"); nm.textContent = m.chatname || "Unknown"; who.appendChild(nm);
+    if (m.moderator === true){ var md = document.createElement("span"); md.className = "mod"; md.textContent = "mod"; who.appendChild(md); }
+    var tm = document.createElement("span"); tm.className = "t"; tm.textContent = clock(new Date()); who.appendChild(tm);
+    body.appendChild(who);
+
+    var ev = String(m.event || "");
+    var paidText = "";
+    if (m.hasDonation) paidText = String(m.hasDonation);
+    if (ev === "sponsorship") paidText = "New member";
+    else if (ev === "membermilestone") paidText = "Member milestone" + (m.subtitle ? ": " + m.subtitle : "");
+    else if (ev === "giftpurchase") paidText = "Gifted " + (m.subtitle || "memberships");
+    else if (ev === "giftredemption") paidText = m.subtitle || "Received a gift membership";
+    if (paidText){
+      row.classList.add("paid");
+      var pd = document.createElement("div"); pd.className = "paid-line"; pd.textContent = paidText;
+      body.appendChild(pd);
+    }
+
+    var tx = document.createElement("div"); tx.className = "text";
+    tx.appendChild(safeFragment(m.chatmessage));
+    if (m.contentimg && /^https:\/\//i.test(m.contentimg)){
+      var ci = document.createElement("img"); ci.src = m.contentimg; ci.alt = ""; ci.referrerPolicy = "no-referrer";
+      tx.appendChild(ci);
+    }
+    body.appendChild(tx);
+    row.appendChild(body);
+
+    seen.set(key, row);
+    append(row);
+    paintLamps();
+  }
+
+  function handlePayload(obj){
+    if (!obj || typeof obj !== "object") return;
+    if (Array.isArray(obj)){ obj.forEach(handlePayload); return; }
+    if (obj.overlayNinja){ handlePayload(obj.overlayNinja); return; }
+    if (obj.contents && typeof obj.contents === "object"){ handlePayload(obj.contents); return; }
+    // delete notices: shape not confirmed against live SSN; handle the likely forms
+    if (obj.delete || obj.deleteMessage){ markDeleted(obj.deleteMessage || obj.delete); return; }
+    if (obj.action === "delete" || obj.event === "delete" || obj.event === "deleted"){ markDeleted(obj); return; }
+    if (obj.chatname || obj.chatmessage || obj.event || obj.hasDonation) render(obj);
+  }
+
+  // ---- connection ----
+  function connect(){
+    var sid = store.get("itpd_phonechat_sid");
+    clearTimeout(retryTimer);
+    if (!sid){ paintLamps(); openSheet(); return; }
+    if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
+    wantOpen = true;
+    var url = RELAY + encodeURIComponent(sid) + "/" + CHANNEL;
+    diag("Connecting to relay");
+    try { ws = new WebSocket(url); } catch(e){ diag("Socket error: " + e.message); schedule(); return; }
+    ws.onopen = function(){
+      retry = 0;
+      if (downSince && connectedOnce){
+        note("Reconnected. Messages between " + clock(new Date(downSince)) + " and " + clock(new Date()) + " may be missing.", "gap");
+      } else if (!connectedOnce){
+        note("Connected. New messages will appear here.");
+      }
+      connectedOnce = true; downSince = null;
+      diag("Connected");
+      paintLamps();
+    };
+    ws.onmessage = function(ev){
+      lastPacket = Date.now();
+      var data = ev.data;
+      if (typeof data !== "string") return;
+      try { handlePayload(JSON.parse(data)); } catch(e){ /* non-JSON keepalives are ignored */ }
+    };
+    ws.onclose = function(ev){
+      diag("Closed (" + ev.code + ")");
+      if (!downSince) downSince = Date.now();
+      paintLamps();
+      if (wantOpen) schedule();
+    };
+    ws.onerror = function(){ diag("Socket error"); };
+  }
+  function schedule(){
+    clearTimeout(retryTimer);
+    var wait = Math.min(15000, 1000 * Math.pow(2, retry++));
+    retryTimer = setTimeout(connect, wait);
+  }
+  function reconnectNow(){
+    retry = 0;
+    if (ws){ try { ws.onclose = null; ws.close(); } catch(e){} }
+    ws = null;
+    if (!downSince) downSince = Date.now();
+    connect();
+  }
+
+  // Phones freeze pages when the screen locks or the app is backgrounded.
+  // When the page comes back, check the socket and reconnect right away.
+  document.addEventListener("visibilitychange", function(){
+    if (document.visibilityState === "visible"){
+      // A frozen page can still report an open socket, so always reopen it on return.
+      if (hiddenAt && !downSince) downSince = hiddenAt;
+      hiddenAt = 0;
+      reconnectNow();
+      if ($("wake").checked) requestWake();
+      paintLamps();
+    } else {
+      hiddenAt = Date.now();
+    }
+  });
+  window.addEventListener("online", reconnectNow);
+  window.addEventListener("pageshow", function(e){ if (e.persisted) reconnectNow(); });
+
+  // ---- keep screen on ----
+  function requestWake(){
+    if (!("wakeLock" in navigator)) { diag("Keep-screen-on isn’t supported in this browser"); return; }
+    navigator.wakeLock.request("screen").then(function(l){ wakeLock = l; diag("Screen will stay on"); })
+      .catch(function(e){ diag("Keep-screen-on failed: " + e.message); });
+  }
+  function releaseWake(){ if (wakeLock){ wakeLock.release().catch(function(){}); wakeLock = null; } }
+
+  // ---- settings sheet ----
+  function openSheet(){ $("sheet").classList.add("open"); $("sid").value = store.get("itpd_phonechat_sid") || ""; }
+  function closeSheet(){ $("sheet").classList.remove("open"); }
+  $("openSettings").addEventListener("click", openSheet);
+  $("closeBtn").addEventListener("click", closeSheet);
+  $("sheet").addEventListener("click", function(e){ if (e.target === $("sheet")) closeSheet(); });
+  $("saveBtn").addEventListener("click", function(){
+    var v = $("sid").value.trim();
+    if (!v){ diag("Enter the session ID first"); return; }
+    store.set("itpd_phonechat_sid", v);
+    closeSheet(); reconnectNow();
+  });
+  $("reconnectBtn").addEventListener("click", function(){ closeSheet(); reconnectNow(); });
+  $("clearBtn").addEventListener("click", function(){ logEl.textContent = ""; seen.clear(); closeSheet(); });
+  $("testBtn").addEventListener("click", function(){
+    handlePayload({ type:"youtube", id:"test-" + Date.now(), chatname:"Test viewer", chatmessage:"This is a test message <b>with markup</b> 🎢", moderator:false });
+    closeSheet();
+  });
+  $("wake").checked = store.get("itpd_phonechat_wake") === "1";
+  $("wake").addEventListener("change", function(){
+    store.set("itpd_phonechat_wake", this.checked ? "1" : "0");
+    if (this.checked) requestWake(); else releaseWake();
+  });
+  $("showGone").checked = store.get("itpd_phonechat_showgone") !== "0";
+  $("showGone").addEventListener("change", function(){
+    store.set("itpd_phonechat_showgone", this.checked ? "1" : "0");
+    logEl.querySelectorAll(".msg.gone").forEach(function(n){ n.style.display = $("showGone").checked ? "" : "none"; });
+  });
+
+  if ($("wake").checked) requestWake();
+  connect();
+  paintLamps();
+
+  // test hook for offline checks
+  window.__itpdChat = { handlePayload: handlePayload, safeFragment: safeFragment };
+})();
+</script>
+</body>
+</html>
