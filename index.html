@@ -74,6 +74,10 @@ button{font:inherit;color:inherit}
 .paid-line{font-weight:800;color:var(--gold);font-size:.9rem}
 .follow .paid-line{color:var(--ok)}
 .msg.gone .text{text-decoration:line-through;opacity:.5}
+.msg.maybesub{background:color-mix(in srgb,var(--yt) 12%,transparent);border-radius:8px;padding:8px;border:none;margin:4px 0}
+.subtag{font-size:.7rem;font-weight:800;color:var(--yt)}
+.nm.tap{text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
+.subbtn{margin-top:6px;border:none;border-radius:8px;padding:7px 12px;background:var(--yt);color:#fff;font-weight:700;font-size:.85rem}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
 #jump{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));border:none;border-radius:20px;padding:10px 18px;background:var(--tw);color:#fff;font-weight:700;display:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
@@ -121,6 +125,16 @@ button{font:inherit;color:inherit}
     <label for="rtok">Upstash read-only token</label>
     <input type="password" id="rtok" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Read-only token, not the read/write one">
     <div class="small">Everything here is saved only on this phone, never in the page’s code. Use the read-only token: it can see chat history but can’t change anything.</div>
+    <label for="wtok">Alerts token (read/write, optional)</label>
+    <input type="password" id="wtok" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Only needed for the New subscriber button">
+    <div class="small">With this, tapping a YouTube chatter’s name can put a NEW SUBSCRIBER alert on stream. It’s the same token the alert files use, so treat this phone like those files.</div>
+    <h3>YouTube likes (optional)</h3>
+    <label for="ytkey">YouTube Data API key</label>
+    <input type="password" id="ytkey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Restricted to this site and the YouTube Data API">
+    <label for="ytchan">Channel ID or @handle</label>
+    <input type="text" id="ytchan" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="@handle or UC…">
+    <label for="ytvidmanual">Live video link (only if it doesn’t find the stream)</label>
+    <input type="text" id="ytvidmanual" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Leave empty to find it automatically">
     <h3>What to show</h3>
     <label class="check"><input type="checkbox" id="showGifts"> Show TikTok gifts</label>
     <label class="check"><input type="checkbox" id="showGone" checked> Show deleted messages crossed out</label>
@@ -135,6 +149,10 @@ button{font:inherit;color:inherit}
       <button class="btn" id="closeBtn">Close</button>
     </div>
     <div id="diag"></div>
+    <details style="margin-top:10px"><summary class="small">Last raw event of each type</summary>
+      <button class="btn" id="copyRaw" style="margin-top:8px">Copy</button>
+      <pre id="raw" style="font-size:.7rem;white-space:pre-wrap;max-height:200px;overflow:auto"></pre>
+    </details>
   </div>
 </div>
 
@@ -176,7 +194,7 @@ button{font:inherit;color:inherit}
   var recorderSeen = 0;
   var seenKeys = new Set(), seenOrder = [];
   var diagLines = [], eventsSeen = {};
-  var wakeLock = null, lastBackfill = 0, backfillAdded = 0;
+  var wakeLock = null, lastBackfill = 0, backfillAdded = 0, rawLast = {};
 
   function cfg(k){ return store.get("itpd_phonechat_" + k) || ""; }
   function diag(s){
@@ -297,6 +315,27 @@ button{font:inherit;color:inherit}
     return "other";
   }
 
+  // ---------- YouTube new subscribers ----------
+  // YouTube doesn't put new subscribers in chat or (for private subscriptions,
+  // the default) in the API, so viewers saying so is the best live signal.
+  var SUB_RX = /\b(?:just\s+)?(?:subscribed|subbed|new\s+sub(?:scriber)?|hit\s+(?:the\s+)?sub(?:scribe)?(?:\s+button)?)\b/i;
+  function askSubAlert(name){
+    if (!cfg("wtok") || !cfg("rurl")){ alert("To send alerts from here, add the Upstash URL and the alerts token in ⚙."); return; }
+    if (!confirm("Show a NEW SUBSCRIBER alert on stream for " + name + "?")) return;
+    var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
+    fetch(url + "/get/itpd_alerts_state_2026", { headers:H, cache:"no-store" })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(j){
+        if (j.error) throw new Error(j.error);
+        var cur = j.result ? JSON.parse(j.result) : { seq:0, paused:false };
+        cur.seq = (cur.seq || 0) + 1; cur.at = Date.now(); cur.last = { kind:"sub", name:name };
+        return fetch(url + "/set/itpd_alerts_state_2026", { method:"POST", headers:H, cache:"no-store", body:JSON.stringify(cur) });
+      })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(j){ if (j.error) throw new Error(j.error); note("Subscriber alert sent for " + name + ".", "", Date.now()); })
+      .catch(function(e){ diag("Subscriber alert failed: " + e.message); alert("Couldn’t send the alert: " + e.message); });
+  }
+
   // ---------- what counts as a chat row ----------
   // Returns null to hide, or {kind:"chat"|"follow"|"paid"}
   function classify(m){
@@ -386,7 +425,13 @@ button{font:inherit;color:inherit}
     var pl = document.createElement("span"); pl.className = "plat " + plat;
     pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : String(m.type || "?").slice(0,3).toUpperCase();
     who.appendChild(pl);
-    var nm = document.createElement("span"); nm.textContent = m.chatname || ""; who.appendChild(nm);
+    var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = m.chatname || ""; who.appendChild(nm);
+    var maybeSub = plat === "youtube" && cls.kind === "chat" && SUB_RX.test(plainText(m));
+    if (plat === "youtube" && m.chatname){
+      nm.classList.add("tap");
+      nm.addEventListener("click", function(){ askSubAlert(String(m.chatname)); });
+    }
+    if (maybeSub){ row.classList.add("maybesub"); var st = document.createElement("span"); st.className = "subtag"; st.textContent = "possible new sub"; who.appendChild(st); }
     if (m.moderator === true || m.mod === true){ var md = document.createElement("span"); md.className = "mod"; md.textContent = "mod"; who.appendChild(md); }
     var tm = document.createElement("span"); tm.className = "t"; tm.textContent = clock(new Date(ts)); who.appendChild(tm);
     body.appendChild(who);
@@ -409,6 +454,11 @@ button{font:inherit;color:inherit}
       }
     }
     body.appendChild(tx);
+    if (maybeSub && cfg("wtok")){
+      var sb = document.createElement("button"); sb.className = "subbtn"; sb.textContent = "Thank on stream as new subscriber";
+      sb.addEventListener("click", function(){ askSubAlert(String(m.chatname)); });
+      body.appendChild(sb);
+    }
     row.appendChild(body);
     place(row, ts);
   }
@@ -423,6 +473,10 @@ button{font:inherit;color:inherit}
     if (obj.deleteMessage){ markDeleted(obj.deleteMessage); return false; }
 
     var ev = obj.event;
+    if (!fromBackfill){
+      var rk = ev ? String(ev) + " (" + String(obj.type || "?") + ")" : "chat (" + String(obj.type || "?") + ")";
+      try { rawLast[rk] = JSON.stringify(obj).slice(0, 1500); } catch(e){}
+    }
     if (ev && !fromBackfill){ var en = String(ev); eventsSeen[en] = (eventsSeen[en] || 0) + 1; }
     if (ev === "viewer_updates" && obj.meta && typeof obj.meta === "object"){
       Object.keys(obj.meta).forEach(function(t){ setCounter(platOf({type:t}), "viewers", obj.meta[t], ts); });
@@ -543,6 +597,7 @@ button{font:inherit;color:inherit}
       if (hiddenAt && !downSince) downSince = hiddenAt;
       hiddenAt = 0;
       reconnectNow();                           // a frozen page can still report an open socket
+      setTimeout(pollYouTube, 1000);
       if ($("wake").checked) requestWake();
     } else hiddenAt = Date.now();
   });
@@ -556,10 +611,76 @@ button{font:inherit;color:inherit}
   }
   function releaseWake(){ if (wakeLock){ wakeLock.release().catch(function(){}); wakeLock = null; } }
 
+  // ---------- YouTube likes, straight from the YouTube Data API ----------
+  // videos.list costs 1 unit; search.list has its own 100-a-day allowance
+  // (Google quota table, updated 2026-10-15). Polls once a minute, only while
+  // this page is on screen; searches for the live video at most every 10 min.
+  var ytVid = cfg("ytvid"), ytBusy = false;
+  function yt(path, params){
+    params.key = cfg("ytkey");
+    return fetch("https://www.googleapis.com/youtube/v3/" + path + "?" + new URLSearchParams(params), { cache:"no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (j.error) throw new Error(j.error.message || "API error"); return j; });
+  }
+  function parseVid(s){
+    s = String(s || "").trim(); if (!s) return "";
+    var m = s.match(/(?:v=|youtu\.be\/|\/live\/|\/shorts\/|\/video\/)([\w-]{11})/) || s.match(/^([\w-]{11})$/);
+    return m ? m[1] : "";
+  }
+  function ytChannelId(){
+    var c = cfg("ytchan").trim();
+    if (/^UC[\w-]{20,}$/.test(c)) return Promise.resolve(c);
+    var cached = store.get("itpd_phonechat_ytchanid_" + c.toLowerCase());
+    if (cached) return Promise.resolve(cached);
+    return yt("channels", { part:"id", forHandle:c.replace(/^@/, "") }).then(function(j){
+      var id = j.items && j.items[0] && j.items[0].id;
+      if (!id) throw new Error("channel not found: " + c);
+      store.set("itpd_phonechat_ytchanid_" + c.toLowerCase(), id);
+      return id;
+    });
+  }
+  function pollYouTube(){
+    if (!cfg("ytkey") || ytBusy || document.visibilityState !== "visible") return;
+    var manual = parseVid(cfg("ytvidmanual"));
+    var vid = manual || ytVid;
+    ytBusy = true;
+    var findVid = vid ? Promise.resolve(vid) : (function(){
+      if (!cfg("ytchan")) return Promise.resolve("");
+      var last = Number(store.get("itpd_phonechat_ytsearchat") || 0);
+      if (Date.now() - last < 600000) return Promise.resolve("");
+      store.set("itpd_phonechat_ytsearchat", String(Date.now()));
+      return ytChannelId().then(function(ch){
+        return yt("search", { part:"id", channelId:ch, eventType:"live", type:"video", maxResults:"1" });
+      }).then(function(j){
+        var v = j.items && j.items[0] && j.items[0].id && j.items[0].id.videoId;
+        if (v){ ytVid = v; store.set("itpd_phonechat_ytvid", v); diag("YouTube live video found"); }
+        else diag("YouTube: no live stream found yet (checks again in 10 min)");
+        return v || "";
+      });
+    })();
+    findVid.then(function(v){
+      if (!v) return;
+      return yt("videos", { part:"statistics,snippet", id:v, fields:"items(statistics(likeCount),snippet(liveBroadcastContent))" })
+        .then(function(j){
+          var it = j.items && j.items[0];
+          if (!it){ if (!manual){ ytVid = ""; store.set("itpd_phonechat_ytvid", ""); } return; }
+          if (it.statistics && it.statistics.likeCount != null) setCounter("youtube", "likes", Number(it.statistics.likeCount), Date.now());
+          // stream over: forget it so the next stream is found (keeps showing the final count)
+          if (!manual && it.snippet && it.snippet.liveBroadcastContent !== "live"){ ytVid = ""; store.set("itpd_phonechat_ytvid", ""); }
+          paintTicker();
+        });
+    }).catch(function(e){ diag("YouTube likes: " + e.message); })
+      .then(function(){ ytBusy = false; });
+  }
+  setInterval(pollYouTube, 60000);
+
   // ---------- settings ----------
   function openSheet(){
     $("sheet").classList.add("open");
     $("sid").value = cfg("sid"); $("rurl").value = cfg("rurl"); $("rtok").value = cfg("rtok");
+    $("wtok").value = cfg("wtok");
+    $("ytkey").value = cfg("ytkey"); $("ytchan").value = cfg("ytchan"); $("ytvidmanual").value = cfg("ytvidmanual");
+    $("raw").textContent = Object.keys(rawLast).sort().map(function(k){ return k + "\n" + rawLast[k]; }).join("\n\n") || "Nothing yet";
   }
   function closeSheet(){ $("sheet").classList.remove("open"); }
   $("openSettings").addEventListener("click", openSheet);
@@ -571,7 +692,17 @@ button{font:inherit;color:inherit}
     store.set("itpd_phonechat_sid", v);
     store.set("itpd_phonechat_rurl", $("rurl").value.trim());
     store.set("itpd_phonechat_rtok", $("rtok").value.trim());
+    store.set("itpd_phonechat_ytkey", $("ytkey").value.trim());
+    store.set("itpd_phonechat_wtok", $("wtok").value.trim());
+    if ($("ytchan").value.trim() !== cfg("ytchan")){ store.set("itpd_phonechat_ytsearchat", "0"); ytVid = ""; store.set("itpd_phonechat_ytvid", ""); }
+    store.set("itpd_phonechat_ytchan", $("ytchan").value.trim());
+    store.set("itpd_phonechat_ytvidmanual", $("ytvidmanual").value.trim());
+    setTimeout(pollYouTube, 500);
     closeSheet(); reconnectNow();
+  });
+  $("copyRaw").addEventListener("click", function(){
+    var t = $("raw").textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(function(){ diag("Raw events copied"); }, function(){ diag("Copy failed: select and copy by hand"); });
   });
   $("reconnectBtn").addEventListener("click", function(){ closeSheet(); reconnectNow(); });
   $("clearBtn").addEventListener("click", function(){ logEl.textContent = ""; closeSheet(); });
@@ -591,6 +722,7 @@ button{font:inherit;color:inherit}
   if ($("wake").checked) requestWake();
   connect();
   paintLamps();
+  setTimeout(pollYouTube, 1500);
   window.__itpdChat = { handle: handle, counters: counters };
 })();
 </script>
