@@ -77,6 +77,7 @@
   <h2>Live score</h2>
   <div class="score" id="cScore">&#x2013;</div>
   <div id="status" class="hint">Waiting for the overlay&#x2026;</div>
+  <div id="conn" class="hint"></div>
   <h2>Last reactions received</h2>
   <div class="hint">Shows what SSN sent and which side it counted for. If your reactions show as &#x201c;not counted&#x201d;, send me this list.</div>
   <pre id="recent">Nothing yet.</pre>
@@ -87,7 +88,10 @@
   "use strict";
   var P = new URLSearchParams(location.hash.slice(1));
   var SESSION = P.get("session") || "", URL_ = (P.get("url") || "").replace(/\/+$/,""), TOK = P.get("tok") || "";
-  var EDIT = P.has("edit");
+  // Controller if "edit" is after the # or before it (?edit). Changing only the
+  // part after the # doesn't reload a page, so reload when it changes.
+  var EDIT = P.has("edit") || new URLSearchParams(location.search).has("edit");
+  window.addEventListener("hashchange", function(){ location.reload(); });
   var STATE_KEY = "itpd_reactbattle_state_2026", COUNT_KEY = "itpd_reactbattle_counts_2026";
 
   // Reaction types. "match" is checked against the reaction's text, image alt text
@@ -150,9 +154,14 @@
           $("status").textContent = age < 45 ? "Overlay running (checked in " + age + "s ago)." : "Overlay not seen for " + age + "s: is the IRLToolkit source running?";
           $("status").style.color = age < 45 ? "#4fd27f" : "#ff6b6b";
         }
+        if (c && c.diag){
+          var g = c.diag, la = g.lastData ? Math.round((Date.now() - g.lastData)/1000) + "s ago" : "never";
+          $("conn").textContent = "Overlay connections: peer-to-peer link " + (g.bridgeAny ? "up" : "NOT connected") +
+            " (" + g.bridgeData + " events), server feed " + g.feedData + " messages. Last event: " + la + ".";
+        }
         if (c && c.recent && c.recent.length){
           $("recent").textContent = c.recent.slice().reverse().map(function(x){
-            return new Date(x.t).toLocaleTimeString() + "  " + (x.side === "a" ? "LEFT " : x.side === "b" ? "RIGHT" : "not counted") + "  " + x.sample;
+            return new Date(x.t).toLocaleTimeString() + "  " + (x.side === "a" ? "LEFT " : x.side === "b" ? "RIGHT" : x.side === "off" ? "paused" : /^ignored/.test(x.side) ? x.side : "not counted") + "  " + x.sample;
           }).join("\n");
         }
       }).catch(function(e){ $("status").textContent = "Can\u2019t reach Upstash: " + e.message; });
@@ -201,14 +210,37 @@
   }
   function pop(id){ var e = $(id); e.classList.add("pop"); setTimeout(function(){ e.classList.remove("pop"); }, 200); }
 
-  function onReaction(p){
+  // Connection diagnostics, saved with the scores so the controller can show them.
+  var diag = { bridgeAny:0, bridgeData:0, feedData:0, lastData:0 };
+  var crossSeen = new Map();   // same reaction arriving by both routes counts once
+  function signature(p){ return [p.event, p.type, p.chatmessage, p.contentimg, p.id].map(function(x){ return String(x == null ? "" : x); }).join("|"); }
+
+  function onReaction(p, via){
     if (!p || typeof p !== "object") return;
-    var ev = String(p.event || "").toLowerCase();
-    if (ev !== "reaction") return;                         // likes and chat are not part of the battle
+    if (p.overlayNinja) p = p.overlayNinja;
+    var ev = String(p.event || "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    if (!ev) return;                                       // ordinary chat
+    diag.lastData = Date.now();
+    var plat = String(p.type || "").toLowerCase();
+    // SSN's own reactions overlay treats reaction, liked and like as reactions.
+    // TikTok likes are left out: this is a YouTube battle.
+    var isReaction = (ev === "reaction" || ev === "liked" || ev === "like") && plat.indexOf("tiktok") !== 0;
+    if (!isReaction){
+      if (ev !== "viewer_update" && ev !== "viewer_updates"){
+        counts.recent.push({ t:Date.now(), side:"ignored (" + ev + ")", sample:sampleOf(p) });
+        if (counts.recent.length > 12) counts.recent.shift();
+        dirty = true;
+      }
+      return;
+    }
+    var sig = signature(p), prev = crossSeen.get(sig), now = Date.now();
+    crossSeen.forEach(function(v, k){ if (now - v.t > 3000) crossSeen.delete(k); });
+    if (prev && prev.via !== via && now - prev.t < 2000){ crossSeen.delete(sig); return; }
+    crossSeen.set(sig, { via:via, t:now });
     if (p.id != null && p.id !== ""){ var k = String(p.type) + ":" + String(p.id); if (seenIds.has(k)) return; seenIds.add(k); if (seenIds.size > 5000) seenIds = new Set(); }
     var side = state.on ? sideOf(p) : "";
     if (side === "a"){ counts.a++; pop("emoA"); } else if (side === "b"){ counts.b++; pop("emoB"); } else counts.other++;
-    counts.recent.push({ t:Date.now(), side: state.on ? (side || "none") : "off", sample:sampleOf(p) });
+    counts.recent.push({ t:Date.now(), side: state.on ? (side || "none") : "off", sample:"(" + ev + ") " + sampleOf(p) });
     if (counts.recent.length > 12) counts.recent.shift();
     dirty = true; paint();
   }
@@ -221,9 +253,27 @@
   if (SESSION) document.body.appendChild(bridge);
   window.addEventListener("message", function(e){
     if (e.source !== bridge.contentWindow) return;
+    diag.bridgeAny++;
     var d = e.data && e.data.dataReceived && e.data.dataReceived.overlayNinja;
-    if (d) onReaction(d);
+    if (d){ diag.bridgeData++; onReaction(d, "bridge"); }
   });
+
+  // Second route, also used by SSN's reactions overlay: the SSN server feed.
+  var feedRetry = 1;
+  function openFeed(){
+    var ws;
+    try { ws = new WebSocket("wss://io.socialstream.ninja/api"); } catch(e){ setTimeout(openFeed, 5000); return; }
+    ws.onopen = function(){ feedRetry = 1; ws.send(JSON.stringify({ join:SESSION, out:3, in:4 })); };
+    ws.onmessage = function(e){
+      var d; try { d = JSON.parse(e.data); } catch(err){ return; }
+      if (d && d.get){ try { ws.send(JSON.stringify({ callback:{ get:d.get, result:true } })); } catch(err){} }
+      diag.feedData++;
+      if (Array.isArray(d)) d.forEach(function(x){ onReaction(x, "feed"); }); else onReaction(d, "feed");
+    };
+    ws.onerror = function(){ try { ws.close(); } catch(e){} };
+    ws.onclose = function(){ setTimeout(openFeed, Math.min(15000, 500 * feedRetry++)); };
+  }
+  if (SESSION) openFeed();
 
   // State from the controller every 5 s; scores saved every 10 s when changed,
   // plus a heartbeat every 30 s so the controller can tell the overlay is alive.
@@ -248,7 +298,7 @@
   function pushCounts(){
     var now = Date.now();
     if (!dirty && now - lastWrite < 30000) return;
-    var snap = { seq:counts.seq, a:counts.a, b:counts.b, other:counts.other, recent:counts.recent, at:now };
+    var snap = { seq:counts.seq, a:counts.a, b:counts.b, other:counts.other, recent:counts.recent, at:now, diag:diag };
     setJSON(COUNT_KEY, snap).then(function(){ dirty = false; lastWrite = now; }).catch(function(){});
   }
   pullState(); setInterval(pullState, 5000); setInterval(pushCounts, 10000);
