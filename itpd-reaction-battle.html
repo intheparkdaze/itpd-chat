@@ -67,6 +67,7 @@
 
 <div class="ctl" id="ctl" hidden>
   <h1>Reaction battle</h1>
+  <div class="hint" id="ctlVer"></div>
   <div class="hint">Counts YouTube live reactions while the battle is on. Overlay must be running in IRLToolkit.</div>
   <h2>Set up</h2>
   <label for="selA">Left side</label><select id="selA"></select>
@@ -90,6 +91,7 @@
   var SESSION = P.get("session") || "", URL_ = (P.get("url") || "").replace(/\/+$/,""), TOK = P.get("tok") || "";
   // Controller if "edit" is after the # or before it (?edit). Changing only the
   // part after the # doesn't reload a page, so reload when it changes.
+  var VERSION = "2026-10-23c";
   var EDIT = P.has("edit") || new URLSearchParams(location.search).has("edit");
   window.addEventListener("hashchange", function(){ location.reload(); });
   var STATE_KEY = "itpd_reactbattle_state_2026", COUNT_KEY = "itpd_reactbattle_counts_2026";
@@ -119,6 +121,7 @@
   // ======================= CONTROLLER =======================
   if (EDIT){
     document.body.classList.add("edit"); $("ctl").hidden = false;
+    $("ctlVer").textContent = "Controller version " + VERSION;
     Object.keys(PRESETS).forEach(function(k){
       ["selA","selB"].forEach(function(id){ var o = document.createElement("option"); o.value = k; o.textContent = PRESETS[k].emoji + "  " + PRESETS[k].name; $(id).appendChild(o); });
     });
@@ -154,10 +157,16 @@
           $("status").textContent = age < 45 ? "Overlay running (checked in " + age + "s ago)." : "Overlay not seen for " + age + "s: is the IRLToolkit source running?";
           $("status").style.color = age < 45 ? "#4fd27f" : "#ff6b6b";
         }
-        if (c && c.diag){
+        if (c && c.at && c.ver !== VERSION){
+          $("conn").textContent = "The overlay that is running is " + (c.ver ? "version " + c.ver : "an OLD version") +
+            ", not " + VERSION + ". Replace the file, then refresh the IRLToolkit source (and close any other copy of the overlay).";
+          $("conn").style.color = "#ffb340";
+        } else if (c && c.diag){
+          $("conn").style.color = "";
           var g = c.diag, la = g.lastData ? Math.round((Date.now() - g.lastData)/1000) + "s ago" : "never";
           $("conn").textContent = "Overlay connections: peer-to-peer link " + (g.bridgeAny ? "up" : "NOT connected") +
-            " (" + g.bridgeData + " events), server feed " + g.feedData + " messages. Last event: " + la + ".";
+            " (" + g.bridgeData + " events), server feed " + g.feedData + " messages. Last event: " + la + "." +
+            (c.where ? " Running in " + c.where + "." : "");
         }
         if (c && c.recent && c.recent.length){
           $("recent").textContent = c.recent.slice().reverse().map(function(x){
@@ -298,7 +307,8 @@
   function pushCounts(){
     var now = Date.now();
     if (!dirty && now - lastWrite < 30000) return;
-    var snap = { seq:counts.seq, a:counts.a, b:counts.b, other:counts.other, recent:counts.recent, at:now, diag:diag };
+    var snap = { seq:counts.seq, a:counts.a, b:counts.b, other:counts.other, recent:counts.recent, at:now, diag:diag, ver:VERSION,
+                 where:(navigator.userAgent.match(/Chrome\/[\d]+/) || ["a browser"])[0] + " (" + (innerWidth + "x" + innerHeight) + ")" };
     setJSON(COUNT_KEY, snap).then(function(){ dirty = false; lastWrite = now; }).catch(function(){});
   }
   pullState(); setInterval(pullState, 5000); setInterval(pushCounts, 10000);
