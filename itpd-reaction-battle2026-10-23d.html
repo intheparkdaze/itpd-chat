@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ITPD reaction battle</title>
+<!--
+  ITPD REACTION BATTLE (10/23)
+  Counts YouTube live reactions (e.g. party poppers vs hearts) and shows which
+  emoji is winning. Reactions come from Social Stream Ninja, which sends them
+  peer-to-peer to pages labelled "reactions" (they are NOT on the normal chat
+  feed yet), so this page joins that way too.
+
+  OVERLAY (IRLToolkit browser source, 1920x1080, transparent):
+    itpd-reaction-battle.html#session=SSN_SESSION&url=https://charming-worm-109173.upstash.io&tok=READ_WRITE_TOKEN
+  CONTROLLER (phone or PC; same link plus &edit):
+    itpd-reaction-battle.html#session=SSN_SESSION&url=&#x2026;&tok=&#x2026;&edit
+  Optional for the overlay: &pos=top | bottom (default top), &scale=1.2
+
+  Run only ONE overlay copy (one browser source). Settings live after the #,
+  never in this file. Upstash keys: itpd_reactbattle_state_2026 (what's on),
+  itpd_reactbattle_counts_2026 (scores, last few raw reactions, heartbeat).
+-->
+<style>
+  :root{--ink:#fff;--a:#ff8a1f;--b:#ff3b6b;--panel:rgba(20,16,40,.82)}
+  html,body{margin:0;background:transparent;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink)}
+  /* ---------- overlay ---------- */
+  #battle{position:fixed;left:50%;top:40px;transform:translateX(-50%) scale(var(--scale,1));transform-origin:top center;
+    width:820px;background:var(--panel);border-radius:22px;padding:18px 24px 20px;box-shadow:0 8px 30px rgba(0,0,0,.35);
+    opacity:0;transition:opacity .6s}
+  body.bottom #battle{top:auto;bottom:40px;transform-origin:bottom center}
+  #battle.on{opacity:1}
+  #title{text-align:center;font-weight:800;font-size:30px;letter-spacing:.02em;margin-bottom:12px}
+  .sides{display:flex;align-items:center;justify-content:space-between;font-weight:800}
+  .side{display:flex;align-items:center;gap:12px;font-size:44px;font-variant-numeric:tabular-nums}
+  .side .emo{font-size:58px;line-height:1;transition:transform .2s}
+  .side .emo.pop{transform:scale(1.35)}
+  .side.lead .num{text-shadow:0 0 14px rgba(255,255,255,.6)}
+  #bar{position:relative;height:30px;border-radius:15px;overflow:hidden;background:var(--b);margin-top:12px}
+  #barA{position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--a);transition:width .5s ease}
+  #pct{display:flex;justify-content:space-between;font-weight:700;font-size:22px;margin-top:6px;opacity:.9}
+  /* ---------- controller ---------- */
+  body.edit{background:#17132b;color:#efeaff;padding:16px;max-width:560px;margin:0 auto}
+  body.edit #battle{display:none}
+  .ctl h1{font-size:22px;margin:0 0 4px} .ctl h2{font-size:16px;color:#ffd166;margin:18px 0 6px}
+  .ctl label{display:block;font-size:14px;color:#b7b0d6;margin:10px 0 4px}
+  .ctl select,.ctl input{width:100%;padding:10px;border-radius:10px;border:2px solid #3a345c;background:#0f0c1f;color:#fff;font-size:16px;box-sizing:border-box}
+  .ctl .row{display:flex;gap:8px;margin-top:12px} .ctl button{flex:1;padding:12px;border-radius:10px;border:2px solid #3a345c;background:#252140;color:#fff;font-weight:700;font-size:15px}
+  .ctl button.go{background:#2f8f5b;border-color:#2f8f5b} .ctl button.stop{background:#8a2b3b;border-color:#8a2b3b}
+  .ctl .score{font-size:28px;font-weight:800;text-align:center;margin:8px 0}
+  .ctl .hint{font-size:13px;color:#b7b0d6}
+  .ctl pre{font-size:12px;white-space:pre-wrap;background:#0f0c1f;padding:8px;border-radius:8px;max-height:220px;overflow:auto}
+  #status{font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="battle" aria-hidden="true">
+  <div id="title">Party poppers vs Hearts</div>
+  <div class="sides">
+    <div class="side" id="sideA"><span class="emo" id="emoA">&#x1f389;</span><span class="num" id="numA">0</span></div>
+    <div class="side" id="sideB"><span class="num" id="numB">0</span><span class="emo" id="emoB">&#x2764;&#xfe0f;</span></div>
+  </div>
+  <div id="bar"><div id="barA"></div></div>
+  <div id="pct"><span id="pctA">50%</span><span id="pctB">50%</span></div>
+</div>
+
+<div class="ctl" id="ctl" hidden>
+  <h1>Reaction battle</h1>
+  <div class="hint" id="ctlVer"></div>
+  <div class="hint">Counts YouTube live reactions while the battle is on. Overlay must be running in IRLToolkit.</div>
+  <h2>Set up</h2>
+  <label for="selA">Left side</label><select id="selA"></select>
+  <label for="selB">Right side</label><select id="selB"></select>
+  <label for="ttl">Title on screen</label><input id="ttl" maxlength="40">
+  <div class="row"><button class="go" id="startBtn">Start new battle</button></div>
+  <div class="row"><button class="stop" id="stopBtn">Hide and pause</button><button id="showBtn">Show again</button></div>
+  <h2>Live score</h2>
+  <div class="score" id="cScore">&#x2013;</div>
+  <div id="status" class="hint">Waiting for the overlay&#x2026;</div>
+  <div id="conn" class="hint" style="white-space:pre-wrap"></div>
+  <h2>Last reactions received</h2>
+  <div class="hint">Shows what SSN sent and which side it counted for. If your reactions show as &#x201c;not counted&#x201d;, send me this list.</div>
+  <pre id="recent">Nothing yet.</pre>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var P = new URLSearchParams(location.hash.slice(1));
+  var SESSION = P.get("session") || "", URL_ = (P.get("url") || "").replace(/\/+$/,""), TOK = P.get("tok") || "";
+  // Controller if "edit" is after the # or before it (?edit). Changing only the
+  // part after the # doesn't reload a page, so reload when it changes.
+  var VERSION = "2026-10-23d";
+  var EDIT = P.has("edit") || new URLSearchParams(location.search).has("edit");
+  window.addEventListener("hashchange", function(){ location.reload(); });
+  var STATE_KEY = "itpd_reactbattle_state_2026", COUNT_KEY = "itpd_reactbattle_counts_2026";
+
+  // Reaction types. "match" is checked against the reaction's text, image alt text
+  // and image address; SSN's exact format for YouTube reactions isn't documented,
+  // so this checks the emoji itself, its Unicode code and plain words.
+  var PRESETS = {
+    party:   { emoji:"\ud83c\udf89", name:"Party poppers", match:["\ud83c\udf89","1f389","party","popper","celebrat"] },
+    heart:   { emoji:"\u2764\ufe0f", name:"Hearts",        match:["\u2764","2764","heart","love"] },
+    laugh:   { emoji:"\ud83d\ude02", name:"Laughs",        match:["\ud83d\ude02","1f602","laugh","joy","lol"] },
+    wow:     { emoji:"\ud83d\ude2e", name:"Wows",          match:["\ud83d\ude2e","1f62e","wow","surpris","shock"] },
+    hundred: { emoji:"\ud83d\udcaf", name:"100s",          match:["\ud83d\udcaf","1f4af","hundred"] }
+  };
+
+  function $(id){ return document.getElementById(id); }
+  function api(cmd){
+    return fetch(URL_ + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + TOK, "Content-Type":"application/json" }, body:JSON.stringify(cmd), cache:"no-store" })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(res){ var e = res.filter(function(x){ return x && x.error; })[0]; if (e) throw new Error(e.error); return res.map(function(x){ return x.result; }); });
+  }
+  function getJSON(key){ return api([["GET", key]]).then(function(r){ try { return r[0] ? JSON.parse(r[0]) : null; } catch(e){ return null; } }); }
+  function setJSON(key, v){ return api([["SET", key, JSON.stringify(v)], ["EXPIRE", key, "604800"]]); }
+
+  if (!URL_ || !TOK){ document.body.textContent = "Missing url / tok after the # in the link."; return; }
+
+  // ======================= CONTROLLER =======================
+  if (EDIT){
+    document.body.classList.add("edit"); $("ctl").hidden = false;
+    $("ctlVer").textContent = "Controller version " + VERSION;
+    Object.keys(PRESETS).forEach(function(k){
+      ["selA","selB"].forEach(function(id){ var o = document.createElement("option"); o.value = k; o.textContent = PRESETS[k].emoji + "  " + PRESETS[k].name; $(id).appendChild(o); });
+    });
+    $("selA").value = "party"; $("selB").value = "heart";
+    function autoTitle(){ $("ttl").value = PRESETS[$("selA").value].name + " vs " + PRESETS[$("selB").value].name; }
+    autoTitle(); $("selA").onchange = autoTitle; $("selB").onchange = autoTitle;
+
+    function save(patch, note){
+      getJSON(STATE_KEY).then(function(cur){
+        cur = cur || { seq:0, on:false };
+        Object.keys(patch).forEach(function(k){ cur[k] = patch[k]; });
+        return setJSON(STATE_KEY, cur);
+      }).then(function(){ $("status").textContent = note; }).catch(function(e){ $("status").textContent = "Couldn\u2019t save: " + e.message; });
+    }
+    $("startBtn").onclick = function(){
+      if ($("selA").value === $("selB").value){ alert("Pick two different reactions."); return; }
+      getJSON(STATE_KEY).then(function(cur){
+        var seq = ((cur && cur.seq) || 0) + 1;
+        return setJSON(STATE_KEY, { on:true, seq:seq, a:$("selA").value, b:$("selB").value, title:$("ttl").value.trim(), startedAt:Date.now() });
+      }).then(function(){ $("status").textContent = "Battle started; scores reset."; }).catch(function(e){ $("status").textContent = "Couldn\u2019t start: " + e.message; });
+    };
+    $("stopBtn").onclick = function(){ save({ on:false }, "Hidden and paused: reactions aren\u2019t counted until you tap \u201cShow again\u201d."); };
+    $("showBtn").onclick = function(){ save({ on:true }, "Showing again."); };
+
+    function poll(){
+      Promise.all([getJSON(STATE_KEY), getJSON(COUNT_KEY)]).then(function(r){
+        var st = r[0], c = r[1];
+        if (st && c && c.seq === st.seq){
+          $("cScore").textContent = PRESETS[st.a].emoji + " " + c.a + "  \u2013  " + c.b + " " + PRESETS[st.b].emoji + (st.on ? "" : "  (hidden)");
+        } else $("cScore").textContent = st && st.on ? "0 \u2013 0" : "\u2013";
+        if (c && c.at){
+          var age = Math.round((Date.now() - c.at)/1000);
+          $("status").textContent = age < 45 ? "Overlay running (checked in " + age + "s ago)." : "Overlay not seen for " + age + "s: is the IRLToolkit source running?";
+          $("status").style.color = age < 45 ? "#4fd27f" : "#ff6b6b";
+        }
+        if (c && c.at && c.ver !== VERSION){
+          $("conn").textContent = "The overlay that is running is " + (c.ver ? "version " + c.ver : "an OLD version") +
+            ", not " + VERSION + ". Replace the file, then refresh the IRLToolkit source (and close any other copy of the overlay).";
+          $("conn").style.color = "#ffb340";
+        } else if (c && c.diag){
+          $("conn").style.color = "";
+          var g = c.diag, la = g.lastData ? Math.round((Date.now() - g.lastData)/1000) + "s ago" : "never";
+          $("conn").textContent = "Overlay connections: peer-to-peer page " + (g.bridgeAny ? "loaded" : "NOT loaded") +
+            " (" + g.bridgeData + " events), server feed " + g.feedData + " messages. Last event: " + la + "." +
+            (c.where ? " Running in " + c.where + "." : "") +
+            (g.bridgeKinds && g.bridgeKinds.length ? "\nPeer-to-peer messages: " + g.bridgeKinds.join(", ") : "") +
+            (g.feedKinds && g.feedKinds.length ? "\nServer feed messages: " + g.feedKinds.join(", ") : "");
+        }
+        if (c && c.recent && c.recent.length){
+          $("recent").textContent = c.recent.slice().reverse().map(function(x){
+            return new Date(x.t).toLocaleTimeString() + "  " + (x.side === "a" ? "LEFT " : x.side === "b" ? "RIGHT" : x.side === "off" ? "paused" : /^ignored/.test(x.side) ? x.side : "not counted") + "  " + x.sample;
+          }).join("\n");
+        }
+      }).catch(function(e){ $("status").textContent = "Can\u2019t reach Upstash: " + e.message; });
+    }
+    poll(); setInterval(poll, 5000);
+    return;
+  }
+
+  // ======================= OVERLAY =======================
+  if (P.get("pos") === "bottom") document.body.classList.add("bottom");
+  var sc = parseFloat(P.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--scale", sc);
+
+  var state = { on:false, seq:-1 }, counts = { seq:-1, a:0, b:0, other:0, recent:[] };
+  var dirty = false, lastWrite = 0, seenIds = new Set();
+
+  function haystack(p){
+    var parts = [String(p.chatmessage || ""), String(p.contentimg || "")];
+    try {
+      var d = new DOMParser().parseFromString("<div>" + String(p.chatmessage || "") + "</div>", "text/html");
+      parts.push(d.body.textContent || "");
+      d.querySelectorAll("img").forEach(function(i){ parts.push(i.getAttribute("alt") || "", i.getAttribute("src") || "", i.getAttribute("title") || ""); });
+    } catch(e){}
+    return parts.join(" ").toLowerCase();
+  }
+  function sideOf(p){
+    var h = haystack(p);
+    var hitA = PRESETS[state.a] && PRESETS[state.a].match.some(function(m){ return h.indexOf(m.toLowerCase()) !== -1; });
+    var hitB = PRESETS[state.b] && PRESETS[state.b].match.some(function(m){ return h.indexOf(m.toLowerCase()) !== -1; });
+    return hitA && !hitB ? "a" : hitB && !hitA ? "b" : "";
+  }
+  function sampleOf(p){
+    var s = String(p.chatmessage || "") || String(p.contentimg || "");
+    return s.replace(/\s+/g, " ").slice(0, 160) + " [" + String(p.type || "?") + "]";
+  }
+
+  function paint(){
+    var A = PRESETS[state.a] || PRESETS.party, B = PRESETS[state.b] || PRESETS.heart;
+    $("battle").classList.toggle("on", !!state.on);
+    $("title").textContent = state.title || (A.name + " vs " + B.name);
+    $("emoA").textContent = A.emoji; $("emoB").textContent = B.emoji;
+    $("numA").textContent = counts.a; $("numB").textContent = counts.b;
+    var tot = counts.a + counts.b, pa = tot ? Math.round(counts.a * 100 / tot) : 50;
+    $("barA").style.width = pa + "%";
+    $("pctA").textContent = pa + "%"; $("pctB").textContent = (100 - pa) + "%";
+    $("sideA").classList.toggle("lead", counts.a > counts.b); $("sideB").classList.toggle("lead", counts.b > counts.a);
+  }
+  function pop(id){ var e = $(id); e.classList.add("pop"); setTimeout(function(){ e.classList.remove("pop"); }, 200); }
+
+  // Connection diagnostics, saved with the scores so the controller can show them.
+  var diag = { bridgeAny:0, bridgeData:0, feedData:0, lastData:0, bridgeKinds:[], feedKinds:[] };
+  // What kinds of messages each route carries (first 15 kinds), to tell
+  // "page loaded" apart from "actually connected to SSN".
+  function kindOf(d){
+    if (!d || typeof d !== "object") return typeof d;
+    if (d.action) return "action:" + String(d.action).slice(0, 30);
+    if (d.dataReceived) return "data:" + Object.keys(d.dataReceived).slice(0, 3).join("+");
+    if (d.overlayNinja) return "event:" + String(d.overlayNinja.event || "chat");
+    if (d.event !== undefined) return "event:" + String(d.event || "chat");
+    return "keys:" + Object.keys(d).slice(0, 4).join("+");
+  }
+  function noteKind(list, d){ var k = kindOf(d); if (list.indexOf(k) === -1 && list.length < 15) list.push(k); }
+  var crossSeen = new Map();   // same reaction arriving by both routes counts once
+  function signature(p){ return [p.event, p.type, p.chatmessage, p.contentimg, p.id].map(function(x){ return String(x == null ? "" : x); }).join("|"); }
+
+  function onReaction(p, via){
+    if (!p || typeof p !== "object") return;
+    if (p.overlayNinja) p = p.overlayNinja;
+    var ev = String(p.event || "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    if (!ev) return;                                       // ordinary chat
+    diag.lastData = Date.now();
+    var plat = String(p.type || "").toLowerCase();
+    // SSN's own reactions overlay treats reaction, liked and like as reactions.
+    // TikTok likes are left out: this is a YouTube battle.
+    var isReaction = (ev === "reaction" || ev === "liked" || ev === "like") && plat.indexOf("tiktok") !== 0;
+    if (!isReaction){
+      if (ev !== "viewer_update" && ev !== "viewer_updates"){
+        counts.recent.push({ t:Date.now(), side:"ignored (" + ev + ")", sample:sampleOf(p) });
+        if (counts.recent.length > 12) counts.recent.shift();
+        dirty = true;
+      }
+      return;
+    }
+    var sig = signature(p), prev = crossSeen.get(sig), now = Date.now();
+    crossSeen.forEach(function(v, k){ if (now - v.t > 3000) crossSeen.delete(k); });
+    if (prev && prev.via !== via && now - prev.t < 2000){ crossSeen.delete(sig); return; }
+    crossSeen.set(sig, { via:via, t:now });
+    if (p.id != null && p.id !== ""){ var k = String(p.type) + ":" + String(p.id); if (seenIds.has(k)) return; seenIds.add(k); if (seenIds.size > 5000) seenIds = new Set(); }
+    var side = state.on ? sideOf(p) : "";
+    if (side === "a"){ counts.a++; pop("emoA"); } else if (side === "b"){ counts.b++; pop("emoB"); } else counts.other++;
+    counts.recent.push({ t:Date.now(), side: state.on ? (side || "none") : "off", sample:"(" + ev + ") " + sampleOf(p) });
+    if (counts.recent.length > 12) counts.recent.shift();
+    dirty = true; paint();
+  }
+
+  // Same peer-to-peer join SSN's own reactions overlay uses (label "reactions").
+  var bridge = document.createElement("iframe");
+  bridge.src = "https://vdo.socialstream.ninja/?ln&salt=vdo.ninja&password=false&solo&view=" + encodeURIComponent(SESSION) +
+               "&novideo&noaudio&label=reactions&cleanoutput&room=" + encodeURIComponent(SESSION);
+  bridge.style.cssText = "width:0;height:0;border:0;position:absolute;left:-200px;top:-200px;";
+  if (SESSION) document.body.appendChild(bridge);
+  window.addEventListener("message", function(e){
+    if (e.source !== bridge.contentWindow) return;
+    diag.bridgeAny++; noteKind(diag.bridgeKinds, e.data);
+    var d = e.data && e.data.dataReceived && e.data.dataReceived.overlayNinja;
+    if (d){ diag.bridgeData++; onReaction(d, "bridge"); }
+  });
+
+  // Second route, also used by SSN's reactions overlay: the SSN server feed.
+  var feedRetry = 1;
+  function openFeed(){
+    var ws;
+    try { ws = new WebSocket("wss://io.socialstream.ninja/api"); } catch(e){ setTimeout(openFeed, 5000); return; }
+    ws.onopen = function(){ feedRetry = 1; ws.send(JSON.stringify({ join:SESSION, out:3, in:4 })); };
+    ws.onmessage = function(e){
+      var d; try { d = JSON.parse(e.data); } catch(err){ return; }
+      if (d && d.get){ try { ws.send(JSON.stringify({ callback:{ get:d.get, result:true } })); } catch(err){} }
+      diag.feedData++; noteKind(diag.feedKinds, d);
+      if (Array.isArray(d)) d.forEach(function(x){ onReaction(x, "feed"); }); else onReaction(d, "feed");
+    };
+    ws.onerror = function(){ try { ws.close(); } catch(e){} };
+    ws.onclose = function(){ setTimeout(openFeed, Math.min(15000, 500 * feedRetry++)); };
+  }
+  if (SESSION) openFeed();
+
+  // State from the controller every 5 s; scores saved every 10 s when changed,
+  // plus a heartbeat every 30 s so the controller can tell the overlay is alive.
+  function pullState(){
+    getJSON(STATE_KEY).then(function(st){
+      if (!st) return;
+      var newBattle = st.seq !== state.seq;
+      state = st;
+      if (newBattle){
+        if (counts.seq === -1){
+          // first load: pick up scores saved before a restart
+          return getJSON(COUNT_KEY).then(function(c){
+            counts = (c && c.seq === st.seq) ? { seq:st.seq, a:c.a||0, b:c.b||0, other:c.other||0, recent:c.recent||[] } : { seq:st.seq, a:0, b:0, other:0, recent:[] };
+            paint();
+          });
+        }
+        counts = { seq:st.seq, a:0, b:0, other:0, recent:counts.recent }; dirty = true;
+      }
+      paint();
+    }).catch(function(){});
+  }
+  function pushCounts(){
+    var now = Date.now();
+    if (!dirty && now - lastWrite < 30000) return;
+    var snap = { seq:counts.seq, a:counts.a, b:counts.b, other:counts.other, recent:counts.recent, at:now, diag:diag, ver:VERSION,
+                 where:(navigator.userAgent.match(/Chrome\/[\d]+/) || ["a browser"])[0] + " (" + (innerWidth + "x" + innerHeight) + ")" };
+    setJSON(COUNT_KEY, snap).then(function(){ dirty = false; lastWrite = now; }).catch(function(){});
+  }
+  pullState(); setInterval(pullState, 5000); setInterval(pushCounts, 10000);
+  window.__battle = { onReaction:onReaction, state:function(){ return state; }, counts:function(){ return counts; } };
+})();
+</script>
+</body>
+</html>
