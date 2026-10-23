@@ -16,6 +16,19 @@
 -->
 <html lang="en">
 <head>
+  <script>
+  // ITPD: this file is the on-screen overlay. If it's opened with "edit" (before or
+  // after the #), send the browser to the controller instead, keeping the settings,
+  // and stop this page so it never joins SSN as a second reactions page.
+  (function(){
+    var q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
+    if (!q.has("edit") && !h.has("edit")) return;
+    h.delete("edit");
+    var dest = location.pathname.replace(/[^\/]*$/, "") + "itpd-reaction-battle.html?edit#" + h.toString();
+    try { window.stop(); } catch (e) {}
+    location.replace(dest);
+  })();
+  </script>
     <meta charset="UTF-8">
     <meta name="description" content="Reactions Overlay. Part of the Social Stream Ninja toolkit for managing live chat, stream overlays and audience interactions.">
     <meta name="robots" content="noindex">
