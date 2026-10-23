@@ -826,6 +826,15 @@ body {
 	  if (H.get("pos") === "bottom") document.body.classList.add("itpd-bottom");
 	  var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--itpd-scale", sc);
 	  var api = window.ITPDBattle = { noFloat: H.has("nofloat"), onReaction: function(){} };
+	  // Optional: floating reactions rise only part of the way up and fade out
+	  // there (rise=45 means 45% of the screen height). Works before or after the #.
+	  var rise = parseFloat(H.get("rise") || new URLSearchParams(location.search).get("rise"));
+	  if (rise > 5 && rise < 116){
+	    var st = document.createElement("style");
+	    st.textContent = "@keyframes float-up{0%{opacity:0;transform:translate3d(0,0,0) scale(.72) rotate(0deg)}" +
+	      "12%{opacity:1}70%{opacity:1}100%{opacity:0;transform:translate3d(var(--drift,0vw),-" + (rise + 14) + "vh,0) scale(1.08) rotate(var(--spin,0deg))}}";
+	    document.head.appendChild(st);
+	  }
 	  if (!URL_ || !TOK) return;            // no Upstash settings: floating reactions only
 
 	  function pipe(cmd){
