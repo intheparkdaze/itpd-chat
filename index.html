@@ -12,7 +12,7 @@
 :root{
   --bg:#f3f1f8; --panel:#ffffff; --ink:#1b1830; --muted:#625c7a; --line:#dcd7ea;
   --yt:#d61f1f; --tw:#7a3ff0; --tt:#0e9e9a; --gold:#a26a00; --ok:#1d8a47; --warn:#b26b00; --bad:#c42b2b;
-  --gift:#fff3d6;
+  --gift:#fff3d6; --follow:#e3f6ec;
   color-scheme: light;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
@@ -22,7 +22,7 @@
   :root{
     --bg:#1b1830; --panel:#252140; --ink:#efeaff; --muted:#a59fc2; --line:#3a345c;
     --yt:#ff5a5a; --tw:#b28bff; --tt:#3fd6cf; --gold:#ffc94d; --ok:#4fd27f; --warn:#ffb340; --bad:#ff6b6b;
-    --gift:#3a3020;
+    --gift:#3a3020; --follow:#1f3a2c;
     color-scheme: dark;
   }
 }
@@ -32,8 +32,8 @@ body{background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacS
 button{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--tw);outline-offset:2px}
 
-/* Status strip: the one thing that matters at a glance */
-.strip{display:flex;gap:6px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);align-items:stretch}
+.top{background:var(--panel);border-bottom:1px solid var(--line)}
+.strip{display:flex;gap:6px;padding:8px 10px 6px;align-items:stretch}
 .lamp{flex:1;min-width:0;border-radius:10px;padding:6px 8px;border:2px solid var(--line);display:flex;flex-direction:column;justify-content:center}
 .lamp b{font-size:.95rem;display:flex;align-items:center;gap:6px}
 .lamp b::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
@@ -47,7 +47,17 @@ button{font:inherit;color:inherit}
 .lamp.link.up{border-color:var(--ok)}
 .menu{flex:none;width:44px;border-radius:10px;border:2px solid var(--line);background:transparent;font-size:1.3rem}
 
-/* Chat */
+/* Ticker: live counts, scrolls sideways if it overflows */
+.ticker{display:flex;gap:6px;padding:0 10px 8px;overflow-x:auto;white-space:nowrap;scrollbar-width:none;font-size:.85rem}
+.ticker::-webkit-scrollbar{display:none}
+.chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.chip i{font-style:normal;font-weight:800;font-size:.7rem;padding:1px 5px;border-radius:4px;color:#fff}
+.chip.youtube i{background:var(--yt)} .chip.twitch i{background:var(--tw)} .chip.tiktok i{background:var(--tt)}
+.chip.rec i{background:var(--muted)}
+.chip.rec.bad{border-color:var(--bad);color:var(--bad)}
+.chip.old{opacity:.55}
+.chip.empty{color:var(--muted)}
+
 #log{flex:1;overflow-y:auto;padding:6px 10px 80px;-webkit-overflow-scrolling:touch}
 .msg{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);align-items:flex-start}
 .msg img.av{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;background:var(--line)}
@@ -60,37 +70,41 @@ button{font:inherit;color:inherit}
 .text{font-size:1rem}
 .text img{height:1.35em;vertical-align:-.3em}
 .msg.paid{background:var(--gift);border-radius:8px;padding:8px;border:none;margin:4px 0}
+.msg.follow{background:var(--follow);border-radius:8px;padding:8px;border:none;margin:4px 0}
 .paid-line{font-weight:800;color:var(--gold);font-size:.9rem}
+.follow .paid-line{color:var(--ok)}
 .msg.gone .text{text-decoration:line-through;opacity:.5}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
 #jump{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));border:none;border-radius:20px;padding:10px 18px;background:var(--tw);color:#fff;font-weight:700;display:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 
-/* Settings sheet */
 #sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:20}
 #sheet.open{display:flex}
-.card{background:var(--panel);width:100%;max-width:560px;margin:0 auto;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.card{background:var(--panel);width:100%;max-width:560px;margin:0 auto;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));max-height:90vh;overflow-y:auto}
 .card h2{margin:0 0 12px;font-size:1.15rem}
-.card label{display:block;font-size:.9rem;color:var(--muted);margin:12px 0 4px}
+.card h3{margin:18px 0 4px;font-size:.95rem}
+.card label{display:block;font-size:.9rem;color:var(--muted);margin:10px 0 4px}
 .card input[type=text],.card input[type=password]{width:100%;padding:12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font-size:1rem}
 .row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .btn{flex:1;min-width:120px;padding:12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700}
 .btn.primary{background:var(--tw);border-color:var(--tw);color:#fff}
-.check{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:.95rem}
+.check{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:.95rem}
 .check input{width:22px;height:22px}
-.small{font-size:.8rem;color:var(--muted);margin-top:10px}
-#diag{font-size:.75rem;color:var(--muted);white-space:pre-wrap;margin-top:10px;max-height:120px;overflow:auto}
-@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+.small{font-size:.8rem;color:var(--muted);margin-top:6px}
+#diag{font-size:.75rem;color:var(--muted);white-space:pre-wrap;margin-top:10px;max-height:160px;overflow:auto}
 </style>
 </head>
 <body>
 
-<div class="strip" role="status" aria-live="polite">
-  <div class="lamp link down" id="lampLink"><b>Relay</b><span id="linkTxt">Not connected</span></div>
-  <div class="lamp" id="lamp-youtube"><b>YouTube</b><span>No messages yet</span></div>
-  <div class="lamp" id="lamp-twitch"><b>Twitch</b><span>No messages yet</span></div>
-  <div class="lamp" id="lamp-tiktok"><b>TikTok</b><span>No messages yet</span></div>
-  <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
+<div class="top">
+  <div class="strip" role="status" aria-live="polite">
+    <div class="lamp link down" id="lampLink"><b>Relay</b><span id="linkTxt">Not connected</span></div>
+    <div class="lamp" id="lamp-youtube"><b>YouTube</b><span>No messages yet</span></div>
+    <div class="lamp" id="lamp-twitch"><b>Twitch</b><span>No messages yet</span></div>
+    <div class="lamp" id="lamp-tiktok"><b>TikTok</b><span>No messages yet</span></div>
+    <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
+  </div>
+  <div class="ticker" id="ticker" aria-label="Live counts"></div>
 </div>
 
 <div id="log" aria-live="off"></div>
@@ -101,9 +115,16 @@ button{font:inherit;color:inherit}
     <h2 id="sheetTitle">Chat settings</h2>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
-    <div class="small">Saved only on this phone. It’s never in the page’s code, so the GitHub repo can stay public.</div>
-    <label class="check"><input type="checkbox" id="wake"> Keep the screen on while this page is open</label>
+    <h3>Catch-up when you switch tabs</h3>
+    <label for="rurl">Upstash REST URL</label>
+    <input type="text" id="rurl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://….upstash.io">
+    <label for="rtok">Upstash read-only token</label>
+    <input type="password" id="rtok" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Read-only token, not the read/write one">
+    <div class="small">Everything here is saved only on this phone, never in the page’s code. Use the read-only token: it can see chat history but can’t change anything.</div>
+    <h3>What to show</h3>
+    <label class="check"><input type="checkbox" id="showGifts"> Show TikTok gifts</label>
     <label class="check"><input type="checkbox" id="showGone" checked> Show deleted messages crossed out</label>
+    <label class="check"><input type="checkbox" id="wake"> Keep the screen on while this page is open</label>
     <div class="row">
       <button class="btn primary" id="saveBtn">Save and connect</button>
       <button class="btn" id="testBtn">Show a test message</button>
@@ -121,9 +142,15 @@ button{font:inherit;color:inherit}
 (function(){
   "use strict";
   var RELAY = "wss://io.socialstream.ninja/join/";
-  var CHANNEL = "4";            // same channel the alerts controller listens on
-  var MAX_MSGS = 300;
+  var CHANNEL = "4";                         // same channel the alerts controller listens on
+  var BUFFER_KEY = "itpd_chat_buffer_2026";  // written by recorder.html
+  var COUNTER_KEY = "itpd_chat_counters_2026";
+  var MAX_MSGS = 400, BACKFILL_N = 300;
   var FRESH_S = 120, AGING_S = 600;
+  var COUNTER_EVENTS = { viewer_update:"viewers", likes_update:"likes", subscriber_update:"subs", follower_update:"followers" };
+  var HIDE_EVENTS = { joined:1, liked:1, reaction:1, shared:1, envelope:1, view_update:1, live_chat_ended:1, user_banned:1,
+    hype_train:1, stream_online:1, stream_offline:1, ad_break:1, ad_request:1, ad_schedule:1, community_highlight:1, knock:1,
+    question_new:1, emote:1, powerup:1, watch_streak:1 };
 
   var $ = function(id){ return document.getElementById(id); };
   var logEl = $("log");
@@ -132,51 +159,109 @@ button{font:inherit;color:inherit}
     set: function(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
   };
 
+  // One-time setup link: index.html#sid=…&rurl=…&rtok=…  (saved, then wiped from the address bar)
+  (function readSetupHash(){
+    if (!location.hash || location.hash.length < 3) return;
+    var p = new URLSearchParams(location.hash.slice(1)), any = false;
+    [["sid","itpd_phonechat_sid"],["rurl","itpd_phonechat_rurl"],["rtok","itpd_phonechat_rtok"]].forEach(function(pair){
+      var v = p.get(pair[0]); if (v){ store.set(pair[1], v.trim()); any = true; }
+    });
+    if (any) try { history.replaceState(null, "", location.pathname + location.search); } catch(e){}
+  })();
+
   var ws = null, retry = 0, retryTimer = null, wantOpen = false;
-  var downSince = null, lastPacket = 0, connectedOnce = false;
+  var downSince = null, lastPacket = 0, connectedOnce = false, hiddenAt = 0;
   var lastByPlat = { youtube:0, twitch:0, tiktok:0 };
-  var seen = new Map();          // id -> element, for de-dup and deletes
-  var diagLines = [];
-  var wakeLock = null, hiddenAt = 0;
+  var counters = {};                // "youtube.viewers" -> {v, ts}
+  var recorderSeen = 0;
+  var seenKeys = new Set(), seenOrder = [];
+  var diagLines = [], eventsSeen = {};
+  var wakeLock = null, lastBackfill = 0, backfillAdded = 0;
 
+  function cfg(k){ return store.get("itpd_phonechat_" + k) || ""; }
   function diag(s){
-    var t = new Date().toLocaleTimeString();
-    diagLines.push(t + "  " + s);
-    if (diagLines.length > 30) diagLines.shift();
-    $("diag").textContent = diagLines.join("\n");
+    diagLines.push(new Date().toLocaleTimeString() + "  " + s);
+    if (diagLines.length > 25) diagLines.shift();
+    var ev = Object.keys(eventsSeen).map(function(k){ return k + "×" + eventsSeen[k]; }).join(", ");
+    $("diag").textContent = diagLines.join("\n") + (ev ? "\n\nEvents seen: " + ev : "");
   }
-
   function fmtAge(sec){
     if (sec < 60) return sec + "s ago";
     if (sec < 3600) return Math.floor(sec/60) + "m ago";
     return Math.floor(sec/3600) + "h " + Math.floor((sec%3600)/60) + "m ago";
   }
+  function fmtNum(n){
+    if (n >= 1e6) return (n/1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/,"") + "M";
+    if (n >= 1e4) return (n/1e3).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/,"") + "K";
+    return String(n);
+  }
   function clock(d){ return d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }
 
-  // ---- status strip ----
+  // ---------- status strip + ticker ----------
   function paintLamps(){
     var now = Date.now();
     ["youtube","twitch","tiktok"].forEach(function(p){
       var el = $("lamp-"+p), t = lastByPlat[p];
       el.classList.remove("fresh","aging","stale");
       if (!t){ el.querySelector("span").textContent = "No messages yet"; return; }
-      var s = Math.round((now - t)/1000);
+      var s = Math.max(0, Math.round((now - t)/1000));
       el.querySelector("span").textContent = "Last " + fmtAge(s);
       el.classList.add(s <= FRESH_S ? "fresh" : s <= AGING_S ? "aging" : "stale");
     });
     var link = $("lampLink"), up = ws && ws.readyState === 1;
-    link.classList.toggle("up", !!up);
-    link.classList.toggle("down", !up);
+    link.classList.toggle("up", !!up); link.classList.toggle("down", !up);
     if (up) $("linkTxt").textContent = lastPacket ? "Connected, data " + fmtAge(Math.round((now-lastPacket)/1000)) : "Connected";
-    else if (!store.get("itpd_phonechat_sid")) $("linkTxt").textContent = "Add session ID";
+    else if (!cfg("sid")) $("linkTxt").textContent = "Add session ID";
     else $("linkTxt").textContent = downSince ? "Down " + fmtAge(Math.round((now-downSince)/1000)).replace(" ago","") : "Connecting";
+    paintTicker();
+  }
+  function paintTicker(){
+    var t = $("ticker"), now = Date.now(), html = [];
+    t.textContent = "";
+    var defs = [["youtube","YT"],["twitch","TW"],["tiktok","TT"]];
+    var labels = { viewers:"👁", likes:"👍", subs:"subs", followers:"followers" };
+    var anyCount = false;
+    defs.forEach(function(d){
+      var parts = [], newest = 0;
+      ["viewers","likes","subs","followers"].forEach(function(k){
+        var c = counters[d[0] + "." + k];
+        if (c){ parts.push(k === "viewers" || k === "likes" ? labels[k] + " " + fmtNum(c.v) : fmtNum(c.v) + " " + labels[k]); newest = Math.max(newest, c.ts); }
+      });
+      if (!parts.length) return;
+      anyCount = true;
+      var chip = document.createElement("span");
+      chip.className = "chip " + d[0] + (now - newest > 300000 ? " old" : "");
+      var tag = document.createElement("i"); tag.textContent = d[1]; chip.appendChild(tag);
+      chip.appendChild(document.createTextNode(parts.join(" · ")));
+      t.appendChild(chip);
+    });
+    if (!anyCount){
+      var e = document.createElement("span"); e.className = "chip empty";
+      e.textContent = "Viewer and like counts appear here once SSN sends them";
+      t.appendChild(e);
+    }
+    if (cfg("rurl") && cfg("rtok")){
+      var r = document.createElement("span"), age = recorderSeen ? Math.round((now - recorderSeen)/1000) : -1;
+      r.className = "chip rec" + (age < 0 || age > 90 ? " bad" : "");
+      var ri = document.createElement("i"); ri.textContent = "REC"; r.appendChild(ri);
+      r.appendChild(document.createTextNode(age < 0 ? "not seen" : fmtAge(age)));
+      t.appendChild(r);
+    }
   }
   setInterval(paintLamps, 5000);
 
-  // ---- safe rendering of chatmessage (may contain HTML from SSN) ----
-  function safeFragment(html){
+  function setCounter(plat, kind, v, ts){
+    if (typeof v !== "number" || !isFinite(v)) { v = parseInt(v, 10); if (!isFinite(v)) return; }
+    var k = plat + "." + kind, old = counters[k];
+    if (old && old.ts > ts) return;
+    counters[k] = { v:v, ts:ts };
+  }
+
+  // ---------- safe rendering ----------
+  function safeFragment(html, textonly){
     var frag = document.createDocumentFragment();
     if (html == null) return frag;
+    if (textonly === true){ frag.appendChild(document.createTextNode(String(html))); return frag; }
     var doc = new DOMParser().parseFromString("<div>" + String(html) + "</div>", "text/html");
     (function walk(node, out){
       node.childNodes.forEach(function(n){
@@ -187,88 +272,109 @@ button{font:inherit;color:inherit}
             var src = n.getAttribute("src") || "";
             if (/^https:\/\//i.test(src)){
               var im = document.createElement("img");
-              im.src = src; im.alt = n.getAttribute("alt") || ""; im.loading = "lazy";
-              im.referrerPolicy = "no-referrer";
+              im.src = src; im.alt = n.getAttribute("alt") || ""; im.loading = "lazy"; im.referrerPolicy = "no-referrer";
               out.appendChild(im);
-            } else if (n.getAttribute("alt")) {
-              out.appendChild(document.createTextNode(n.getAttribute("alt")));
-            }
-          } else if (tag === "script" || tag === "style" || tag === "noscript"){ /* drop entirely */ }
+            } else if (n.getAttribute("alt")) out.appendChild(document.createTextNode(n.getAttribute("alt")));
+          } else if (tag === "script" || tag === "style" || tag === "noscript"){ }
           else if (tag === "br"){ out.appendChild(document.createTextNode(" ")); }
-          else { walk(n, out); }   // drop the tag, keep its text
+          else walk(n, out);
         }
       });
     })(doc.body.firstChild || doc.body, frag);
     return frag;
   }
-
+  function plainText(m){
+    if (m.textonly === true) return String(m.chatmessage || "").trim();
+    var d = new DOMParser().parseFromString("<div>" + String(m.chatmessage || "") + "</div>", "text/html");
+    var hasImg = !!d.querySelector("img");
+    return ((d.body.textContent || "").trim() || (hasImg ? "[emoji]" : ""));
+  }
   function platOf(m){
     var t = String(m.type || "").toLowerCase();
     if (t.indexOf("youtube") === 0) return "youtube";
     if (t.indexOf("twitch") === 0) return "twitch";
     if (t.indexOf("tiktok") === 0) return "tiktok";
-    return t ? "other" : "other";
+    return "other";
   }
 
-  // ---- scrolling ----
+  // ---------- what counts as a chat row ----------
+  // Returns null to hide, or {kind:"chat"|"follow"|"paid"}
+  function classify(m){
+    var ev = m.event, plat = platOf(m);
+    var hasText = plainText(m) !== "" || !!m.contentimg;
+    if (ev === "followed" || ev === "new_follower") return m.chatname ? { kind:"follow" } : null;
+    if (plat === "tiktok"){
+      if (!ev) return (m.chatname && hasText) ? { kind:"chat" } : null;   // plain chat only
+      if (ev === "gift") return $("showGifts").checked && m.chatname ? { kind:"paid" } : null;
+      return null;                                                         // joins, likes, shares, system rows
+    }
+    if (typeof ev === "string" && HIDE_EVENTS[ev]) return null;
+    if (ev === true) return null;                                          // untyped system notices
+    if (m.hasDonation || (ev && ev !== "action")) return m.chatname || hasText ? { kind:"paid" } : null;
+    return (m.chatname && hasText) ? { kind:"chat" } : null;
+  }
+
+  // ---------- scrolling and ordered insert ----------
   function nearBottom(){ return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 80; }
   function toBottom(){ logEl.scrollTop = logEl.scrollHeight; $("jump").style.display = "none"; }
   logEl.addEventListener("scroll", function(){ if (nearBottom()) $("jump").style.display = "none"; });
   $("jump").addEventListener("click", toBottom);
 
-  function append(el){
+  function place(el, ts){
+    el.dataset.ts = String(ts);
     var stick = nearBottom();
-    logEl.appendChild(el);
-    while (logEl.children.length > MAX_MSGS){
-      var first = logEl.firstElementChild;
-      if (first && first.dataset.key) seen.delete(first.dataset.key);
-      logEl.removeChild(first);
+    var last = logEl.lastElementChild;
+    if (!last || Number(last.dataset.ts || 0) <= ts) logEl.appendChild(el);
+    else {
+      var n = last;
+      while (n && Number(n.dataset.ts || 0) > ts) n = n.previousElementSibling;
+      if (n) n.after(el); else logEl.prepend(el);
     }
+    while (logEl.children.length > MAX_MSGS) logEl.removeChild(logEl.firstElementChild);
     if (stick) toBottom(); else $("jump").style.display = "block";
   }
-
-  function note(text, cls){
+  function note(text, cls, ts){
     var d = document.createElement("div");
     d.className = "note" + (cls ? " " + cls : "");
     d.textContent = text;
-    append(d);
+    place(d, ts || Date.now());
+    return d;
   }
 
-  // ---- message handling ----
+  // ---------- messages ----------
   function keyOf(m){
     if (m.id != null && m.id !== "") return String(m.type||"") + ":" + String(m.id);
-    return String(m.type||"") + "|" + String(m.chatname||"") + "|" + String(m.chatmessage||"").slice(0,200);
+    return String(m.type||"") + "|" + String(m.chatname||"") + "|" + String(m.event||"") + "|" + String(m.chatmessage||"").slice(0,200);
+  }
+  function remember(key){
+    seenKeys.add(key); seenOrder.push(key);
+    if (seenOrder.length > 5000) seenKeys.delete(seenOrder.shift());
   }
 
   function markDeleted(d){
-    var hit = null;
-    if (d.id != null){
-      seen.forEach(function(el, k){ if (!hit && k.split(":").pop() === String(d.id)) hit = el; });
+    if (!d || typeof d !== "object") return;
+    var type = d.type ? String(d.type) : null;
+    var mid = d.meta && d.meta.messageId != null ? String(d.meta.messageId) : null;
+    var rows = logEl.querySelectorAll(".msg"), hits = [];
+    for (var i = 0; i < rows.length; i++){
+      var r = rows[i];
+      if (type && r.dataset.type && r.dataset.type !== type) continue;
+      if (d.id != null && r.dataset.id === String(d.id)) hits.push(r);
+      else if (mid && r.dataset.mid === mid) hits.push(r);
+      else if (d.id == null && !mid && ((d.userid && r.dataset.userid === String(d.userid)) || (d.chatname && r.dataset.name === String(d.chatname)))) hits.push(r);
     }
-    if (!hit && d.chatname){
-      var nodes = logEl.querySelectorAll(".msg");
-      for (var i = nodes.length - 1; i >= 0; i--){
-        var n = nodes[i];
-        if (n.dataset.name === String(d.chatname) && (!d.chatmessage || n.dataset.raw === String(d.chatmessage))){ hit = n; break; }
-      }
-    }
-    if (hit){
-      hit.classList.add("gone");
-      if (!$("showGone").checked) hit.style.display = "none";
-    }
+    hits.forEach(function(h){ h.classList.add("gone"); if (!$("showGone").checked) h.style.display = "none"; });
   }
 
-  function render(m){
-    var key = keyOf(m);
-    if (seen.has(key)) return;               // de-dup
+  function render(m, ts, cls){
     var plat = platOf(m);
-    if (lastByPlat[plat] !== undefined) lastByPlat[plat] = Date.now();
-
     var row = document.createElement("div");
-    row.className = "msg";
-    row.dataset.key = key;
+    row.className = "msg" + (cls.kind === "paid" ? " paid" : cls.kind === "follow" ? " follow" : "");
+    row.dataset.type = String(m.type || "");
+    row.dataset.id = m.id != null ? String(m.id) : "";
+    row.dataset.mid = m.meta && typeof m.meta === "object" && m.meta.messageId != null ? String(m.meta.messageId) : "";
+    row.dataset.userid = m.userid != null ? String(m.userid) : "";
     row.dataset.name = String(m.chatname || "");
-    row.dataset.raw = String(m.chatmessage || "");
 
     var av = document.createElement("img");
     av.className = "av"; av.alt = ""; av.loading = "lazy"; av.referrerPolicy = "no-referrer";
@@ -280,75 +386,137 @@ button{font:inherit;color:inherit}
     var pl = document.createElement("span"); pl.className = "plat " + plat;
     pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : String(m.type || "?").slice(0,3).toUpperCase();
     who.appendChild(pl);
-    var nm = document.createElement("span"); nm.textContent = m.chatname || "Unknown"; who.appendChild(nm);
-    if (m.moderator === true){ var md = document.createElement("span"); md.className = "mod"; md.textContent = "mod"; who.appendChild(md); }
-    var tm = document.createElement("span"); tm.className = "t"; tm.textContent = clock(new Date()); who.appendChild(tm);
+    var nm = document.createElement("span"); nm.textContent = m.chatname || ""; who.appendChild(nm);
+    if (m.moderator === true || m.mod === true){ var md = document.createElement("span"); md.className = "mod"; md.textContent = "mod"; who.appendChild(md); }
+    var tm = document.createElement("span"); tm.className = "t"; tm.textContent = clock(new Date(ts)); who.appendChild(tm);
     body.appendChild(who);
 
-    var ev = String(m.event || "");
-    var paidText = "";
-    if (m.hasDonation) paidText = String(m.hasDonation);
-    if (ev === "sponsorship") paidText = "New member";
-    else if (ev === "membermilestone") paidText = "Member milestone" + (m.subtitle ? ": " + m.subtitle : "");
-    else if (ev === "giftpurchase") paidText = "Gifted " + (m.subtitle || "memberships");
-    else if (ev === "giftredemption") paidText = m.subtitle || "Received a gift membership";
-    if (paidText){
-      row.classList.add("paid");
-      var pd = document.createElement("div"); pd.className = "paid-line"; pd.textContent = paidText;
-      body.appendChild(pd);
-    }
+    var ev = String(m.event || ""), line = "";
+    if (cls.kind === "follow") line = plat === "youtube" ? "Subscribed" : "Followed";
+    else if (ev === "sponsorship") line = "New member";
+    else if (ev === "membermilestone") line = "Member milestone" + (m.subtitle ? ": " + m.subtitle : "");
+    else if (ev === "giftpurchase") line = "Gifted " + (m.subtitle || "memberships");
+    else if (ev === "giftredemption") line = m.subtitle || "Received a gift membership";
+    else if (ev === "resub") line = "Renewed" + (m.subtitle ? ": " + m.subtitle : "");
+    if (m.hasDonation) line = String(m.hasDonation) + (line ? " · " + line : "");
+    if (line){ var pd = document.createElement("div"); pd.className = "paid-line"; pd.textContent = line; body.appendChild(pd); }
 
     var tx = document.createElement("div"); tx.className = "text";
-    tx.appendChild(safeFragment(m.chatmessage));
-    if (m.contentimg && /^https:\/\//i.test(m.contentimg)){
-      var ci = document.createElement("img"); ci.src = m.contentimg; ci.alt = ""; ci.referrerPolicy = "no-referrer";
-      tx.appendChild(ci);
+    if (cls.kind !== "follow"){
+      tx.appendChild(safeFragment(m.chatmessage, m.textonly));
+      if (m.contentimg && /^https:\/\//i.test(m.contentimg)){
+        var ci = document.createElement("img"); ci.src = m.contentimg; ci.alt = ""; ci.referrerPolicy = "no-referrer"; tx.appendChild(ci);
+      }
     }
     body.appendChild(tx);
     row.appendChild(body);
+    place(row, ts);
+  }
 
-    seen.set(key, row);
-    append(row);
+  // Returns true if a new chat row was added
+  function handle(obj, ts, fromBackfill){
+    if (!obj || typeof obj !== "object") return false;
+    if (Array.isArray(obj)){ var n = false; obj.forEach(function(o){ if (handle(o, ts, fromBackfill)) n = true; }); return n; }
+    if (obj.overlayNinja) return handle(obj.overlayNinja, ts, fromBackfill);
+    if (obj.contents && typeof obj.contents === "object") return handle(obj.contents, ts, fromBackfill);
+    if (obj.delete){ markDeleted(obj.delete); return false; }
+    if (obj.deleteMessage){ markDeleted(obj.deleteMessage); return false; }
+
+    var ev = obj.event;
+    if (ev && !fromBackfill){ var en = String(ev); eventsSeen[en] = (eventsSeen[en] || 0) + 1; }
+    if (ev === "viewer_updates" && obj.meta && typeof obj.meta === "object"){
+      Object.keys(obj.meta).forEach(function(t){ setCounter(platOf({type:t}), "viewers", obj.meta[t], ts); });
+      paintTicker(); return false;
+    }
+    if (typeof ev === "string" && COUNTER_EVENTS[ev]){
+      setCounter(platOf(obj), COUNTER_EVENTS[ev], typeof obj.meta === "object" && obj.meta ? obj.meta.count : obj.meta, ts);
+      paintTicker(); return false;
+    }
+
+    var cls = classify(obj);
+    if (!cls) return false;
+    var key = keyOf(obj);
+    if (seenKeys.has(key)) return false;
+    remember(key);
+    var plat = platOf(obj);
+    if (lastByPlat[plat] !== undefined && ts > lastByPlat[plat]) lastByPlat[plat] = ts;
+    render(obj, ts, cls);
+    if (fromBackfill) backfillAdded++;
     paintLamps();
+    return true;
   }
 
-  function handlePayload(obj){
-    if (!obj || typeof obj !== "object") return;
-    if (Array.isArray(obj)){ obj.forEach(handlePayload); return; }
-    if (obj.overlayNinja){ handlePayload(obj.overlayNinja); return; }
-    if (obj.contents && typeof obj.contents === "object"){ handlePayload(obj.contents); return; }
-    // delete notices: shape not confirmed against live SSN; handle the likely forms
-    if (obj.delete || obj.deleteMessage){ markDeleted(obj.deleteMessage || obj.delete); return; }
-    if (obj.action === "delete" || obj.event === "delete" || obj.event === "deleted"){ markDeleted(obj); return; }
-    if (obj.chatname || obj.chatmessage || obj.event || obj.hasDonation) render(obj);
+  // ---------- catch-up from the recorder's buffer ----------
+  function upstash(path){
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("rtok");
+    return fetch(url + path, { headers:{ Authorization:"Bearer " + tok }, cache:"no-store" })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(j){ if (j.error) throw new Error(j.error); return j.result; });
+  }
+  function backfill(gapFrom){
+    if (!cfg("rurl") || !cfg("rtok")) return Promise.resolve(null);
+    lastBackfill = Date.now();
+    return Promise.all([
+      upstash("/lrange/" + BUFFER_KEY + "/0/" + (BACKFILL_N - 1)),
+      upstash("/hgetall/" + COUNTER_KEY)
+    ]).then(function(res){
+      var items = (res[0] || []).slice().reverse(), added = 0, oldest = Infinity;
+      items.forEach(function(s){
+        try {
+          var e = JSON.parse(s);
+          if (e && e.m){ oldest = Math.min(oldest, e.ts || Infinity); if (handle(e.m, e.ts || Date.now(), true)) added++; }
+        } catch(err){}
+      });
+      var h = res[1] || [];
+      for (var i = 0; i + 1 < h.length; i += 2){
+        try {
+          var f = h[i], c = JSON.parse(h[i+1]);
+          if (f === "recorder") recorderSeen = Math.max(recorderSeen, c.ts || 0);
+          else { var p = f.split("."); setCounter(p[0], p[1], c.v, c.ts || 0); }
+        } catch(err){}
+      }
+      paintTicker();
+      diag("Catch-up: " + added + " missed message" + (added === 1 ? "" : "s") + " added");
+      return { added:added, oldest:oldest };
+    }).catch(function(e){ diag("Catch-up failed: " + e.message); return null; });
   }
 
-  // ---- connection ----
+  // ---------- connection ----------
   function connect(){
-    var sid = store.get("itpd_phonechat_sid");
+    var sid = cfg("sid");
     clearTimeout(retryTimer);
     if (!sid){ paintLamps(); openSheet(); return; }
     if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
     wantOpen = true;
-    var url = RELAY + encodeURIComponent(sid) + "/" + CHANNEL;
     diag("Connecting to relay");
-    try { ws = new WebSocket(url); } catch(e){ diag("Socket error: " + e.message); schedule(); return; }
+    try { ws = new WebSocket(RELAY + encodeURIComponent(sid) + "/" + CHANNEL); }
+    catch(e){ diag("Socket error: " + e.message); schedule(); return; }
     ws.onopen = function(){
       retry = 0;
-      if (downSince && connectedOnce){
-        note("Reconnected. Messages between " + clock(new Date(downSince)) + " and " + clock(new Date()) + " may be missing.", "gap");
-      } else if (!connectedOnce){
-        note("Connected. New messages will appear here.");
-      }
+      var gapFrom = downSince, now = Date.now();
       connectedOnce = true; downSince = null;
       diag("Connected");
       paintLamps();
+      var addedBefore = backfillAdded;
+      backfill(gapFrom).then(function(r1){
+        // second pass picks up anything the recorder hadn't written yet (it writes every 5 s)
+        return new Promise(function(res){ setTimeout(res, 7000); }).then(function(){ return backfill(gapFrom); })
+          .then(function(r2){
+            if (!r1 && !r2) return null;
+            var o = Math.min(r1 ? r1.oldest : Infinity, r2 ? r2.oldest : Infinity);
+            return { added:backfillAdded - addedBefore, oldest:o };
+          });
+      }).then(function(r){
+        if (!gapFrom) return;
+        if (!r) note("Reconnected. Messages between " + clock(new Date(gapFrom)) + " and " + clock(new Date(now)) + " may be missing.", "gap", now);
+        else if (r.oldest > gapFrom && r.oldest !== Infinity) note("Caught up, but messages before " + clock(new Date(r.oldest)) + " may be missing.", "gap", r.oldest);
+        else if (r.added) note("Caught up: " + r.added + " missed message" + (r.added === 1 ? "" : "s") + " added above.", "", now);
+      });
     };
     ws.onmessage = function(ev){
       lastPacket = Date.now();
-      var data = ev.data;
-      if (typeof data !== "string") return;
-      try { handlePayload(JSON.parse(data)); } catch(e){ /* non-JSON keepalives are ignored */ }
+      if (typeof ev.data !== "string") return;
+      try { handle(JSON.parse(ev.data), Date.now(), false); } catch(e){}
     };
     ws.onclose = function(ev){
       diag("Closed (" + ev.code + ")");
@@ -360,8 +528,7 @@ button{font:inherit;color:inherit}
   }
   function schedule(){
     clearTimeout(retryTimer);
-    var wait = Math.min(15000, 1000 * Math.pow(2, retry++));
-    retryTimer = setTimeout(connect, wait);
+    retryTimer = setTimeout(connect, Math.min(15000, 1000 * Math.pow(2, retry++)));
   }
   function reconnectNow(){
     retry = 0;
@@ -371,33 +538,29 @@ button{font:inherit;color:inherit}
     connect();
   }
 
-  // Phones freeze pages when the screen locks or the app is backgrounded.
-  // When the page comes back, check the socket and reconnect right away.
   document.addEventListener("visibilitychange", function(){
     if (document.visibilityState === "visible"){
-      // A frozen page can still report an open socket, so always reopen it on return.
       if (hiddenAt && !downSince) downSince = hiddenAt;
       hiddenAt = 0;
-      reconnectNow();
+      reconnectNow();                           // a frozen page can still report an open socket
       if ($("wake").checked) requestWake();
-      paintLamps();
-    } else {
-      hiddenAt = Date.now();
-    }
+    } else hiddenAt = Date.now();
   });
   window.addEventListener("online", reconnectNow);
   window.addEventListener("pageshow", function(e){ if (e.persisted) reconnectNow(); });
 
-  // ---- keep screen on ----
+  // ---------- keep screen on ----------
   function requestWake(){
     if (!("wakeLock" in navigator)) { diag("Keep-screen-on isn’t supported in this browser"); return; }
-    navigator.wakeLock.request("screen").then(function(l){ wakeLock = l; diag("Screen will stay on"); })
-      .catch(function(e){ diag("Keep-screen-on failed: " + e.message); });
+    navigator.wakeLock.request("screen").then(function(l){ wakeLock = l; }).catch(function(e){ diag("Keep-screen-on failed: " + e.message); });
   }
   function releaseWake(){ if (wakeLock){ wakeLock.release().catch(function(){}); wakeLock = null; } }
 
-  // ---- settings sheet ----
-  function openSheet(){ $("sheet").classList.add("open"); $("sid").value = store.get("itpd_phonechat_sid") || ""; }
+  // ---------- settings ----------
+  function openSheet(){
+    $("sheet").classList.add("open");
+    $("sid").value = cfg("sid"); $("rurl").value = cfg("rurl"); $("rtok").value = cfg("rtok");
+  }
   function closeSheet(){ $("sheet").classList.remove("open"); }
   $("openSettings").addEventListener("click", openSheet);
   $("closeBtn").addEventListener("click", closeSheet);
@@ -406,31 +569,29 @@ button{font:inherit;color:inherit}
     var v = $("sid").value.trim();
     if (!v){ diag("Enter the session ID first"); return; }
     store.set("itpd_phonechat_sid", v);
+    store.set("itpd_phonechat_rurl", $("rurl").value.trim());
+    store.set("itpd_phonechat_rtok", $("rtok").value.trim());
     closeSheet(); reconnectNow();
   });
   $("reconnectBtn").addEventListener("click", function(){ closeSheet(); reconnectNow(); });
-  $("clearBtn").addEventListener("click", function(){ logEl.textContent = ""; seen.clear(); closeSheet(); });
+  $("clearBtn").addEventListener("click", function(){ logEl.textContent = ""; closeSheet(); });
   $("testBtn").addEventListener("click", function(){
-    handlePayload({ type:"youtube", id:"test-" + Date.now(), chatname:"Test viewer", chatmessage:"This is a test message <b>with markup</b> 🎢", moderator:false });
+    handle({ type:"youtube", id:"test-" + Date.now(), chatname:"Test viewer", chatmessage:"This is a test message 🎢" }, Date.now(), false);
     closeSheet();
   });
-  $("wake").checked = store.get("itpd_phonechat_wake") === "1";
-  $("wake").addEventListener("change", function(){
-    store.set("itpd_phonechat_wake", this.checked ? "1" : "0");
-    if (this.checked) requestWake(); else releaseWake();
-  });
-  $("showGone").checked = store.get("itpd_phonechat_showgone") !== "0";
-  $("showGone").addEventListener("change", function(){
-    store.set("itpd_phonechat_showgone", this.checked ? "1" : "0");
-    logEl.querySelectorAll(".msg.gone").forEach(function(n){ n.style.display = $("showGone").checked ? "" : "none"; });
-  });
+  function bindCheck(id, key, dflt, onChange){
+    var v = store.get("itpd_phonechat_" + key);
+    $(id).checked = v == null ? dflt : v === "1";
+    $(id).addEventListener("change", function(){ store.set("itpd_phonechat_" + key, this.checked ? "1" : "0"); if (onChange) onChange(this.checked); });
+  }
+  bindCheck("wake", "wake", false, function(on){ if (on) requestWake(); else releaseWake(); });
+  bindCheck("showGone", "showgone", true, function(on){ logEl.querySelectorAll(".msg.gone").forEach(function(n){ n.style.display = on ? "" : "none"; }); });
+  bindCheck("showGifts", "showgifts", false);
 
   if ($("wake").checked) requestWake();
   connect();
   paintLamps();
-
-  // test hook for offline checks
-  window.__itpdChat = { handlePayload: handlePayload, safeFragment: safeFragment };
+  window.__itpdChat = { handle: handle, counters: counters };
 })();
 </script>
 </body>

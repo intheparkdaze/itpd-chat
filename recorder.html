@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<title>ITPD chat recorder</title>
+<style>
+  html,body{margin:0;background:transparent;font:12px/1.3 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#fff}
+  #s{display:inline-block;padding:3px 7px;border-radius:5px;background:rgba(0,0,0,.6)}
+  body.hide #s{display:none}
+</style>
+</head>
+<body>
+<!--
+  ITPD chat recorder. Runs as a browser source in IRLToolkit (or any always-on browser).
+  It listens to the same SSN relay channel as the alerts controller and keeps the last
+  500 chat rows plus the latest counts in Upstash, so the phone page can catch up
+  after it was in the background.
+
+  Settings go in the URL fragment (after #), never in this file:
+    recorder.html#sid=SSN_SESSION&url=https://charming-worm-109173.upstash.io&tok=READ_WRITE_TOKEN
+  Add &hide to hide the small status label.
+-->
+<span id="s">Recorder: starting</span>
+<script>
+(function(){
+  "use strict";
+  var p = new URLSearchParams(location.hash.slice(1));
+  var SID = p.get("sid"), URL_ = (p.get("url") || "").replace(/\/+$/,""), TOK = p.get("tok");
+  if (p.has("hide")) document.body.classList.add("hide");
+  var RELAY = "wss://io.socialstream.ninja/join/", CHANNEL = "4";
+  var BUFFER_KEY = "itpd_chat_buffer_2026", COUNTER_KEY = "itpd_chat_counters_2026";
+  var KEEP = 500, TTL = 43200;                 // 500 rows, 12 hours
+  var FLUSH_MS = 5000, HEARTBEAT_MS = 30000;
+  var COUNTER_EVENTS = { viewer_update:"viewers", likes_update:"likes", subscriber_update:"subs", follower_update:"followers" };
+  var SKIP = { joined:1, liked:1, reaction:1, shared:1, envelope:1, view_update:1, hype_train:1, ad_break:1, ad_request:1, ad_schedule:1 };
+
+  var queue = [], counters = {}, ws = null, retry = 0, lastWrite = 0, lastPacket = 0, flushes = 0, failing = false, busy = false;
+  var s = document.getElementById("s");
+  function status(t){ s.textContent = "Recorder: " + t; }
+  if (!SID || !URL_ || !TOK){ status("missing sid / url / tok in the link"); return; }
+
+  function platOf(t){ t = String(t || "").toLowerCase(); return t.indexOf("youtube") === 0 ? "youtube" : t.indexOf("twitch") === 0 ? "twitch" : t.indexOf("tiktok") === 0 ? "tiktok" : t || "other"; }
+
+  function take(obj){
+    if (!obj || typeof obj !== "object") return;
+    if (Array.isArray(obj)){ obj.forEach(take); return; }
+    if (obj.overlayNinja){ take(obj.overlayNinja); return; }
+    if (obj.contents && typeof obj.contents === "object"){ take(obj.contents); return; }
+    var now = Date.now();
+    if (obj.delete || obj.deleteMessage){ queue.push({ ts:now, m:obj }); return; }
+    var ev = obj.event;
+    if (ev === "viewer_updates" && obj.meta && typeof obj.meta === "object"){
+      Object.keys(obj.meta).forEach(function(t){ counters[platOf(t) + ".viewers"] = { v:Number(obj.meta[t]), ts:now }; });
+      return;
+    }
+    if (typeof ev === "string" && COUNTER_EVENTS[ev]){
+      var v = typeof obj.meta === "object" && obj.meta ? obj.meta.count : obj.meta;
+      v = Number(v); if (isFinite(v)) counters[platOf(obj.type) + "." + COUNTER_EVENTS[ev]] = { v:v, ts:now };
+      return;
+    }
+    if (typeof ev === "string" && SKIP[ev]) return;
+    if (!obj.chatname && !obj.chatmessage && !obj.hasDonation && !obj.contentimg) return;
+    queue.push({ ts:now, m:obj });
+    if (queue.length > 1000) queue.splice(0, queue.length - 1000);   // if Upstash is down, keep the newest
+  }
+
+  function flush(force){
+    if (busy) return;
+    var cmds = [], batch = queue.slice(0, 100), cKeys = Object.keys(counters);
+    var heartbeat = force || Date.now() - lastWrite >= HEARTBEAT_MS;
+    if (!batch.length && !cKeys.length && !heartbeat) return;
+    if (batch.length){
+      cmds.push(["LPUSH", BUFFER_KEY].concat(batch.map(function(e){ return JSON.stringify(e); })));
+      cmds.push(["LTRIM", BUFFER_KEY, "0", String(KEEP - 1)]);
+    }
+    var h = ["HSET", COUNTER_KEY, "recorder", JSON.stringify({ ts:Date.now() })];
+    cKeys.forEach(function(k){ h.push(k, JSON.stringify(counters[k])); });
+    cmds.push(h);
+    if (flushes % 20 === 0){ cmds.push(["EXPIRE", BUFFER_KEY, String(TTL)]); cmds.push(["EXPIRE", COUNTER_KEY, String(TTL)]); }
+    busy = true;
+    fetch(URL_ + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + TOK, "Content-Type":"application/json" }, body:JSON.stringify(cmds) })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(res){
+        var err = Array.isArray(res) && res.filter(function(x){ return x && x.error; })[0];
+        if (err) throw new Error(err.error);
+        queue.splice(0, batch.length);
+        cKeys.forEach(function(k){ delete counters[k]; });
+        flushes++; lastWrite = Date.now(); failing = false;
+      })
+      .catch(function(e){ failing = true; status("write failed (" + e.message + "), retrying"); })
+      .then(function(){ busy = false; paint(); });
+  }
+
+  function paint(){
+    if (failing) return;
+    var up = ws && ws.readyState === 1;
+    var age = lastWrite ? Math.round((Date.now() - lastWrite)/1000) + "s" : "never";
+    status((up ? "relay up" : "relay down") + " · last write " + age + " · waiting " + queue.length);
+  }
+
+  function connect(){
+    try { ws = new WebSocket(RELAY + encodeURIComponent(SID) + "/" + CHANNEL); }
+    catch(e){ schedule(); return; }
+    ws.onopen = function(){ retry = 0; paint(); };
+    ws.onmessage = function(ev){
+      lastPacket = Date.now();
+      if (typeof ev.data !== "string") return;
+      try { take(JSON.parse(ev.data)); } catch(e){}
+    };
+    ws.onclose = function(){ paint(); schedule(); };
+    ws.onerror = function(){};
+  }
+  function schedule(){ setTimeout(connect, Math.min(15000, 1000 * Math.pow(2, retry++))); }
+
+  // Watchdog: a socket that has carried nothing for 10 minutes gets reopened.
+  setInterval(function(){
+    if (ws && ws.readyState === 1 && lastPacket && Date.now() - lastPacket > 600000){
+      lastPacket = Date.now();
+      try { ws.close(); } catch(e){}
+    }
+  }, 60000);
+
+  setInterval(flush, FLUSH_MS);
+  setInterval(paint, 5000);
+  connect();
+  flush(true);
+})();
+</script>
+</body>
+</html>
