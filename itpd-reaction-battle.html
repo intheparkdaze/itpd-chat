@@ -68,7 +68,7 @@
 <div class="ctl" id="ctl" hidden>
   <h1>Reaction battle</h1>
   <div class="hint" id="ctlVer"></div>
-  <div class="hint">Counts YouTube live reactions while the battle is on. Overlay must be running in IRLToolkit.</div>
+  <div class="hint">Counts YouTube live reactions while the battle is on. The on-screen part is itpd-battle-overlay.html in IRLToolkit (it replaces SSN&#x2019;s reactions overlay).</div>
   <h2>Set up</h2>
   <label for="selA">Left side</label><select id="selA"></select>
   <label for="selB">Right side</label><select id="selB"></select>
@@ -78,7 +78,7 @@
   <h2>Live score</h2>
   <div class="score" id="cScore">&#x2013;</div>
   <div id="status" class="hint">Waiting for the overlay&#x2026;</div>
-  <div id="conn" class="hint"></div>
+  <div id="conn" class="hint" style="white-space:pre-wrap"></div>
   <h2>Last reactions received</h2>
   <div class="hint">Shows what SSN sent and which side it counted for. If your reactions show as &#x201c;not counted&#x201d;, send me this list.</div>
   <pre id="recent">Nothing yet.</pre>
@@ -91,7 +91,7 @@
   var SESSION = P.get("session") || "", URL_ = (P.get("url") || "").replace(/\/+$/,""), TOK = P.get("tok") || "";
   // Controller if "edit" is after the # or before it (?edit). Changing only the
   // part after the # doesn't reload a page, so reload when it changes.
-  var VERSION = "2026-10-23c";
+  var VERSION = "2026-10-23e";
   var EDIT = P.has("edit") || new URLSearchParams(location.search).has("edit");
   window.addEventListener("hashchange", function(){ location.reload(); });
   var STATE_KEY = "itpd_reactbattle_state_2026", COUNT_KEY = "itpd_reactbattle_counts_2026";
@@ -164,9 +164,11 @@
         } else if (c && c.diag){
           $("conn").style.color = "";
           var g = c.diag, la = g.lastData ? Math.round((Date.now() - g.lastData)/1000) + "s ago" : "never";
-          $("conn").textContent = "Overlay connections: peer-to-peer link " + (g.bridgeAny ? "up" : "NOT connected") +
+          $("conn").textContent = "Overlay connections: peer-to-peer page " + (g.bridgeAny ? "loaded" : "NOT loaded") +
             " (" + g.bridgeData + " events), server feed " + g.feedData + " messages. Last event: " + la + "." +
-            (c.where ? " Running in " + c.where + "." : "");
+            (c.where ? " Running in " + c.where + "." : "") +
+            (g.bridgeKinds && g.bridgeKinds.length ? "\nPeer-to-peer messages: " + g.bridgeKinds.join(", ") : "") +
+            (g.feedKinds && g.feedKinds.length ? "\nServer feed messages: " + g.feedKinds.join(", ") : "");
         }
         if (c && c.recent && c.recent.length){
           $("recent").textContent = c.recent.slice().reverse().map(function(x){
@@ -220,7 +222,18 @@
   function pop(id){ var e = $(id); e.classList.add("pop"); setTimeout(function(){ e.classList.remove("pop"); }, 200); }
 
   // Connection diagnostics, saved with the scores so the controller can show them.
-  var diag = { bridgeAny:0, bridgeData:0, feedData:0, lastData:0 };
+  var diag = { bridgeAny:0, bridgeData:0, feedData:0, lastData:0, bridgeKinds:[], feedKinds:[] };
+  // What kinds of messages each route carries (first 15 kinds), to tell
+  // "page loaded" apart from "actually connected to SSN".
+  function kindOf(d){
+    if (!d || typeof d !== "object") return typeof d;
+    if (d.action) return "action:" + String(d.action).slice(0, 30);
+    if (d.dataReceived) return "data:" + Object.keys(d.dataReceived).slice(0, 3).join("+");
+    if (d.overlayNinja) return "event:" + String(d.overlayNinja.event || "chat");
+    if (d.event !== undefined) return "event:" + String(d.event || "chat");
+    return "keys:" + Object.keys(d).slice(0, 4).join("+");
+  }
+  function noteKind(list, d){ var k = kindOf(d); if (list.indexOf(k) === -1 && list.length < 15) list.push(k); }
   var crossSeen = new Map();   // same reaction arriving by both routes counts once
   function signature(p){ return [p.event, p.type, p.chatmessage, p.contentimg, p.id].map(function(x){ return String(x == null ? "" : x); }).join("|"); }
 
@@ -262,7 +275,7 @@
   if (SESSION) document.body.appendChild(bridge);
   window.addEventListener("message", function(e){
     if (e.source !== bridge.contentWindow) return;
-    diag.bridgeAny++;
+    diag.bridgeAny++; noteKind(diag.bridgeKinds, e.data);
     var d = e.data && e.data.dataReceived && e.data.dataReceived.overlayNinja;
     if (d){ diag.bridgeData++; onReaction(d, "bridge"); }
   });
@@ -276,7 +289,7 @@
     ws.onmessage = function(e){
       var d; try { d = JSON.parse(e.data); } catch(err){ return; }
       if (d && d.get){ try { ws.send(JSON.stringify({ callback:{ get:d.get, result:true } })); } catch(err){} }
-      diag.feedData++;
+      diag.feedData++; noteKind(diag.feedKinds, d);
       if (Array.isArray(d)) d.forEach(function(x){ onReaction(x, "feed"); }); else onReaction(d, "feed");
     };
     ws.onerror = function(){ try { ws.close(); } catch(e){} };
