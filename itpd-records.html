@@ -20,6 +20,8 @@
   seed / seeddate: the starting record. Used only if no record is stored yet.
   Optional: &video=VIDEO_ID (skip the search), &pos=topleft|topright|bottomleft|bottomright
   (counter position, default topright; also left / right = middle of that edge), &nochip (celebration only), &scale=1.2,
+  The counter's colour follows the park picked in the park overlay (checked every 30 s);
+  &color=4A63A3 pins one colour instead.
   &test (fake likes climbing past the record; writes nothing).
 
   Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
@@ -30,31 +32,31 @@
 <style>
   /* ITPD ticket look (Broadcast UI/UX, 2026-10-24). Element IDs and classes are the
      ones the script uses; only the styling and the static text changed. */
-  :root{--navy:#22306B;--paper:#FFFBF3;--ink:#17152A;--muted:#6B6780;--gold:#FFD34E;--goldDeep:#B07A00;--pink:#D82A83;--red:#E0322B}
+  :root{--park:#22306B;--navy:#22306B;--paper:#FFFBF3;--ink:#17152A;--muted:#6B6780;--gold:#FFD34E;--goldDeep:#B07A00;--pink:#D82A83;--red:#E0322B}
   html,body{margin:0;background:transparent;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink);overflow:hidden}
 
   /* ---------- the counter chip ---------- */
-  #chip{position:fixed;top:40px;right:40px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:450px;
-    background:var(--paper);border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.38);overflow:hidden;opacity:0;transition:opacity .6s,box-shadow .6s}
-  body.topleft #chip{right:auto;left:40px;transform-origin:top left}
+  #chip{position:fixed;top:16px;right:16px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:330px;
+    background:var(--paper);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.38);overflow:hidden;opacity:0;transition:opacity .6s,box-shadow .6s}
+  body.topleft #chip{right:auto;left:16px;transform-origin:top left}
   body.bottomright #chip{top:auto;bottom:140px;transform-origin:bottom right}
-  body.bottomleft #chip{top:auto;bottom:140px;right:auto;left:40px;transform-origin:bottom left}
-  body.right #chip{top:50%;margin-top:-70px;transform-origin:right center}
-  body.left #chip{top:50%;margin-top:-70px;right:auto;left:40px;transform-origin:left center}
+  body.bottomleft #chip{top:auto;bottom:140px;right:auto;left:16px;transform-origin:bottom left}
+  body.right #chip{top:50%;margin-top:-55px;transform-origin:right center}
+  body.left #chip{top:50%;margin-top:-55px;right:auto;left:16px;transform-origin:left center}
   #chip.on{opacity:1}
-  #chip .stub{width:52px;flex-shrink:0;background:var(--navy);border-right:3px dashed rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;transition:background .6s}
-  #chip .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 14px/1 "DM Mono",monospace;letter-spacing:3px;color:#fff;white-space:nowrap}
+  #chip .stub{width:40px;flex-shrink:0;background:var(--park);border-right:3px dashed rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;transition:background .6s}
+  #chip .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 11px/1 "DM Mono",monospace;letter-spacing:2px;color:#fff;white-space:nowrap}
   #chip .stub .b{display:none}
-  #chip .body{flex:1;min-width:0;padding:12px 20px 14px 18px}
-  #chip .k{font-weight:700;font-size:18px;letter-spacing:1px;color:var(--pink);line-height:1}
+  #chip .body{flex:1;min-width:0;padding:8px 14px 10px 13px}
+  #chip .k{font-weight:700;font-size:14px;letter-spacing:1px;color:var(--park);line-height:1}
   #chip .row1{display:flex;align-items:baseline;gap:10px;margin-top:4px}
-  #chip .now{font-weight:800;font-size:54px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
-  #chip .lbl{font-weight:700;font-size:22px;color:var(--muted)}
-  #chip .rec{font:500 15px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #chip .bar{height:12px;border-radius:6px;background:#EDE5D6;overflow:hidden;margin-top:8px}
-  #chip .fill{height:100%;width:0;background:var(--pink);border-radius:6px;transition:width .8s ease}
+  #chip .now{font-weight:800;font-size:40px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+  #chip .lbl{font-weight:700;font-size:18px;color:var(--muted)}
+  #chip .rec{font:500 12px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #chip .bar{height:9px;border-radius:5px;background:#EDE5D6;overflow:hidden;margin-top:6px}
+  #chip .fill{height:100%;width:0;background:var(--park);border-radius:6px;transition:width .8s ease}
   /* record beaten: gold stub that reads NEW RECORD, gold ring, gold bar */
-  #chip.beaten{box-shadow:0 0 0 4px var(--gold),0 10px 28px rgba(0,0,0,.38)}
+  #chip.beaten{box-shadow:0 0 0 3px var(--gold),0 10px 28px rgba(0,0,0,.38)}
   #chip.beaten .stub{background:var(--goldDeep)}
   #chip.beaten .stub .a{display:none} #chip.beaten .stub .b{display:inline}
   #chip.beaten .k{color:var(--goldDeep)}
@@ -118,6 +120,20 @@
   var pos = H.get("pos"); if (pos && pos !== "topright") document.body.classList.add(pos);
   var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--scale", sc);
   var showChip = !H.has("nochip");
+
+  // Park colours: same order and colours as the park overlay's venue list
+  // (itpd-park-overlay-themed.html). The counter follows the venue picked there.
+  var PARK_COLORS = ["#4A63A3","#1B9C9C","#E8622C","#2F6B3A","#6A2C91","#B3202D","#1B2A5C",
+                     "#3F7C8A","#5A6C7D","#C8202F","#146356","#4B2E83","#B00020","#E0197C"];
+  var PARK_KEY = "itpd_parkoverlay_state_2026";
+  function followPark(){
+    if (H.has("color")) return;                       // &color=... pins one colour
+    getJSON(PARK_KEY).then(function(st){
+      var c = st && typeof st.venue === "number" ? PARK_COLORS[st.venue] : "";
+      document.documentElement.style.setProperty("--park", c || "#22306B");
+    }).catch(function(){});
+  }
+  if (H.get("color")) document.documentElement.style.setProperty("--park", (/^[0-9a-f]{6}$/i.test(H.get("color")) ? "#" : "") + H.get("color"));
 
   function pipe(cmd){
     return fetch(URL_ + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + TOK, "Content-Type":"application/json" }, body:JSON.stringify(cmd), cache:"no-store" })
@@ -248,6 +264,7 @@
   }
   if (!URL_ || !TOK || (!KEY && !TEST)){ document.body.textContent = "Missing url / tok / key after the # in the link."; return; }
   start();
+  followPark(); setInterval(followPark, 30000);
   window.__records = { onLikes:onLikes, state:function(){ return { record:record, live:live }; } };
 })();
 </script>
