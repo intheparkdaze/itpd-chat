@@ -23,11 +23,14 @@
   The counter's colour follows the park picked in the park overlay (checked every 30 s);
   &color=4A63A3 pins one colour instead.
   &test (fake likes climbing past the goal and the record; writes nothing).
-  LIKE GOAL + STREAK (2026-10-24): &goal=50 (default 50) celebrates the first time
-  each stream reaches the goal, and counts streams in a row that reached it.
-  &streak=3 sets the starting streak (used only if no streak is stored yet).
-  Changing &goal later starts the streak over. A stream the overlay didn't run on
-  can't be counted either way. Upstash key: itpd_records_goal_2026.
+  LIKE GOALS + STREAKS (2026-10-24): goals step up by themselves every &goal=50
+  likes (50, 100, 150, ...). Each one is celebrated the first time a stream reaches
+  it, and each has its own streak: streams in a row that reached 50, 100, 150...
+  A stream that ends below a goal resets that goal's streak. If several goals are
+  passed between two checks, only the highest is celebrated (all streaks still count).
+  &streak=3 sets the starting streak for the first goal (used only the first time).
+  A stream the overlay didn't run on can't be counted either way.
+  Upstash key: itpd_records_goal_2026.
 
   Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
   itpd_records_live_2026 (this stream: video, likes, celebrated).
@@ -163,8 +166,9 @@
 
   // record = { value, date, prev:{value,date} }; live = { videoId, likes, celebrated }
   var record = null, live = { videoId:"", likes:0, celebrated:"" }, lastSearch = 0, chanId = "";
-  // goal = { target, streak, lastVideo, lastHit }: the last stream seen and whether it reached the goal
-  var goal = null, status = "", goalQueued = false;
+  // goal = { step, streaks:{ "50":3, "100":1, ... }, lastVideo, best, shownUpTo }
+  //   best = highest goal the last stream seen reached; shownUpTo = highest goal celebrated on screen
+  var goal = null, status = "", queuedTier = 0;
 
   function paint(){
     if (!record) return;
@@ -172,17 +176,21 @@
     $("now").textContent = live.likes;
     $("rec").textContent = beaten ? "\u{1F451} New record! (old: " + record.prev.value + " on " + fmtDate(record.prev.date) + ")"
                                   : "Record: " + record.value + " on " + fmtDate(record.date);
-    var goalHit = !!goal && goal.lastVideo === live.videoId && goal.lastHit;
-    if (!beaten && goal && !goalHit) $("rec").textContent = "Goal " + goal.target + " \u00b7 Record " + record.value + " on " + fmtDate(record.date);
-    // the bar fills toward the goal first, then toward the record
-    var aim = goal && !goalHit ? goal.target : record.value;
+    var cur = goal && goal.lastVideo === live.videoId ? goal.best : 0;      // highest goal reached this stream
+    var next = goal ? cur + goal.step : 0;
+    if (!beaten && goal) $("rec").textContent = "Next goal " + next + " \u00b7 Record " + record.value + " on " + fmtDate(record.date);
+    // the bar fills toward the next goal
+    var aim = goal ? next : record.value;
     var pct = beaten ? 100 : Math.min(100, Math.round(live.likes * 100 / Math.max(1, aim)));
     if (goal){
-      var left = Math.max(0, goal.target - live.likes);
-      $("streak").textContent = goalHit ? "\u{1F525} " + goal.streak + " in a row at " + goal.target + "+ likes!"
-        : goal.streak > 0 ? "\u{1F525} " + goal.streak + " in a row \u00b7 " + left + " more to make it " + (goal.streak + 1)
-        : "\u{1F3AF} " + left + " more likes to hit " + goal.target;
-      $("streak").classList.toggle("hit", goalHit);
+      var left = Math.max(0, next - live.likes), sNext = streakOf(next), sCur = streakOf(cur);
+      // e.g. "3 in a row at 50+ · 43 more to make it 4" or "4 in a row at 50+ · next: 48 more to hit 100"
+      var shown = cur ? cur : (sNext > 0 ? next : 0), sShown = streakOf(shown);
+      $("streak").textContent = (shown ? "\u{1F525} " + sShown + " in a row at " + shown + "+ \u00b7 " : "\u{1F3AF} ") +
+        (cur === 0 && sNext > 0 ? left + " more to make it " + (sNext + 1)
+         : sNext > 0 ? left + " more to make it " + (sNext + 1) + " at " + next + "+"
+         : (cur ? "next: " : "") + left + " more to hit " + next);
+      $("streak").classList.toggle("hit", cur > 0);
     }
     $("fill").style.width = pct + "%";
     $("chip").classList.toggle("beaten", beaten);
@@ -198,18 +206,20 @@
     partyBusy = true;
     var c = partyQueue.shift();
     showParty(c);
-    if (c.goal && goal && !goal.shown){ goal.shown = true; setJSON(GOAL_KEY, goal).catch(function(){}); }
+    if (c.goal && goal && c.goal > (goal.shownUpTo || 0)){ goal.shownUpTo = c.goal; setJSON(GOAL_KEY, goal).catch(function(){}); }
     setTimeout(function(){ partyBusy = false; runParty(); }, 10500);
   }
   function celebrate(likes, old){
     queueParty({ stub:"ITPD RECORD", k:"NEW RECORD!", big:likes, sub:"The most ever in a stream! Thank you, Daze crew!",
                  old:"Old record: " + old.value + " on " + fmtDate(old.date), stamp:["ALL-TIME", "HIGH"] });
   }
-  function celebrateGoal(likes, g){
-    queueParty({ goal:true, stub:"ITPD LIKE GOAL", k:g.target + " LIKES!", big:likes,
-                 sub: g.streak > 1 ? "That's " + g.streak + " streams in a row at " + g.target + "+! Thank you, Daze crew!" : "We hit " + g.target + " likes! Thank you, Daze crew!",
-                 old: g.streak > 1 ? "\u{1F525} " + g.streak + "-stream streak" : "\u{1F525} A new streak starts today",
-                 stamp:[String(g.streak), g.streak === 1 ? "STREAM" : "IN A ROW"] });
+  function streakOf(t){ return t > 0 && goal && goal.streaks ? (goal.streaks[String(t)] || 0) : 0; }
+  function celebrateGoal(likes, tier){
+    var n = streakOf(tier);
+    queueParty({ goal:tier, stub:"ITPD LIKE GOAL", k:tier + " LIKES!", big:likes,
+                 sub: n > 1 ? "That's " + n + " streams in a row at " + tier + "+! Thank you, Daze crew!" : "We hit " + tier + " likes! Thank you, Daze crew!",
+                 old: n > 1 ? "\u{1F525} " + n + "-stream streak at " + tier + "+" : "\u{1F525} A new " + tier + "+ streak starts today",
+                 stamp:[String(n), n === 1 ? "STREAM" : "IN A ROW"] });
   }
   function showParty(c){
     $("pStub").textContent = c.stub; $("pK").textContent = c.k; $("pBig").textContent = c.big; $("pUnit").textContent = "likes";
@@ -229,10 +239,15 @@
   function onLikes(likes){
     if (!record || !(likes >= 0)) return;
     live.likes = likes;
-    if (goal && goal.lastVideo === live.videoId && !goal.lastHit && likes >= goal.target){
-      goal.lastHit = true; goal.streak += 1; goal.shown = false;
-      setJSON(GOAL_KEY, goal).catch(function(){});
-      goalQueued = true; celebrateGoal(likes, goal);
+    if (goal && goal.lastVideo === live.videoId){
+      var reached = Math.floor(likes / goal.step) * goal.step;
+      if (reached > goal.best){
+        // every newly passed goal extends its own streak; celebrate only the highest
+        for (var t = goal.best + goal.step; t <= reached; t += goal.step) goal.streaks[String(t)] = (goal.streaks[String(t)] || 0) + 1;
+        goal.best = reached;
+        setJSON(GOAL_KEY, goal).catch(function(){});
+        queuedTier = reached; celebrateGoal(likes, reached);
+      }
     }
     var first = live.celebrated !== live.videoId;
     if (likes > record.value){
@@ -291,13 +306,14 @@
         if (status === "none" && !VIDEO){ live.videoId = ""; lastSearch = 0; paint(); setTimeout(poll, 1000); return; }
         if (v !== live.videoId){ live = { videoId:v, likes:0, celebrated: live.celebrated === v ? v : "" }; }
         if (goal && goal.lastVideo !== v){
-          // a new stream: the streak survives only if the previous one reached the goal
-          if (goal.lastVideo && !goal.lastHit) goal.streak = 0;
-          goal.lastVideo = v; goal.lastHit = false; goal.shown = false;
+          // a new stream: each goal's streak survives only if the previous stream reached it
+          Object.keys(goal.streaks).forEach(function(t){ if (goal.lastVideo && goal.best < +t) goal.streaks[t] = 0; });
+          goal.lastVideo = v; goal.best = 0; goal.shownUpTo = 0; queuedTier = 0;
           setJSON(GOAL_KEY, goal).catch(function(){});
         }
-        if (goal && goal.lastVideo === v && goal.lastHit && goal.shown === false && !partyQueue.some(function(c){ return c.goal; }) && !goalQueued){
-          goalQueued = true; celebrateGoal(Number(it.statistics && it.statistics.likeCount) || goal.target, goal);
+        // after a restart: a goal reached but never shown (e.g. reached on the waiting page)
+        if (goal && goal.lastVideo === v && goal.best > (goal.shownUpTo || 0) && queuedTier < goal.best){
+          queuedTier = goal.best; celebrateGoal(Number(it.statistics && it.statistics.likeCount) || goal.best, goal.best);
         }
         if (it.statistics && it.statistics.likeCount != null) onLikes(Number(it.statistics.likeCount));
         runParty();
@@ -315,11 +331,16 @@
       }
       return getJSON(GOAL_KEY);
     }).then(function(g){
-      if (g && g.target === GOAL) goal = g;
-      else {
-        // first run, or the goal changed: start the streak (from &streak= on first run)
-        var seedStreak = !g ? parseInt(H.get("streak"), 10) : 0;
-        goal = { target:GOAL, streak: seedStreak > 0 ? seedStreak : 0, lastVideo: seedStreak > 0 ? "seed" : "", lastHit: seedStreak > 0 };
+      if (g && g.streaks){ goal = g; goal.step = GOAL; }
+      else if (g && g.target){
+        // saved by the single-goal version: carry its streak over
+        goal = { step:GOAL, streaks:{}, lastVideo:g.lastVideo || "", best: g.lastHit ? g.target : 0, shownUpTo: g.lastHit && g.shown !== false ? g.target : 0 };
+        goal.streaks[String(g.target)] = g.streak || 0;
+        setJSON(GOAL_KEY, goal).catch(function(){});
+      } else {
+        var seedStreak = parseInt(H.get("streak"), 10);
+        goal = { step:GOAL, streaks:{}, lastVideo: seedStreak > 0 ? "seed" : "", best: seedStreak > 0 ? GOAL : 0, shownUpTo: seedStreak > 0 ? GOAL : 0 };
+        if (seedStreak > 0) goal.streaks[String(GOAL)] = seedStreak;
         setJSON(GOAL_KEY, goal).catch(function(){});
       }
       return getJSON(LIVE_KEY);
@@ -329,12 +350,15 @@
       if (TEST){
         // climbs past the goal, then jumps near the record and climbs past it
         status = "live";
-        live = { videoId:"TEST", likes:Math.max(0, goal.target - 4), celebrated:"" };
-        goal = { target:goal.target, streak:goal.streak, lastVideo:"TEST", lastHit:false };
+        // climbs past the first two goals, then jumps near the record and climbs past it
+        live = { videoId:"TEST", likes:Math.max(0, goal.step - 4), celebrated:"" };
+        goal = { step:goal.step, streaks:JSON.parse(JSON.stringify(goal.streaks)), lastVideo:"TEST", best:0, shownUpTo:0 };
         var n = live.likes; paint();
         var t = setInterval(function(){
-          n = (n >= goal.target + 2 && n < record.value - 4) ? record.value - 4 : n + 1;
-          onLikes(n); if (n > record.value + 3) clearInterval(t);
+          if (n >= goal.step + 1 && n < 2 * goal.step - 3) n = 2 * goal.step - 3;
+          else if (n >= 2 * goal.step + 1 && n < record.value - 4 && record.value > 2 * goal.step) n = record.value - 4;
+          else n += 1;
+          onLikes(n); if (n > Math.max(record.value, 2 * goal.step) + 3) clearInterval(t);
         }, 1500);
         return;
       }
