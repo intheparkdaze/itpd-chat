@@ -22,6 +22,9 @@
   (counter position, default topright; also left / right = middle of that edge), &nochip (celebration only), &scale=1.2,
   The counter's colour follows the park picked in the park overlay (checked every 30 s);
   &color=4A63A3 pins one colour instead.
+  SIZE (UI/UX, 2026-10-25): the counter sizes itself to its text (330 to 560 px wide);
+  long lines wrap instead of being cut off. &rotate makes the goal/record line and the
+  streak line take turns every 8 s, so the ticket stays small.
   &test (fake likes climbing past the goal and the record; writes nothing).
   LIKE GOALS + STREAKS (2026-10-24): goals step up by themselves every &goal=50
   likes (50, 100, 150, ...). Each one is celebrated the first time a stream reaches
@@ -45,13 +48,13 @@
   html,body{margin:0;background:transparent;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink);overflow:hidden}
 
   /* ---------- the counter chip ---------- */
-  #chip{position:fixed;top:16px;right:16px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:330px;
+  #chip{position:fixed;top:16px;right:16px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:max-content;min-width:330px;max-width:560px;
     background:var(--paper);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.38);overflow:hidden;opacity:0;transition:opacity .6s,box-shadow .6s}
   body.topleft #chip{right:auto;left:16px;transform-origin:top left}
   body.bottomright #chip{top:auto;bottom:140px;transform-origin:bottom right}
   body.bottomleft #chip{top:auto;bottom:140px;right:auto;left:16px;transform-origin:bottom left}
-  body.right #chip{top:50%;margin-top:-55px;transform-origin:right center}
-  body.left #chip{top:50%;margin-top:-55px;right:auto;left:16px;transform-origin:left center}
+  body.right #chip{top:50%;transform:translateY(-50%) scale(var(--scale,1));transform-origin:right center}
+  body.left #chip{top:50%;transform:translateY(-50%) scale(var(--scale,1));right:auto;left:16px;transform-origin:left center}
   #chip.on{opacity:1}
   #chip .stub{width:40px;flex-shrink:0;background:var(--park);border-right:3px dashed rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;transition:background .6s}
   #chip .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 11px/1 "DM Mono",monospace;letter-spacing:2px;color:#fff;white-space:nowrap}
@@ -61,7 +64,7 @@
   #chip .row1{display:flex;align-items:baseline;gap:10px;margin-top:4px}
   #chip .now{font-weight:800;font-size:40px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
   #chip .lbl{font-weight:700;font-size:18px;color:var(--muted)}
-  #chip .rec{font:500 12px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #chip .rec{font:500 15px/1.3 "DM Mono",monospace;color:var(--muted);margin-top:3px}
   #chip .bar{height:9px;border-radius:5px;background:#EDE5D6;overflow:hidden;margin-top:6px}
   #chip .fill{height:100%;width:0;background:var(--park);border-radius:6px;transition:width .8s ease}
   /* record beaten: gold stub that reads NEW RECORD, gold ring, gold bar */
@@ -72,7 +75,11 @@
   #chip.beaten .fill{background:linear-gradient(90deg,var(--gold),#F7931E)}
 
   /* like goal streak line (Stream Engineering, 2026-10-24; restyle freely, keep id="streak" and class "hit") */
-  #chip .streak{font-weight:700;font-size:15px;line-height:1.2;color:var(--park);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #chip .streak{font-weight:700;font-size:18px;line-height:1.25;color:var(--park);margin-top:6px}
+  #chip .streak:empty{display:none}
+  /* &rotate: the record line and the streak line take turns in one spot */
+  #chip.rot .rec, #chip.rot .streak{transition:opacity .4s}
+  #chip.rot.show-streak .rec{display:none} #chip.rot:not(.show-streak) .streak{display:none}
   #chip .streak.hit{color:var(--goldDeep)}
 
   /* ---------- the celebration (once per stream) ---------- */
@@ -135,6 +142,16 @@
   var pos = H.get("pos"); if (pos && pos !== "topright") document.body.classList.add(pos);
   var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--scale", sc);
   var showChip = !H.has("nochip");
+  if (H.has("rotate")){
+    // Record/goal line and streak line take turns every 8 s, so the ticket stays small.
+    var rotOn = false;
+    setInterval(function(){
+      var chip = document.getElementById("chip"), st = document.getElementById("streak");
+      chip.classList.add("rot");
+      rotOn = !rotOn && !!(st && st.textContent.trim());
+      chip.classList.toggle("show-streak", rotOn);
+    }, 8000);
+  }
 
   // Park colours: same order and colours as the park overlay's venue list
   // (itpd-park-overlay-themed.html). The counter follows the venue picked there.
