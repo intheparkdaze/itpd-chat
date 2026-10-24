@@ -77,6 +77,12 @@ button{font:inherit;color:inherit}
 .msg.maybesub{background:color-mix(in srgb,var(--yt) 12%,transparent);border-radius:8px;padding:8px;border:none;margin:4px 0}
 .subtag{font-size:.7rem;font-weight:800;color:var(--yt)}
 .nm.tap{text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
+#acts{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:30}
+#acts.open{display:flex}
+#acts .card h2{font-size:1.05rem;margin:0 0 10px;overflow-wrap:anywhere}
+#acts .act{display:block;width:100%;text-align:left;margin-top:8px;padding:13px 12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem}
+#acts .act[disabled]{opacity:.45}
+#acts .why{font-size:.75rem;color:var(--muted);font-weight:400;display:block;margin-top:2px}
 .subbtn{margin-top:6px;border:none;border-radius:8px;padding:7px 12px;background:var(--yt);color:#fff;font-weight:700;font-size:.85rem}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
@@ -114,6 +120,14 @@ button{font:inherit;color:inherit}
 <div id="log" aria-live="off"></div>
 <button id="jump">Jump to newest</button>
 
+<div id="acts" role="dialog" aria-modal="true" aria-labelledby="actsTitle">
+  <div class="card">
+    <h2 id="actsTitle"></h2>
+    <div id="actsList"></div>
+    <button class="act" id="actsCancel">Cancel</button>
+  </div>
+</div>
+
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
@@ -128,6 +142,12 @@ button{font:inherit;color:inherit}
     <label for="wtok">Alerts token (read/write, optional)</label>
     <input type="password" id="wtok" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Only needed for the New subscriber button">
     <div class="small">With this, tapping a YouTube chatter’s name can put a NEW SUBSCRIBER alert on stream. It’s the same token the alert files use, so treat this phone like those files.</div>
+    <h3>Post in YouTube chat (optional)</h3>
+    <label for="pUrl">Chat Poster web app URL (ends in /exec)</label>
+    <input type="text" id="pUrl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same as in the Daze Bot">
+    <label for="pKey">Chat Poster bot key</label>
+    <input type="password" id="pKey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same as in the Daze Bot">
+    <div class="small">Lets you wave at or thank a YouTube chatter from here. Posts go out as the channel the Chat Poster was set up with, and share its spacing limits with the Daze Bot.</div>
     <h3>YouTube likes (optional)</h3>
     <label for="ytkey">YouTube Data API key</label>
     <input type="password" id="ytkey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Restricted to this site and the YouTube Data API">
@@ -181,7 +201,7 @@ button{font:inherit;color:inherit}
   (function readSetupHash(){
     if (!location.hash || location.hash.length < 3) return;
     var p = new URLSearchParams(location.hash.slice(1)), any = false;
-    [["sid","itpd_phonechat_sid"],["rurl","itpd_phonechat_rurl"],["rtok","itpd_phonechat_rtok"]].forEach(function(pair){
+    [["sid","itpd_phonechat_sid"],["rurl","itpd_phonechat_rurl"],["rtok","itpd_phonechat_rtok"],["poster","itpd_phonechat_purl"],["pkey","itpd_phonechat_pkey"]].forEach(function(pair){
       var v = p.get(pair[0]); if (v){ store.set(pair[1], v.trim()); any = true; }
     });
     if (any) try { history.replaceState(null, "", location.pathname + location.search); } catch(e){}
@@ -319,9 +339,9 @@ button{font:inherit;color:inherit}
   // YouTube doesn't put new subscribers in chat or (for private subscriptions,
   // the default) in the API, so viewers saying so is the best live signal.
   var SUB_RX = /\b(?:just\s+)?(?:subscribed|subbed|new\s+sub(?:scriber)?|hit\s+(?:the\s+)?sub(?:scribe)?(?:\s+button)?)\b/i;
-  function askSubAlert(name){
+  function askSubAlert(name, confirmed){
     if (!cfg("wtok") || !cfg("rurl")){ alert("To send alerts from here, add the Upstash URL and the alerts token in ⚙."); return; }
-    if (!confirm("Show a NEW SUBSCRIBER alert on stream for " + name + "?")) return;
+    if (!confirmed && !confirm("Show a NEW SUBSCRIBER alert on stream for " + name + "?")) return;
     var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
     fetch(url + "/get/itpd_alerts_state_2026", { headers:H, cache:"no-store" })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -334,6 +354,85 @@ button{font:inherit;color:inherit}
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function(j){ if (j.error) throw new Error(j.error); note("Subscriber alert sent for " + name + ".", "", Date.now()); })
       .catch(function(e){ diag("Subscriber alert failed: " + e.message); alert("Couldn’t send the alert: " + e.message); });
+  }
+
+  // ---------- actions on a YouTube chatter (tap their name) ----------
+  // Chat posts go through the ITPD Chat Poster (Apps Script, official YouTube API),
+  // the same one the Daze Bot uses, so they share its spacing limits.
+  function handleOf(name){
+    name = String(name || "").trim();
+    if (!name) return "";
+    if (name.charAt(0) === "@") return name;
+    return /\s/.test(name) ? name : "@" + name;
+  }
+  var THANKS = {
+    superchat:"Thank you so much for the Super Chat, {name}! \ud83d\udc9b",
+    supersticker:"Thank you so much for the Super Sticker, {name}! \ud83d\udc9b",
+    jeweldonation:"Thank you for the Jewels, {name}! \ud83d\udc8e",
+    giftpurchase:"Thank you for gifting memberships, {name}! You're amazing! \ud83c\udf81",
+    sponsorship:"Welcome to the membership, {name}! So glad you're here! \ud83c\udf89",
+    membermilestone:"Thank you for sticking with us, {name}! \ud83d\udc9b",
+    other:"Thank you so much, {name}! \ud83d\udc9b"
+  };
+  function thanksFor(m){
+    var ev = String(m.event || "");
+    var t = THANKS[ev] || (m.hasDonation ? THANKS.superchat : THANKS.other);
+    return t.replace("{name}", handleOf(m.chatname));
+  }
+  function whatFor(m){
+    var ev = String(m.event || "");
+    return ev === "giftpurchase" ? "the gifted memberships" : ev === "sponsorship" ? "becoming a member" : ev === "membermilestone" ? "the membership milestone"
+         : ev === "jeweldonation" ? "the Jewels" : ev === "supersticker" ? "the Super Sticker" : m.hasDonation ? "the Super Chat" : "";
+  }
+
+  function postToChat(text, tries){
+    tries = tries || 0;
+    var url = cfg("purl"), key = cfg("pkey");
+    if (!url || !key){ alert("To post in YouTube chat from here, add the Chat Poster URL and bot key in \u2699."); return; }
+    if (!tries) note("Posting in YouTube chat: " + text, "", Date.now());
+    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, text:text }), redirect:"follow", cache:"no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.ok){ note("Posted in YouTube chat.", "", Date.now()); return; }
+        var why = (j && j.reason) || "unknown answer";
+        if (j && j.retry && tries < 12){ diag("Chat post waiting (" + why + ")"); setTimeout(function(){ postToChat(text, tries + 1); }, 5000); return; }
+        note("Couldn\u2019t post in YouTube chat: " + why, "gap", Date.now());
+      })
+      .catch(function(e){ note("Couldn\u2019t reach the Chat Poster: " + e.message, "gap", Date.now()); });
+  }
+
+  function addAct(label, why, enabled, fn){
+    var b = document.createElement("button");
+    b.className = "act"; b.textContent = label; b.disabled = !enabled;
+    if (why){ var w = document.createElement("span"); w.className = "why"; w.textContent = why; b.appendChild(w); }
+    b.addEventListener("click", function(){ closeActs(); fn(); });
+    $("actsList").appendChild(b);
+  }
+  function closeActs(){ $("acts").classList.remove("open"); }
+  $("actsCancel").addEventListener("click", closeActs);
+  $("acts").addEventListener("click", function(e){ if (e.target === $("acts")) closeActs(); });
+
+  function openActs(m, cls){
+    var name = String(m.chatname || ""), h = handleOf(name);
+    var canPost = !!(cfg("purl") && cfg("pkey")), canAlert = !!(cfg("wtok") && cfg("rurl"));
+    $("actsTitle").textContent = name;
+    $("actsList").textContent = "";
+    addAct("\ud83d\udc4b Wave in YouTube chat", "Posts: \ud83d\udc4b " + h + (canPost ? "" : " (add the Chat Poster in \u2699)"), canPost,
+      function(){ postToChat("\ud83d\udc4b " + h); });
+    var what = whatFor(m);
+    if (cls.kind === "paid" && what){
+      addAct("\ud83d\udc9b Thank in chat for " + what, canPost ? "You can edit the message first" : "Add the Chat Poster in \u2699", canPost, function(){
+        var t = prompt("Message to post in YouTube chat:", thanksFor(m));
+        if (t && t.trim()) postToChat(t.trim());
+      });
+    }
+    addAct("\ud83d\udcac Say something to them in chat", canPost ? "Starts with " + h : "Add the Chat Poster in \u2699", canPost, function(){
+      var t = prompt("Message to post in YouTube chat:", h + " ");
+      if (t && t.trim() && t.trim() !== h) postToChat(t.trim());
+    });
+    addAct("\u2b50 NEW SUBSCRIBER alert on stream", canAlert ? "Shows the on-screen alert with their name" : "Add the alerts token in \u2699", canAlert,
+      function(){ askSubAlert(name, true); });
+    $("acts").classList.add("open");
   }
 
   // ---------- what counts as a chat row ----------
@@ -429,7 +528,7 @@ button{font:inherit;color:inherit}
     var maybeSub = plat === "youtube" && cls.kind === "chat" && SUB_RX.test(plainText(m));
     if (plat === "youtube" && m.chatname){
       nm.classList.add("tap");
-      nm.addEventListener("click", function(){ askSubAlert(String(m.chatname)); });
+      nm.addEventListener("click", function(){ openActs(m, cls); });
     }
     if (maybeSub){ row.classList.add("maybesub"); var st = document.createElement("span"); st.className = "subtag"; st.textContent = "possible new sub"; who.appendChild(st); }
     if (m.moderator === true || m.mod === true){ var md = document.createElement("span"); md.className = "mod"; md.textContent = "mod"; who.appendChild(md); }
@@ -679,6 +778,7 @@ button{font:inherit;color:inherit}
     $("sheet").classList.add("open");
     $("sid").value = cfg("sid"); $("rurl").value = cfg("rurl"); $("rtok").value = cfg("rtok");
     $("wtok").value = cfg("wtok");
+    $("pUrl").value = cfg("purl"); $("pKey").value = cfg("pkey");
     $("ytkey").value = cfg("ytkey"); $("ytchan").value = cfg("ytchan"); $("ytvidmanual").value = cfg("ytvidmanual");
     $("raw").textContent = Object.keys(rawLast).sort().map(function(k){ return k + "\n" + rawLast[k]; }).join("\n\n") || "Nothing yet";
   }
@@ -694,6 +794,8 @@ button{font:inherit;color:inherit}
     store.set("itpd_phonechat_rtok", $("rtok").value.trim());
     store.set("itpd_phonechat_ytkey", $("ytkey").value.trim());
     store.set("itpd_phonechat_wtok", $("wtok").value.trim());
+    store.set("itpd_phonechat_purl", $("pUrl").value.trim());
+    store.set("itpd_phonechat_pkey", $("pKey").value.trim());
     if ($("ytchan").value.trim() !== cfg("ytchan")){ store.set("itpd_phonechat_ytsearchat", "0"); ytVid = ""; store.set("itpd_phonechat_ytvid", ""); }
     store.set("itpd_phonechat_ytchan", $("ytchan").value.trim());
     store.set("itpd_phonechat_ytvidmanual", $("ytvidmanual").value.trim());
