@@ -10,53 +10,103 @@
   with the all-time record, and a celebration when this stream beats it.
 
   Likes come from YouTube's official Data API (videos.list, 1 unit a minute).
-  The live video is found with search.list (its own 100-a-day allowance), at most
-  once every 10 minutes until found. Records live in Upstash.
+  The stream is found with search.list (its own 100-a-day allowance; two searches,
+  live then scheduled, at most once every 10 minutes until found). A scheduled
+  stream starting within 12 hours counts from its waiting page, before going live.
+  Records live in Upstash.
 
   LINK (settings after the #, never in this file):
     itpd-records.html#url=https://charming-worm-109173.upstash.io&tok=READ_WRITE_TOKEN&key=YOUTUBE_API_KEY&chan=@InTheParkDaze&seed=257&seeddate=2026-09-20
   seed / seeddate: the starting record. Used only if no record is stored yet.
   Optional: &video=VIDEO_ID (skip the search), &pos=topleft|topright|bottomleft|bottomright
-  (counter position, default topright), &nochip (celebration only), &scale=1.2,
+  (counter position, default topright; also left / right = middle of that edge), &nochip (celebration only), &scale=1.2,
   &test (fake likes climbing past the record; writes nothing).
 
   Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
   itpd_records_live_2026 (this stream: video, likes, celebrated).
 -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-  :root{--gold:#ffc94d;--ink:#fff;--panel:rgba(20,16,40,.84)}
-  html,body{margin:0;background:transparent;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);overflow:hidden}
-  #chip{position:fixed;top:36px;right:36px;transform:scale(var(--scale,1));transform-origin:top right;background:var(--panel);border-radius:16px;
-    padding:12px 18px;min-width:260px;box-shadow:0 6px 22px rgba(0,0,0,.35);opacity:0;transition:opacity .6s}
-  body.topleft #chip{right:auto;left:36px;transform-origin:top left}
-  body.bottomright #chip{top:auto;bottom:36px;transform-origin:bottom right}
-  body.bottomleft #chip{top:auto;bottom:36px;right:auto;left:36px;transform-origin:bottom left}
+  /* ITPD ticket look (Broadcast UI/UX, 2026-10-24). Element IDs and classes are the
+     ones the script uses; only the styling and the static text changed. */
+  :root{--navy:#22306B;--paper:#FFFBF3;--ink:#17152A;--muted:#6B6780;--gold:#FFD34E;--goldDeep:#B07A00;--pink:#D82A83;--red:#E0322B}
+  html,body{margin:0;background:transparent;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink);overflow:hidden}
+
+  /* ---------- the counter chip ---------- */
+  #chip{position:fixed;top:40px;right:40px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:450px;
+    background:var(--paper);border-radius:18px;box-shadow:0 10px 28px rgba(0,0,0,.38);overflow:hidden;opacity:0;transition:opacity .6s,box-shadow .6s}
+  body.topleft #chip{right:auto;left:40px;transform-origin:top left}
+  body.bottomright #chip{top:auto;bottom:140px;transform-origin:bottom right}
+  body.bottomleft #chip{top:auto;bottom:140px;right:auto;left:40px;transform-origin:bottom left}
+  body.right #chip{top:50%;margin-top:-70px;transform-origin:right center}
+  body.left #chip{top:50%;margin-top:-70px;right:auto;left:40px;transform-origin:left center}
   #chip.on{opacity:1}
-  #chip .row1{display:flex;align-items:baseline;gap:10px;font-weight:800}
-  #chip .now{font-size:40px;font-variant-numeric:tabular-nums}
-  #chip .lbl{font-size:18px;opacity:.85}
-  #chip .rec{font-size:16px;opacity:.85;margin-top:2px}
-  #chip .bar{height:8px;border-radius:4px;background:rgba(255,255,255,.18);overflow:hidden;margin-top:8px}
-  #chip .fill{height:100%;width:0;background:#ff6b8b;transition:width .8s ease}
-  #chip.beaten{box-shadow:0 0 0 3px var(--gold),0 6px 22px rgba(0,0,0,.35)}
-  #chip.beaten .fill{background:var(--gold)}
-  #party{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;text-align:center;
-    background:var(--panel);border-radius:28px;padding:34px 60px;box-shadow:0 0 0 4px var(--gold),0 10px 40px rgba(0,0,0,.45);
-    transition:opacity .5s, transform .5s cubic-bezier(.2,1.4,.4,1)}
+  #chip .stub{width:52px;flex-shrink:0;background:var(--navy);border-right:3px dashed rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;transition:background .6s}
+  #chip .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 14px/1 "DM Mono",monospace;letter-spacing:3px;color:#fff;white-space:nowrap}
+  #chip .stub .b{display:none}
+  #chip .body{flex:1;min-width:0;padding:12px 20px 14px 18px}
+  #chip .k{font-weight:700;font-size:18px;letter-spacing:1px;color:var(--pink);line-height:1}
+  #chip .row1{display:flex;align-items:baseline;gap:10px;margin-top:4px}
+  #chip .now{font-weight:800;font-size:54px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+  #chip .lbl{font-weight:700;font-size:22px;color:var(--muted)}
+  #chip .rec{font:500 15px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #chip .bar{height:12px;border-radius:6px;background:#EDE5D6;overflow:hidden;margin-top:8px}
+  #chip .fill{height:100%;width:0;background:var(--pink);border-radius:6px;transition:width .8s ease}
+  /* record beaten: gold stub that reads NEW RECORD, gold ring, gold bar */
+  #chip.beaten{box-shadow:0 0 0 4px var(--gold),0 10px 28px rgba(0,0,0,.38)}
+  #chip.beaten .stub{background:var(--goldDeep)}
+  #chip.beaten .stub .a{display:none} #chip.beaten .stub .b{display:inline}
+  #chip.beaten .k{color:var(--goldDeep)}
+  #chip.beaten .fill{background:linear-gradient(90deg,var(--gold),#F7931E)}
+
+  /* ---------- the celebration (once per stream) ---------- */
+  #party{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;display:flex;
+    background:var(--paper);border-radius:30px;box-shadow:0 0 0 6px var(--gold),0 22px 60px rgba(0,0,0,.5);overflow:visible;
+    transition:opacity .5s, transform .55s cubic-bezier(.2,1.4,.4,1);z-index:5}
   #party.show{opacity:1;transform:translate(-50%,-50%) scale(var(--scale,1))}
-  #party .k{font-size:30px;font-weight:800;color:var(--gold);letter-spacing:.08em}
-  #party .big{font-size:96px;font-weight:900;line-height:1.05;margin:6px 0}
-  #party .sub{font-size:30px;font-weight:700}
-  #party .old{font-size:20px;opacity:.8;margin-top:10px}
+  #party .stub{width:96px;flex-shrink:0;background:var(--goldDeep);border-radius:30px 0 0 30px;border-right:5px dashed rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center}
+  #party .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 22px/1 "DM Mono",monospace;letter-spacing:5px;color:#fff;white-space:nowrap}
+  #party .body{padding:34px 64px 38px 50px;text-align:left}
+  #party .k{font-weight:800;font-size:34px;letter-spacing:3px;color:var(--red)}
+  #party .row{display:flex;align-items:baseline;gap:18px;margin:6px 0 0}
+  #party .big{font-weight:800;font-size:150px;line-height:.95;color:var(--ink);font-variant-numeric:tabular-nums}
+  #party .unit{font-weight:800;font-size:56px;color:var(--navy)}
+  #party .rule{width:150px;height:10px;border-radius:5px;background:var(--gold);margin:14px 0 14px}
+  #party .sub{font-weight:700;font-size:34px;color:var(--navy);line-height:1.2}
+  #party .old{font:500 22px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:12px}
+  #party .stamp{position:absolute;right:-36px;top:-50px;width:190px;height:190px;border-radius:50%;border:8px double var(--red);color:var(--red);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:34px;line-height:.95;text-align:center;
+    background:rgba(255,251,243,.94);transform:rotate(14deg) scale(1.8);opacity:0;transition:transform .35s cubic-bezier(.3,1.6,.5,1) .45s,opacity .2s .45s}
+  #party.show .stamp{transform:rotate(14deg) scale(1);opacity:1}
+  #party .stamp small{font-size:22px;letter-spacing:2px}
+  /* falling confetti during the celebration only */
   .bit{position:fixed;top:-40px;font-size:40px;animation:fall linear forwards;pointer-events:none}
   @keyframes fall{to{transform:translateY(115vh) rotate(540deg);opacity:.9}}
+  @media (prefers-reduced-motion:reduce){.bit{display:none}#party{transition:opacity .3s}#party .stamp{transition:none}}
 </style>
 </head>
 <body>
-<div id="chip"><div class="row1"><span class="now" id="now">0</span><span class="lbl">&#x1F44D; likes</span></div>
-  <div class="rec" id="rec">Record: &#x2013;</div><div class="bar"><div class="fill" id="fill"></div></div></div>
-<div id="party" aria-hidden="true"><div class="k">NEW RECORD!</div><div class="big" id="pBig">0</div>
-  <div class="sub">likes &#x2014; the most ever in a stream! Thank you, Daze crew!</div><div class="old" id="pOld"></div></div>
+<div id="chip">
+  <div class="stub"><span class="a">LIKE RECORD</span><span class="b">NEW RECORD</span></div>
+  <div class="body">
+    <div class="k">LIKES THIS STREAM</div>
+    <div class="row1"><span class="now" id="now">0</span><span class="lbl">&#x1F44D;</span></div>
+    <div class="rec" id="rec">Record: &#x2013;</div>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+  </div>
+</div>
+<div id="party" aria-hidden="true">
+  <div class="stub"><span>ITPD RECORD</span></div>
+  <div class="body">
+    <div class="k">NEW RECORD!</div>
+    <div class="row"><span class="big" id="pBig">0</span><span class="unit">likes</span></div>
+    <div class="rule"></div>
+    <div class="sub">The most ever in a stream! Thank you, Daze crew!</div>
+    <div class="old" id="pOld"></div>
+  </div>
+  <div class="stamp"><small>ALL-TIME</small>HIGH</div>
+</div>
 <script>
 (function(){
   "use strict";
@@ -104,7 +154,7 @@
     $("pOld").textContent = "Old record: " + old.value + " on " + fmtDate(old.date);
     $("party").classList.add("show");
     var emo = ["\u{1F44D}","\u{1F389}","\u2B50","\u{1F49B}"];
-    for (var i = 0; i < 60; i++){
+    for (var i = 0; i < 40; i++){
       var b = document.createElement("div"); b.className = "bit"; b.textContent = emo[i % emo.length];
       b.style.left = Math.random() * 100 + "vw"; b.style.animationDuration = (2.5 + Math.random() * 2.5) + "s"; b.style.animationDelay = Math.random() * 1.5 + "s";
       document.body.appendChild(b); setTimeout(function(x){ return function(){ x.remove(); }; }(b), 7000);
@@ -138,10 +188,28 @@
     lastSearch = Date.now();
     var getChan = /^UC[\w-]{20,}$/.test(CHAN) ? Promise.resolve(CHAN) : chanId ? Promise.resolve(chanId)
       : yt("channels", { part:"id", forHandle:CHAN.replace(/^@/, "") }).then(function(j){ chanId = j.items && j.items[0] && j.items[0].id || ""; return chanId; });
-    return getChan.then(function(ch){
-      if (!ch) throw new Error("channel not found");
+    // Live first; if nothing is live yet, the scheduled stream starting soonest
+    // (within 12 hours), because likes on the waiting page count toward the stream.
+    var ch;
+    return getChan.then(function(c){
+      ch = c; if (!ch) throw new Error("channel not found");
       return yt("search", { part:"id", channelId:ch, eventType:"live", type:"video", maxResults:"1" });
-    }).then(function(j){ return (j.items && j.items[0] && j.items[0].id && j.items[0].id.videoId) || ""; });
+    }).then(function(j){
+      var v = j.items && j.items[0] && j.items[0].id && j.items[0].id.videoId;
+      if (v) return v;
+      return yt("search", { part:"id", channelId:ch, eventType:"upcoming", type:"video", maxResults:"5" }).then(function(u){
+        var ids = (u.items || []).map(function(x){ return x.id && x.id.videoId; }).filter(Boolean);
+        if (!ids.length) return "";
+        return yt("videos", { part:"liveStreamingDetails", id:ids.join(","), fields:"items(id,liveStreamingDetails(scheduledStartTime))" }).then(function(d){
+          var best = "", bestT = Infinity, now = Date.now();
+          (d.items || []).forEach(function(it){
+            var t = Date.parse(it.liveStreamingDetails && it.liveStreamingDetails.scheduledStartTime);
+            if (isFinite(t) && t - now < 12 * 3600000 && t > now - 6 * 3600000 && t < bestT){ best = it.id; bestT = t; }
+          });
+          return best;
+        });
+      });
+    });
   }
   function poll(){
     findVideo().then(function(v){
@@ -151,7 +219,8 @@
         var it = j.items && j.items[0];
         if (!it){ if (!VIDEO) live.videoId = ""; paint(); return; }
         if (it.statistics && it.statistics.likeCount != null) onLikes(Number(it.statistics.likeCount));
-        if (!VIDEO && it.snippet && it.snippet.liveBroadcastContent !== "live"){ live.videoId = ""; paint(); }   // stream over
+        // "upcoming" = waiting page before going live: keep counting. "none" = stream over.
+        if (!VIDEO && it.snippet && it.snippet.liveBroadcastContent === "none"){ live.videoId = ""; lastSearch = 0; paint(); }
       });
     }).catch(function(e){ console.warn("records:", e.message); });
   }
