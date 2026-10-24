@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<title>ITPD records: likes</title>
+<!--
+  ITPD RECORDS: MOST LIKES IN A STREAM (2026-10-24)
+  IRLToolkit browser source, 1920x1080, transparent. Shows a small like counter
+  with the all-time record, and a celebration when this stream beats it.
+
+  Likes come from YouTube's official Data API (videos.list, 1 unit a minute).
+  The live video is found with search.list (its own 100-a-day allowance), at most
+  once every 10 minutes until found. Records live in Upstash.
+
+  LINK (settings after the #, never in this file):
+    itpd-records.html#url=https://charming-worm-109173.upstash.io&tok=READ_WRITE_TOKEN&key=YOUTUBE_API_KEY&chan=@InTheParkDaze&seed=257&seeddate=2026-09-20
+  seed / seeddate: the starting record. Used only if no record is stored yet.
+  Optional: &video=VIDEO_ID (skip the search), &pos=topleft|topright|bottomleft|bottomright
+  (counter position, default topright), &nochip (celebration only), &scale=1.2,
+  &test (fake likes climbing past the record; writes nothing).
+
+  Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
+  itpd_records_live_2026 (this stream: video, likes, celebrated).
+-->
+<style>
+  :root{--gold:#ffc94d;--ink:#fff;--panel:rgba(20,16,40,.84)}
+  html,body{margin:0;background:transparent;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);overflow:hidden}
+  #chip{position:fixed;top:36px;right:36px;transform:scale(var(--scale,1));transform-origin:top right;background:var(--panel);border-radius:16px;
+    padding:12px 18px;min-width:260px;box-shadow:0 6px 22px rgba(0,0,0,.35);opacity:0;transition:opacity .6s}
+  body.topleft #chip{right:auto;left:36px;transform-origin:top left}
+  body.bottomright #chip{top:auto;bottom:36px;transform-origin:bottom right}
+  body.bottomleft #chip{top:auto;bottom:36px;right:auto;left:36px;transform-origin:bottom left}
+  #chip.on{opacity:1}
+  #chip .row1{display:flex;align-items:baseline;gap:10px;font-weight:800}
+  #chip .now{font-size:40px;font-variant-numeric:tabular-nums}
+  #chip .lbl{font-size:18px;opacity:.85}
+  #chip .rec{font-size:16px;opacity:.85;margin-top:2px}
+  #chip .bar{height:8px;border-radius:4px;background:rgba(255,255,255,.18);overflow:hidden;margin-top:8px}
+  #chip .fill{height:100%;width:0;background:#ff6b8b;transition:width .8s ease}
+  #chip.beaten{box-shadow:0 0 0 3px var(--gold),0 6px 22px rgba(0,0,0,.35)}
+  #chip.beaten .fill{background:var(--gold)}
+  #party{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;text-align:center;
+    background:var(--panel);border-radius:28px;padding:34px 60px;box-shadow:0 0 0 4px var(--gold),0 10px 40px rgba(0,0,0,.45);
+    transition:opacity .5s, transform .5s cubic-bezier(.2,1.4,.4,1)}
+  #party.show{opacity:1;transform:translate(-50%,-50%) scale(var(--scale,1))}
+  #party .k{font-size:30px;font-weight:800;color:var(--gold);letter-spacing:.08em}
+  #party .big{font-size:96px;font-weight:900;line-height:1.05;margin:6px 0}
+  #party .sub{font-size:30px;font-weight:700}
+  #party .old{font-size:20px;opacity:.8;margin-top:10px}
+  .bit{position:fixed;top:-40px;font-size:40px;animation:fall linear forwards;pointer-events:none}
+  @keyframes fall{to{transform:translateY(115vh) rotate(540deg);opacity:.9}}
+</style>
+</head>
+<body>
+<div id="chip"><div class="row1"><span class="now" id="now">0</span><span class="lbl">&#x1F44D; likes</span></div>
+  <div class="rec" id="rec">Record: &#x2013;</div><div class="bar"><div class="fill" id="fill"></div></div></div>
+<div id="party" aria-hidden="true"><div class="k">NEW RECORD!</div><div class="big" id="pBig">0</div>
+  <div class="sub">likes &#x2014; the most ever in a stream! Thank you, Daze crew!</div><div class="old" id="pOld"></div></div>
+<script>
+(function(){
+  "use strict";
+  var H = new URLSearchParams(location.hash.slice(1));
+  var URL_ = (H.get("url") || "").replace(/\/+$/,""), TOK = H.get("tok") || "", KEY = H.get("key") || "";
+  var CHAN = H.get("chan") || "", VIDEO = H.get("video") || "", TEST = H.has("test");
+  var REC_KEY = "itpd_records_2026", LIVE_KEY = "itpd_records_live_2026";
+  function $(id){ return document.getElementById(id); }
+  var pos = H.get("pos"); if (pos && pos !== "topright") document.body.classList.add(pos);
+  var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--scale", sc);
+  var showChip = !H.has("nochip");
+
+  function pipe(cmd){
+    return fetch(URL_ + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + TOK, "Content-Type":"application/json" }, body:JSON.stringify(cmd), cache:"no-store" })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(res){ return res.map(function(x){ return x.result; }); });
+  }
+  function getJSON(k){ return pipe([["GET", k]]).then(function(r){ try { return r[0] ? JSON.parse(r[0]) : null; } catch(e){ return null; } }); }
+  function setJSON(k, v){ return TEST ? Promise.resolve() : pipe([["SET", k, JSON.stringify(v)]]); }
+  function yt(path, params){
+    params.key = KEY;
+    return fetch("https://www.googleapis.com/youtube/v3/" + path + "?" + new URLSearchParams(params), { cache:"no-store" })
+      .then(function(r){ return r.json(); }).then(function(j){ if (j.error) throw new Error(j.error.message || "API error"); return j; });
+  }
+  function fmtDate(d){ if (!d) return ""; var p = String(d).split("-"); return p.length === 3 ? (+p[1]) + "/" + (+p[2]) : d; }
+  function today(){ var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth()+1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+
+  // record = { value, date, prev:{value,date} }; live = { videoId, likes, celebrated }
+  var record = null, live = { videoId:"", likes:0, celebrated:"" }, lastSearch = 0, chanId = "";
+
+  function paint(){
+    if (!record) return;
+    var beaten = !!live.videoId && live.celebrated === live.videoId && !!record.prev;
+    $("now").textContent = live.likes;
+    $("rec").textContent = beaten ? "\u{1F451} New record! (old: " + record.prev.value + " on " + fmtDate(record.prev.date) + ")"
+                                  : "Record: " + record.value + " on " + fmtDate(record.date);
+    var pct = beaten ? 100 : Math.min(100, Math.round(live.likes * 100 / Math.max(1, record.value)));
+    $("fill").style.width = pct + "%";
+    $("chip").classList.toggle("beaten", beaten);
+    $("chip").classList.toggle("on", showChip && !!live.videoId);
+  }
+
+  function celebrate(likes, old){
+    $("pBig").textContent = likes;
+    $("pOld").textContent = "Old record: " + old.value + " on " + fmtDate(old.date);
+    $("party").classList.add("show");
+    var emo = ["\u{1F44D}","\u{1F389}","\u2B50","\u{1F49B}"];
+    for (var i = 0; i < 60; i++){
+      var b = document.createElement("div"); b.className = "bit"; b.textContent = emo[i % emo.length];
+      b.style.left = Math.random() * 100 + "vw"; b.style.animationDuration = (2.5 + Math.random() * 2.5) + "s"; b.style.animationDelay = Math.random() * 1.5 + "s";
+      document.body.appendChild(b); setTimeout(function(x){ return function(){ x.remove(); }; }(b), 7000);
+    }
+    setTimeout(function(){ $("party").classList.remove("show"); }, 9000);
+  }
+
+  // A new like count arrives: update, beat the record once per stream, keep raising it after.
+  function onLikes(likes){
+    if (!record || !(likes >= 0)) return;
+    live.likes = likes;
+    var first = live.celebrated !== live.videoId;
+    if (likes > record.value){
+      if (first){
+        record = { value:likes, date:today(), videoId:live.videoId, prev:{ value:record.value, date:record.date } };
+        live.celebrated = live.videoId;
+        celebrate(likes, record.prev);
+      } else {
+        record.value = likes; record.date = today();
+      }
+      setJSON(REC_KEY, { likes:record }).catch(function(){});
+    }
+    setJSON(LIVE_KEY, live).catch(function(){});
+    paint();
+  }
+
+  function findVideo(){
+    if (VIDEO) return Promise.resolve(VIDEO);
+    if (live.videoId) return Promise.resolve(live.videoId);
+    if (Date.now() - lastSearch < 600000) return Promise.resolve("");
+    lastSearch = Date.now();
+    var getChan = /^UC[\w-]{20,}$/.test(CHAN) ? Promise.resolve(CHAN) : chanId ? Promise.resolve(chanId)
+      : yt("channels", { part:"id", forHandle:CHAN.replace(/^@/, "") }).then(function(j){ chanId = j.items && j.items[0] && j.items[0].id || ""; return chanId; });
+    return getChan.then(function(ch){
+      if (!ch) throw new Error("channel not found");
+      return yt("search", { part:"id", channelId:ch, eventType:"live", type:"video", maxResults:"1" });
+    }).then(function(j){ return (j.items && j.items[0] && j.items[0].id && j.items[0].id.videoId) || ""; });
+  }
+  function poll(){
+    findVideo().then(function(v){
+      if (!v) return;
+      if (v !== live.videoId){ live = { videoId:v, likes:0, celebrated: live.celebrated === v ? v : "" }; }
+      return yt("videos", { part:"statistics,snippet", id:v, fields:"items(statistics(likeCount),snippet(liveBroadcastContent))" }).then(function(j){
+        var it = j.items && j.items[0];
+        if (!it){ if (!VIDEO) live.videoId = ""; paint(); return; }
+        if (it.statistics && it.statistics.likeCount != null) onLikes(Number(it.statistics.likeCount));
+        if (!VIDEO && it.snippet && it.snippet.liveBroadcastContent !== "live"){ live.videoId = ""; paint(); }   // stream over
+      });
+    }).catch(function(e){ console.warn("records:", e.message); });
+  }
+
+  function start(){
+    getJSON(REC_KEY).then(function(r){
+      record = r && r.likes;
+      if (!record){
+        var seed = parseInt(H.get("seed"), 10);
+        record = { value: seed >= 0 ? seed : 0, date: H.get("seeddate") || today() };
+        setJSON(REC_KEY, { likes:record }).catch(function(){});
+      }
+      return getJSON(LIVE_KEY);
+    }).then(function(l){
+      if (l && l.videoId) live = l;   // picks up after a restart: no second celebration
+      paint();
+      if (TEST){
+        live = { videoId:"TEST", likes:Math.max(0, record.value - 6), celebrated:"" };
+        var n = live.likes; paint();
+        var t = setInterval(function(){ n += 1; onLikes(n); if (n > record.value + 3) clearInterval(t); }, 1500);
+        return;
+      }
+      poll(); setInterval(poll, 60000);
+    }).catch(function(e){ console.warn("records start:", e.message); setTimeout(start, 15000); });
+  }
+  if (!URL_ || !TOK || (!KEY && !TEST)){ document.body.textContent = "Missing url / tok / key after the # in the link."; return; }
+  start();
+  window.__records = { onLikes:onLikes, state:function(){ return { record:record, live:live }; } };
+})();
+</script>
+</body>
+</html>
