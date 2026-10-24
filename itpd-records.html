@@ -28,7 +28,8 @@
   it, and each has its own streak: streams in a row that reached 50, 100, 150...
   A stream that ends below a goal resets that goal's streak. If several goals are
   passed between two checks, only the highest is celebrated (all streaks still count).
-  &streak=3 sets the starting streak for the first goal (used only the first time).
+  &streak=3 sets the streak for the first goal (50+) going into the current stream.
+  It's applied once; to correct it later, change the number (e.g. &streak=4).
   A stream the overlay didn't run on can't be counted either way.
   Upstash key: itpd_records_goal_2026.
 
@@ -168,7 +169,7 @@
   var record = null, live = { videoId:"", likes:0, celebrated:"" }, lastSearch = 0, chanId = "";
   // goal = { step, streaks:{ "50":3, "100":1, ... }, lastVideo, best, shownUpTo }
   //   best = highest goal the last stream seen reached; shownUpTo = highest goal celebrated on screen
-  var goal = null, status = "", queuedTier = 0;
+  var goal = null, status = "", queuedTier = 0, pendingSeed = null;
 
   function paint(){
     if (!record) return;
@@ -311,6 +312,13 @@
           goal.lastVideo = v; goal.best = 0; goal.shownUpTo = 0; queuedTier = 0;
           setJSON(GOAL_KEY, goal).catch(function(){});
         }
+        if (pendingSeed !== null && goal && goal.lastVideo === v){
+          // the streak going INTO this stream; if this stream already reached 50, it counts too
+          goal.streaks[String(goal.step)] = pendingSeed + (goal.best >= goal.step ? 1 : 0);
+          goal.seedApplied = pendingSeed; pendingSeed = null;
+          setJSON(GOAL_KEY, goal).catch(function(){});
+          paint();
+        }
         // after a restart: a goal reached but never shown (e.g. reached on the waiting page)
         if (goal && goal.lastVideo === v && goal.best > (goal.shownUpTo || 0) && queuedTier < goal.best){
           queuedTier = goal.best; celebrateGoal(Number(it.statistics && it.statistics.likeCount) || goal.best, goal.best);
@@ -338,11 +346,12 @@
         goal.streaks[String(g.target)] = g.streak || 0;
         setJSON(GOAL_KEY, goal).catch(function(){});
       } else {
-        var seedStreak = parseInt(H.get("streak"), 10);
-        goal = { step:GOAL, streaks:{}, lastVideo: seedStreak > 0 ? "seed" : "", best: seedStreak > 0 ? GOAL : 0, shownUpTo: seedStreak > 0 ? GOAL : 0 };
-        if (seedStreak > 0) goal.streaks[String(GOAL)] = seedStreak;
+        goal = { step:GOAL, streaks:{}, lastVideo:"", best:0, shownUpTo:0 };
         setJSON(GOAL_KEY, goal).catch(function(){});
       }
+      // &streak=N: applied once per value, when the current stream is found (see poll)
+      var sv = parseInt(H.get("streak"), 10);
+      if (sv >= 0 && String(sv) !== String(goal.seedApplied)) pendingSeed = sv;
       return getJSON(LIVE_KEY);
     }).then(function(l){
       if (l && l.videoId) live = l;   // picks up after a restart: no second celebration
