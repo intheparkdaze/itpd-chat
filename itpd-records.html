@@ -22,9 +22,6 @@
   (counter position, default topright; also left / right = middle of that edge), &nochip (celebration only), &scale=1.2,
   The counter's colour follows the park picked in the park overlay (checked every 30 s);
   &color=4A63A3 pins one colour instead.
-  SIZE (UI/UX, 2026-10-25): the counter sizes itself to its text (330 to 560 px wide);
-  long lines wrap instead of being cut off. &rotate makes the goal/record line and the
-  streak line take turns every 8 s, so the ticket stays small.
   &test (fake likes climbing past the goal and the record; writes nothing).
   LIKE GOALS + STREAKS (2026-10-24): goals step up by themselves every &goal=50
   likes (50, 100, 150, ...). Each one is celebrated the first time a stream reaches
@@ -35,6 +32,13 @@
   It's applied once; to correct it later, change the number (e.g. &streak=4).
   A stream the overlay didn't run on can't be counted either way.
   Upstash key: itpd_records_goal_2026.
+  PEAK VIEWERS RECORD (2026-10-25): YouTube's official "watching now" count, from the
+  same once-a-minute request as the likes (no extra quota). A new high must hold for
+  two checks in a row before it counts, so a one-off spike can't trigger it; then
+  "MOST VIEWERS EVER!" plays once per stream and the record keeps rising with the
+  held level. YouTube only. &vseed=252&vseeddate=YYYY-MM-DD sets the starting record,
+  applied once per value (change the number to correct it). Because the check is once
+  a minute, the overlay's peak can read a little lower than Studio's.
 
   Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
   itpd_records_live_2026 (this stream: video, likes, celebrated).
@@ -48,13 +52,13 @@
   html,body{margin:0;background:transparent;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink);overflow:hidden}
 
   /* ---------- the counter chip ---------- */
-  #chip{position:fixed;top:16px;right:16px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:max-content;min-width:330px;max-width:560px;
+  #chip{position:fixed;top:16px;right:16px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:330px;
     background:var(--paper);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.38);overflow:hidden;opacity:0;transition:opacity .6s,box-shadow .6s}
   body.topleft #chip{right:auto;left:16px;transform-origin:top left}
   body.bottomright #chip{top:auto;bottom:140px;transform-origin:bottom right}
   body.bottomleft #chip{top:auto;bottom:140px;right:auto;left:16px;transform-origin:bottom left}
-  body.right #chip{top:50%;transform:translateY(-50%) scale(var(--scale,1));transform-origin:right center}
-  body.left #chip{top:50%;transform:translateY(-50%) scale(var(--scale,1));right:auto;left:16px;transform-origin:left center}
+  body.right #chip{top:50%;margin-top:-55px;transform-origin:right center}
+  body.left #chip{top:50%;margin-top:-55px;right:auto;left:16px;transform-origin:left center}
   #chip.on{opacity:1}
   #chip .stub{width:40px;flex-shrink:0;background:var(--park);border-right:3px dashed rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;transition:background .6s}
   #chip .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 11px/1 "DM Mono",monospace;letter-spacing:2px;color:#fff;white-space:nowrap}
@@ -64,7 +68,7 @@
   #chip .row1{display:flex;align-items:baseline;gap:10px;margin-top:4px}
   #chip .now{font-weight:800;font-size:40px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
   #chip .lbl{font-weight:700;font-size:18px;color:var(--muted)}
-  #chip .rec{font:500 15px/1.3 "DM Mono",monospace;color:var(--muted);margin-top:3px}
+  #chip .rec{font:500 12px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #chip .bar{height:9px;border-radius:5px;background:#EDE5D6;overflow:hidden;margin-top:6px}
   #chip .fill{height:100%;width:0;background:var(--park);border-radius:6px;transition:width .8s ease}
   /* record beaten: gold stub that reads NEW RECORD, gold ring, gold bar */
@@ -75,12 +79,12 @@
   #chip.beaten .fill{background:linear-gradient(90deg,var(--gold),#F7931E)}
 
   /* like goal streak line (Stream Engineering, 2026-10-24; restyle freely, keep id="streak" and class "hit") */
-  #chip .streak{font-weight:700;font-size:18px;line-height:1.25;color:var(--park);margin-top:6px}
-  #chip .streak:empty{display:none}
-  /* &rotate: the record line and the streak line take turns in one spot */
-  #chip.rot .rec, #chip.rot .streak{transition:opacity .4s}
-  #chip.rot.show-streak .rec{display:none} #chip.rot:not(.show-streak) .streak{display:none}
+  #chip .streak{font-weight:700;font-size:15px;line-height:1.2;color:var(--park);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #chip .streak.hit{color:var(--goldDeep)}
+  /* viewers line (Stream Engineering, 2026-10-25; restyle freely, keep id="viewers" and class "hit") */
+  #chip .viewers{font-weight:700;font-size:15px;line-height:1.2;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
+  #chip .viewers:empty{display:none}
+  #chip .viewers.hit{color:var(--goldDeep)}
 
   /* ---------- the celebration (once per stream) ---------- */
   #party{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;display:flex;
@@ -117,6 +121,7 @@
     <div class="rec" id="rec">Record: &#x2013;</div>
     <div class="bar"><div class="fill" id="fill"></div></div>
     <div class="streak" id="streak"></div>
+    <div class="viewers" id="viewers"></div>
   </div>
 </div>
 <div id="party" aria-hidden="true">
@@ -142,16 +147,6 @@
   var pos = H.get("pos"); if (pos && pos !== "topright") document.body.classList.add(pos);
   var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--scale", sc);
   var showChip = !H.has("nochip");
-  if (H.has("rotate")){
-    // Record/goal line and streak line take turns every 8 s, so the ticket stays small.
-    var rotOn = false;
-    setInterval(function(){
-      var chip = document.getElementById("chip"), st = document.getElementById("streak");
-      chip.classList.add("rot");
-      rotOn = !rotOn && !!(st && st.textContent.trim());
-      chip.classList.toggle("show-streak", rotOn);
-    }, 8000);
-  }
 
   // Park colours: same order and colours as the park overlay's venue list
   // (itpd-park-overlay-themed.html). The counter follows the venue picked there.
@@ -187,6 +182,9 @@
   // goal = { step, streaks:{ "50":3, "100":1, ... }, lastVideo, best, shownUpTo }
   //   best = highest goal the last stream seen reached; shownUpTo = highest goal celebrated on screen
   var goal = null, status = "", queuedTier = 0, pendingSeed = null;
+  // viewers record = { value, date, prev, seedApplied }; viewers = latest count; held = previous check's count
+  var vrecord = null, viewers = null, held = null;
+  function saveRecords(){ return setJSON(REC_KEY, { likes:record, viewers:vrecord }); }
 
   function paint(){
     if (!record) return;
@@ -240,7 +238,7 @@
                  stamp:[String(n), n === 1 ? "STREAM" : "IN A ROW"] });
   }
   function showParty(c){
-    $("pStub").textContent = c.stub; $("pK").textContent = c.k; $("pBig").textContent = c.big; $("pUnit").textContent = "likes";
+    $("pStub").textContent = c.stub; $("pK").textContent = c.k; $("pBig").textContent = c.big; $("pUnit").textContent = c.unit || "likes";
     $("pSub").textContent = c.sub; $("pOld").textContent = c.old;
     var st = $("pStamp"); st.textContent = ""; var sm = document.createElement("small"); sm.textContent = c.stamp[0]; st.appendChild(sm); st.appendChild(document.createTextNode(c.stamp[1]));
     $("party").classList.add("show");
@@ -276,10 +274,37 @@
       } else {
         record.value = likes; record.date = today();
       }
-      setJSON(REC_KEY, { likes:record }).catch(function(){});
+      saveRecords().catch(function(){});
     }
     setJSON(LIVE_KEY, live).catch(function(){});
     paint();
+  }
+
+  // A new viewer count (live only). A new high counts once two checks in a row are above the record.
+  function onViewers(n){
+    if (!vrecord || !(n >= 0)) return;
+    viewers = n;
+    var level = held !== null ? Math.min(held, n) : -1;   // the level held across both checks
+    held = n;
+    if (level > vrecord.value){
+      if (live.vcelebrated !== live.videoId){
+        vrecord = { value:level, date:today(), prev:{ value:vrecord.value, date:vrecord.date }, seedApplied:vrecord.seedApplied };
+        live.vcelebrated = live.videoId;
+        queueParty({ stub:"ITPD RECORD", k:"MOST VIEWERS EVER!", big:level, unit:"watching",
+                     sub:"The biggest Daze crew ever, all at once! Thank you!",
+                     old:"Old record: " + vrecord.prev.value + (vrecord.prev.date ? " on " + fmtDate(vrecord.prev.date) : ""), stamp:["ALL-TIME", "HIGH"] });
+      } else { vrecord.value = level; vrecord.date = today(); }
+      saveRecords().catch(function(){});
+      setJSON(LIVE_KEY, live).catch(function(){});
+    }
+    paintViewers();
+  }
+  function paintViewers(){
+    var el = $("viewers");
+    if (!vrecord || viewers === null || status !== "live"){ el.textContent = ""; return; }
+    var beat = live.vcelebrated === live.videoId && !!live.videoId;
+    el.textContent = "\u{1F440} " + viewers + " watching \u00b7 " + (beat ? "\u{1F451} new record " + vrecord.value : "Record " + vrecord.value + (vrecord.date ? " on " + fmtDate(vrecord.date) : ""));
+    el.classList.toggle("hit", beat);
   }
 
   function findVideo(){
@@ -315,14 +340,14 @@
   function poll(){
     findVideo().then(function(v){
       if (!v) return;
-      return yt("videos", { part:"statistics,snippet", id:v, fields:"items(statistics(likeCount),snippet(liveBroadcastContent))" }).then(function(j){
+      return yt("videos", { part:"statistics,snippet,liveStreamingDetails", id:v, fields:"items(statistics(likeCount),snippet(liveBroadcastContent),liveStreamingDetails(concurrentViewers))" }).then(function(j){
         var it = j.items && j.items[0];
         if (!it){ if (!VIDEO) live.videoId = ""; paint(); return; }
         status = (it.snippet && it.snippet.liveBroadcastContent) || "";
         // "upcoming" = waiting page before going live: keep counting. "none" = stream over:
         // forget it (no counting, no streak changes) and look for the next one.
         if (status === "none" && !VIDEO){ live.videoId = ""; lastSearch = 0; paint(); setTimeout(poll, 1000); return; }
-        if (v !== live.videoId){ live = { videoId:v, likes:0, celebrated: live.celebrated === v ? v : "" }; }
+        if (v !== live.videoId){ live = { videoId:v, likes:0, celebrated: live.celebrated === v ? v : "", vcelebrated: live.vcelebrated === v ? v : "" }; held = null; }
         if (goal && goal.lastVideo !== v){
           // a new stream: each goal's streak survives only if the previous stream reached it
           Object.keys(goal.streaks).forEach(function(t){ if (goal.lastVideo && goal.best < +t) goal.streaks[t] = 0; });
@@ -341,6 +366,8 @@
           queuedTier = goal.best; celebrateGoal(Number(it.statistics && it.statistics.likeCount) || goal.best, goal.best);
         }
         if (it.statistics && it.statistics.likeCount != null) onLikes(Number(it.statistics.likeCount));
+        var cv = it.liveStreamingDetails && it.liveStreamingDetails.concurrentViewers;
+        if (status === "live" && cv != null) onViewers(Number(cv)); else { viewers = null; held = null; paintViewers(); }
         runParty();
       });
     }).catch(function(e){ console.warn("records:", e.message); });
@@ -349,11 +376,24 @@
   function start(){
     getJSON(REC_KEY).then(function(r){
       record = r && r.likes;
+      vrecord = (r && r.viewers) || { value:0, date:"" };
+      var dirty = false;
       if (!record){
         var seed = parseInt(H.get("seed"), 10);
         record = { value: seed >= 0 ? seed : 0, date: H.get("seeddate") || today() };
-        setJSON(REC_KEY, { likes:record }).catch(function(){});
+        dirty = true;
       }
+      // &vseed=N: starting viewers record, applied once per value
+      // (value and date together, so adding the date later still applies)
+      var vs = parseInt(H.get("vseed"), 10), vkey = vs + "|" + (H.get("vseeddate") || "");
+      if (vs >= 0 && vkey !== String(vrecord.seedApplied) && !(String(vrecord.seedApplied) === String(vs) && !H.get("vseeddate"))){
+        if (String(vrecord.seedApplied).split("|")[0] === String(vs) && vrecord.value !== vs){
+          vrecord.date = vrecord.date || H.get("vseeddate") || "";   // record already beaten: keep it, don't roll back
+        } else vrecord = { value:vs, date:H.get("vseeddate") || "", seedApplied:vkey };
+        vrecord.seedApplied = vkey;
+        dirty = true;
+      }
+      if (dirty) saveRecords().catch(function(){});
       return getJSON(GOAL_KEY);
     }).then(function(g){
       if (g && g.streaks){ goal = g; goal.step = GOAL; }
@@ -380,6 +420,12 @@
         live = { videoId:"TEST", likes:Math.max(0, goal.step - 4), celebrated:"" };
         goal = { step:goal.step, streaks:JSON.parse(JSON.stringify(goal.streaks)), lastVideo:"TEST", best:0, shownUpTo:0 };
         var n = live.likes; paint();
+        // viewers: climb from just under the record to past it (one-off spike first, which must NOT count)
+        var vn = Math.max(0, vrecord.value - 3), vt = 0;
+        var tv = setInterval(function(){
+          vt++; var shown = (vt === 2) ? vrecord.value + 20 : vn++;   // tick 2 is a spike
+          onViewers(shown); if (vn > vrecord.value + 4) clearInterval(tv);
+        }, 1500);
         var t = setInterval(function(){
           if (n >= goal.step + 1 && n < 2 * goal.step - 3) n = 2 * goal.step - 3;
           else if (n >= 2 * goal.step + 1 && n < record.value - 4 && record.value > 2 * goal.step) n = record.value - 4;
@@ -394,7 +440,7 @@
   if (!URL_ || !TOK || (!KEY && !TEST)){ document.body.textContent = "Missing url / tok / key after the # in the link."; return; }
   start();
   followPark(); setInterval(followPark, 30000);
-  window.__records = { onLikes:onLikes, poll:poll, state:function(){ return { record:record, live:live, goal:goal, status:status }; } };
+  window.__records = { onLikes:onLikes, onViewers:onViewers, poll:poll, state:function(){ return { record:record, vrecord:vrecord, live:live, goal:goal, status:status }; } };
 })();
 </script>
 </body>
