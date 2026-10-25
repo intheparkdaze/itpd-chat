@@ -39,6 +39,13 @@
   held level. YouTube only. &vseed=252&vseeddate=YYYY-MM-DD sets the starting record,
   applied once per value (change the number to correct it). Because the check is once
   a minute, the overlay's peak can read a little lower than Studio's.
+  SUBSCRIBER MILESTONES (2026-10-25): checks the channel's public subscriber count
+  every 5 minutes (channels.list, 1 unit) and celebrates each &substep=100 milestone
+  (default 100), with a bigger one every &subbig=1000. The first check ever only
+  notes where you are (no celebration). A milestone crossed while the overlay wasn't
+  running plays at the start of the next stream ("While we were away..."). YouTube
+  rounds public counts above 1,000, so milestones should stay round numbers.
+  &nosubs turns this part off without touching likes or viewers.
 
   Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
   itpd_records_live_2026 (this stream: video, likes, celebrated).
@@ -184,7 +191,7 @@
   var goal = null, status = "", queuedTier = 0, pendingSeed = null;
   // viewers record = { value, date, prev, seedApplied }; viewers = latest count; held = previous check's count
   var vrecord = null, viewers = null, held = null;
-  function saveRecords(){ return setJSON(REC_KEY, { likes:record, viewers:vrecord }); }
+  function saveRecords(){ return setJSON(REC_KEY, { likes:record, viewers:vrecord, subs:subs }); }
 
   function paint(){
     if (!record) return;
@@ -242,8 +249,8 @@
     $("pSub").textContent = c.sub; $("pOld").textContent = c.old;
     var st = $("pStamp"); st.textContent = ""; var sm = document.createElement("small"); sm.textContent = c.stamp[0]; st.appendChild(sm); st.appendChild(document.createTextNode(c.stamp[1]));
     $("party").classList.add("show");
-    var emo = ["\u{1F44D}","\u{1F389}","\u2B50","\u{1F49B}"];
-    for (var i = 0; i < 40; i++){
+    var emo = c.emo || ["\u{1F44D}","\u{1F389}","\u2B50","\u{1F49B}"];
+    for (var i = 0; i < (c.bits || 40); i++){
       var b = document.createElement("div"); b.className = "bit"; b.textContent = emo[i % emo.length];
       b.style.left = Math.random() * 100 + "vw"; b.style.animationDuration = (2.5 + Math.random() * 2.5) + "s"; b.style.animationDelay = Math.random() * 1.5 + "s";
       document.body.appendChild(b); setTimeout(function(x){ return function(){ x.remove(); }; }(b), 7000);
@@ -305,6 +312,47 @@
     var beat = live.vcelebrated === live.videoId && !!live.videoId;
     el.textContent = "\u{1F440} " + viewers + " watching \u00b7 " + (beat ? "\u{1F451} new record " + vrecord.value : "Record " + vrecord.value + (vrecord.date ? " on " + fmtDate(vrecord.date) : ""));
     el.classList.toggle("hit", beat);
+  }
+
+  // ----- Subscriber milestones (kept separate: a problem here can't touch likes or viewers) -----
+  var SUBSTEP = parseInt(H.get("substep"), 10) > 0 ? parseInt(H.get("substep"), 10) : 100;
+  var SUBBIG = parseInt(H.get("subbig"), 10) > 0 ? parseInt(H.get("subbig"), 10) : 1000;
+  var subs = null, subsFirstCheck = true;    // subs = { last (milestone already celebrated), count, at }
+  function fmtN(n){ return Number(n).toLocaleString("en-US"); }
+  function onSubs(count){
+    if (!(count >= 0)) return;
+    var m = Math.floor(count / SUBSTEP) * SUBSTEP;
+    if (!subs || !(subs.last >= 0)){
+      subs = { last:m, count:count, at:Date.now() };          // first ever check: just note where we are
+    } else {
+      if (m > subs.last){
+        var big = Math.floor(m / SUBBIG) > Math.floor(subs.last / SUBBIG);   // crossed a thousand on the way
+        var shown = big ? Math.floor(m / SUBBIG) * SUBBIG : m;
+        var away = subsFirstCheck;
+        queueParty({ stub:"ITPD MILESTONE", k:fmtN(shown) + " SUBSCRIBERS!", big:fmtN(shown), unit:"subscribers",
+                     sub: away ? "While we were away, we hit " + fmtN(shown) + "! Thank you, Daze crew!"
+                               : big ? "What a moment! Thank you for being part of the Daze crew!" : "Thank you for being part of the Daze crew!",
+                     old:"Next stop: " + fmtN(m + SUBSTEP), stamp: big ? ["BIG", "MILESTONE"] : ["NEW", "MILESTONE"],
+                     bits: big ? 90 : 40, emo: ["\u{1F389}","\u{1F49B}","\u2B50","\u{1F38A}"] });
+        subs.last = m;
+      }
+      subs.count = count; subs.at = Date.now();
+    }
+    subsFirstCheck = false;
+    saveRecords().catch(function(){});
+  }
+  function pollSubs(){
+    if (H.has("nosubs")) return;
+    var getChan = /^UC[\w-]{20,}$/.test(CHAN) ? Promise.resolve(CHAN) : chanId ? Promise.resolve(chanId)
+      : yt("channels", { part:"id", forHandle:CHAN.replace(/^@/, "") }).then(function(j){ chanId = j.items && j.items[0] && j.items[0].id || ""; return chanId; });
+    getChan.then(function(ch){
+      if (!ch) return;
+      return yt("channels", { part:"statistics", id:ch, fields:"items(statistics(subscriberCount,hiddenSubscriberCount))" }).then(function(j){
+        var st = j.items && j.items[0] && j.items[0].statistics;
+        if (!st || st.hiddenSubscriberCount) return;
+        onSubs(Number(st.subscriberCount));
+      });
+    }).catch(function(e){ console.warn("subs:", e.message); });
   }
 
   function findVideo(){
@@ -377,6 +425,7 @@
     getJSON(REC_KEY).then(function(r){
       record = r && r.likes;
       vrecord = (r && r.viewers) || { value:0, date:"" };
+      subs = (r && r.subs) || null;
       var dirty = false;
       if (!record){
         var seed = parseInt(H.get("seed"), 10);
@@ -421,26 +470,34 @@
         goal = { step:goal.step, streaks:JSON.parse(JSON.stringify(goal.streaks)), lastVideo:"TEST", best:0, shownUpTo:0 };
         var n = live.likes; paint();
         // viewers: climb from just under the record to past it (one-off spike first, which must NOT count)
-        var vn = Math.max(0, vrecord.value - 3), vt = 0;
+        var vStart = vrecord.value, vn = Math.max(0, vStart - 3), vt = 0;
         var tv = setInterval(function(){
-          vt++; var shown = (vt === 2) ? vrecord.value + 20 : vn++;   // tick 2 is a spike
-          onViewers(shown); if (vn > vrecord.value + 4) clearInterval(tv);
+          vt++; var shown = (vt === 2) ? vStart + 20 : vn++;   // tick 2 is a spike
+          onViewers(shown); if (vn > vStart + 4) clearInterval(tv);
         }, 1500);
+        // subscribers: a regular milestone, then a big one (memory only: test mode saves nothing)
+        if (!H.has("nosubs")){
+          subs = { last:1800, count:1858 }; subsFirstCheck = false;
+          setTimeout(function(){ onSubs(1902); }, 4000);
+          setTimeout(function(){ onSubs(2001); }, 8000);
+        }
+        var recStart = record.value, end = Math.max(recStart, 2 * goal.step) + 3;   // fixed: the record rises as it's beaten
         var t = setInterval(function(){
           if (n >= goal.step + 1 && n < 2 * goal.step - 3) n = 2 * goal.step - 3;
-          else if (n >= 2 * goal.step + 1 && n < record.value - 4 && record.value > 2 * goal.step) n = record.value - 4;
+          else if (n >= 2 * goal.step + 1 && n < recStart - 4 && recStart > 2 * goal.step) n = recStart - 4;
           else n += 1;
-          onLikes(n); if (n > Math.max(record.value, 2 * goal.step) + 3) clearInterval(t);
+          onLikes(n); if (n > end) clearInterval(t);
         }, 1500);
         return;
       }
       poll(); setInterval(poll, 60000);
+      pollSubs(); setInterval(pollSubs, 300000);
     }).catch(function(e){ console.warn("records start:", e.message); setTimeout(start, 15000); });
   }
   if (!URL_ || !TOK || (!KEY && !TEST)){ document.body.textContent = "Missing url / tok / key after the # in the link."; return; }
   start();
   followPark(); setInterval(followPark, 30000);
-  window.__records = { onLikes:onLikes, onViewers:onViewers, poll:poll, state:function(){ return { record:record, vrecord:vrecord, live:live, goal:goal, status:status }; } };
+  window.__records = { onLikes:onLikes, onViewers:onViewers, onSubs:onSubs, pollSubs:pollSubs, subs:function(){ return subs; }, poll:poll, state:function(){ return { record:record, vrecord:vrecord, live:live, goal:goal, status:status }; } };
 })();
 </script>
 </body>
