@@ -390,7 +390,7 @@ button{font:inherit;color:inherit}
     var url = cfg("purl"), key = cfg("pkey");
     if (!url || !key){ alert("To post in YouTube chat from here, add the Chat Poster URL and bot key in \u2699."); return; }
     if (!tries) note("Posting in YouTube chat: " + text, "", Date.now());
-    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, text:text }), redirect:"follow", cache:"no-store" })
+    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, text:text, source:"manual" }), redirect:"follow", cache:"no-store" })
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (j && j.ok){ note("Posted in YouTube chat.", "", Date.now()); return; }
