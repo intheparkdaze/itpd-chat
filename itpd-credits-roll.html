@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ITPD Recognition Credits</title>
+<!--
+  ======================================================
+  ITPD CREDITS ROLL
+
+  EDITING (phone or laptop, no re-uploading, ever)
+    Open this file in a normal browser with ?edit=1 on the end and
+    click the gear. Add people, rename them, set tiers and Mod,
+    take them off the credits, or delete them. Hit Save.
+    The stream copy picks it up within about 15 seconds.
+
+  WHERE THE ROSTER LIVES
+    Upstash (same service and account as the park overlay), key
+    itpd_credits_roster_2026, as one JSON list with the real names.
+    The list inside this file (FALLBACK_ROSTER) is only used the very
+    first time, before anything has been saved, and if Upstash can't
+    be reached before a copy has ever loaded.
+
+  OBS / IRLTOOLKIT BROWSER SOURCE
+    Width 405, Height 1080, no ?edit=1 on the URL
+    "Shutdown source when not visible": OFF
+    "Refresh browser when scene becomes active": ON
+
+  TROUBLESHOOTING
+    ?debug=1 on the URL shows whether Upstash is reachable.
+  ======================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 405px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Baloo 2', sans-serif;
+  }
+
+  /* ---- Sunset sky gradient, sampled from ITPD key art palette ---- */
+  #sky {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      #201A52 0%,
+      #4A3282 16%,
+      #965A91 32%,
+      #CD5A5A 48%,
+      #F76A26 63%,
+      #FFA85A 80%,
+      #FFD996 100%
+    );
+    z-index: 0;
+  }
+
+  /* subtle vignette so text pops */
+  #vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(20,10,20,0.45) 100%);
+    z-index: 1;
+  }
+
+  /* ---- String lights strand under the header ---- */
+  #lights {
+    position: absolute;
+    top: 140px;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    z-index: 4;
+  }
+
+  /* ---- Header (fixed, does not scroll) ---- */
+  #header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    padding-top: 55px;
+    z-index: 4;
+  }
+  /* ===== ITPD ticket look (Broadcast UI/UX, 2026-10-26) ===== */
+  #header .wordmark {
+    font-family: 'Baloo 2', sans-serif;
+    font-weight: 800;
+    font-size: 50px;
+    line-height: 1;
+    color: #FFFBF3;
+    text-shadow: 0 0 16px rgba(255, 211, 78, 0.45), 0 3px 0 rgba(30,16,20,0.55);
+    padding: 0 12px;
+  }
+  #header .wordmark::after {            /* the gold rule every ITPD graphic carries */
+    content: ""; display: block; width: 120px; height: 8px; border-radius: 4px;
+    background: #FFD34E; margin: 12px auto 0; box-shadow: 0 0 8px rgba(255,211,78,0.6);
+  }
+  #header .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #FFF7E6;
+    text-shadow: 0 2px 6px rgba(30,16,20,0.7);
+    margin-top: 10px;
+  }
+
+  /* ---- Scroll viewport (starts just below the header, no skyline now) ---- */
+  #viewport {
+    position: absolute;
+    top: 190px;
+    bottom: 30px;
+    left: 0;
+    width: 100%;
+    overflow: hidden;
+    z-index: 3;
+  }
+
+  #viewport::before,
+  #viewport::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 90px;
+    z-index: 2;
+    pointer-events: none;
+  }
+  #viewport::before {
+    top: 0;
+    background: linear-gradient(to bottom, rgba(20,10,30,0.35), rgba(0,0,0,0));
+  }
+  #viewport::after {
+    bottom: 0;
+    background: linear-gradient(to top, rgba(20,10,30,0.35), rgba(0,0,0,0));
+  }
+
+  #scroller {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    animation: scrollUp linear infinite;
+  }
+
+  /* soft dark band behind the names so they stay readable over the light lower sky */
+  #band {
+    position: absolute; top: 190px; bottom: 30px; left: 18px; right: 18px; z-index: 2;
+    border-radius: 26px;
+    background: linear-gradient(to bottom, rgba(24,14,48,0.10) 0%, rgba(24,14,48,0.28) 40%, rgba(24,14,48,0.42) 100%);
+  }
+
+  .section { margin-bottom: 54px; }
+  .section-underline { display: none; }       /* the ticket replaces the old underline */
+
+  /* section header = a small ticket: coloured stub with the icon, cream body with the name */
+  .section-title {
+    display: inline-flex; align-items: stretch; position: relative;
+    margin: 0 auto 18px; border-radius: 12px; overflow: visible;
+    box-shadow: 0 6px 16px rgba(20,10,30,0.45);
+    text-transform: uppercase;
+  }
+  .section-title .stub {
+    display: flex; align-items: center; justify-content: center; min-width: 44px; padding: 0 8px;
+    background: var(--c); color: #fff; font-size: 20px; border-radius: 12px 0 0 12px;
+    border-right: 3px dashed rgba(255,255,255,0.55);
+  }
+  .section-title .lab {
+    background: #FFFBF3; color: #17152A; border-radius: 0 12px 12px 0;
+    font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: 1.5px;
+    padding: 7px 16px 5px 12px; white-space: nowrap;
+  }
+  .name {
+    font-family: 'Baloo 2', sans-serif; line-height: 1.6; margin: 0;
+    font-size: 22px; font-weight: 700; color: #FFF7E6;
+    text-shadow: 0 0 2px rgba(20,10,30,0.9), 0 2px 6px rgba(20,10,30,0.85);
+  }
+
+  /* tier colours */
+  .tier-insider      { --c: #E0A100; }
+  .tier-supporter    { --c: #D82A83; }
+  .tier-twitch_t3    { --c: #9147FF; }
+  .tier-twitch_t2    { --c: #7B3FE4; }
+  .tier-twitch_t1    { --c: #6B3FB0; }
+  .tier-twitch_prime { --c: #0090C8; }
+  .tier-moderator    { --c: #5E84F1; }       /* YouTube's moderator blue, like the Daze Bot shield */
+
+  /* Daze Insiders: the top tier gets a bigger ticket, gold names and a VIP stamp */
+  .tier-insider .section-title .lab { font-size: 26px; padding: 9px 18px 7px 14px; }
+  .tier-insider .section-title .stub { min-width: 52px; font-size: 24px; }
+  .tier-insider .name { font-size: 28px; font-weight: 800; color: #FFE58A; text-shadow: 0 0 2px rgba(20,10,30,0.95), 0 2px 6px rgba(20,10,30,0.9), 0 0 12px rgba(255,211,78,0.35); }
+  .vip {
+    position: absolute; right: -40px; top: -22px; width: 58px; height: 58px; border-radius: 50%;
+    border: 4px double #E0322B; color: #E0322B; background: rgba(255,251,243,0.95);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: 1px;
+    transform: rotate(14deg); box-shadow: 0 3px 8px rgba(20,10,30,0.35);
+  }
+  .tier-supporter .name { font-size: 23px; }
+
+  /* closing ticket */
+  .tier-thanks { display: flex; justify-content: center; }
+  .closing-ticket {
+    display: flex; width: 352px; background: #FFFBF3; border-radius: 18px; overflow: hidden;
+    box-shadow: 0 10px 26px rgba(20,10,30,0.5); text-align: left;
+  }
+  .closing-ticket .stub { width: 40px; background: #22306B; border-right: 3px dashed rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; }
+  .closing-ticket .stub span { writing-mode: vertical-rl; transform: rotate(180deg); font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 2px; color: #fff; }
+  .closing-ticket .body { flex: 1; padding: 16px 14px 16px 16px; }
+  .closing-ticket .k { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 17px; color: #D82A83; line-height: 1.2; }
+  .closing-ticket .t { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 40px; color: #17152A; line-height: 1; margin-top: 4px; }
+  .closing-ticket .rule { width: 80px; height: 6px; border-radius: 3px; background: #FFD34E; margin: 10px 0 8px; }
+  .closing-ticket .m { font-family: 'DM Mono', monospace; font-size: 12px; color: #6B6780; letter-spacing: 1px; }
+  .closing-ticket .tear { width: 40px; border-left: 3px dashed #C9C2B2; background: #FFF4D6; display: flex; align-items: center; justify-content: center; }
+  .closing-ticket .tear span { writing-mode: vertical-rl; font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 3px; color: #B07A00; }
+
+  .spacer-end { height: 20vh; }
+
+  @keyframes scrollUp {
+    from { transform: translateY(0); }
+    to   { transform: translateY(calc(-100% - 860px)); }
+  }
+
+  /* ---- Skyline + palms removed; bottom of scene is open now ---- */
+
+
+  /* ======================================================
+     EDITOR UI — gear icon + settings panel.
+     Purely a private editing tool: opened only when you load this
+     file in a normal browser tab with ?edit=1 on the URL. Hidden by
+     default (see #gear below) so it can never appear on the OBS
+     copy's video output — not just "nobody clicks it," actually
+     not rendered at all unless ?edit=1 is present. Deliberately
+     plain/dark so it never gets mistaken for part of the on-stream
+     design on the rare chance it's visible during editing.
+     ====================================================== */
+  #gear {
+    display: none; /* JS reveals this only when ?edit=1 is on the URL */
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.45);
+    color: #fff;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 15px;
+    user-select: none;
+    z-index: 50;
+  }
+
+  #panel {
+    position: fixed;
+    top: 44px;
+    right: 8px;
+    left: 8px;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: rgba(15,15,25,0.97);
+    border-radius: 10px;
+    padding: 14px;
+    color: #fff;
+    font-family: 'IBM Plex Mono', 'Baloo 2', monospace;
+    font-size: 12px;
+    display: none;
+    z-index: 50;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  #panel.open { display: block; }
+
+  #panel h4 {
+    margin: 0 0 8px 0;
+    color: #FFD866;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  #panel .hint {
+    font-size: 10.5px;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.4;
+    margin-bottom: 10px;
+  }
+
+  #filterInput {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 9px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #1e1e2a;
+    color: #fff;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  #rosterList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .roster-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 7px 8px;
+    flex-wrap: wrap;
+  }
+
+  .roster-name {
+    flex: 1 1 100%;
+    font-weight: 600;
+    color: #FFF7E6;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+
+  /* Each roster row now has two independent tier groups (YouTube tier,
+     Twitch tier) stacked as their own labeled line, plus a footer row
+     for Mod + Remove — .tier-group wraps a label + its button row so
+     it's clear at a glance which platform each button set controls. */
+  .tier-group {
+    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tier-group-label {
+    flex-shrink: 0;
+    width: 44px;
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .tier-btns {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .tier-btn {
+    flex: 1;
+    padding: 6px 2px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: #1e1e2a;
+    color: #cfd3e0;
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .tier-btn.active[data-tier="none"] { background: #444; color: #fff; border-color: #666; }
+  .tier-btn.active[data-tier="supporter"] { background: #FFA85A; color: #1e1e2a; border-color: #FFA85A; }
+  .tier-btn.active[data-tier="insider"] { background: #FDCB2F; color: #1e1e2a; border-color: #FDCB2F; }
+
+  /* Twitch tier buttons — same shape as .tier-btn, own class so the click
+     handler can tell the two tier groups apart, own purple-family
+     active colors matching the on-stream Twitch section styling. */
+  .twitch-tier-btn {
+    flex: 1;
+    padding: 6px 2px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: #1e1e2a;
+    color: #cfd3e0;
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .twitch-tier-btn.active[data-twitchtier="none"] { background: #444; color: #fff; border-color: #666; }
+  .twitch-tier-btn.active[data-twitchtier="twitch_t1"] { background: #6b3fb0; color: #fff; border-color: #6b3fb0; }
+  .twitch-tier-btn.active[data-twitchtier="twitch_prime"] { background: #00A8E1; color: #08211f; border-color: #00A8E1; }
+  .twitch-tier-btn.active[data-twitchtier="twitch_t2"] { background: #9147FF; color: #fff; border-color: #9147FF; }
+  .twitch-tier-btn.active[data-twitchtier="twitch_t3"] { background: #E6D2FF; color: #1e1e2a; border-color: #E6D2FF; }
+
+  .row-actions {
+    flex: 1 1 100%;
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .mod-toggle {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: #1e1e2a;
+    color: #cfd3e0;
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .mod-toggle.active {
+    background: #3AC9BE;
+    color: #08211f;
+    border-color: #3AC9BE;
+  }
+
+  .remove-btn {
+    flex-shrink: 0;
+    padding: 6px 8px;
+    border: 1px solid #5a2a2a;
+    border-radius: 6px;
+    background: #241414;
+    color: #ff9d9d;
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .remove-btn:active {
+    background: #5a2a2a;
+  }
+
+
+  #saveBtn {
+    position: sticky;
+    bottom: 0;
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: #FFD866;
+    color: #1e1e2a;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate(-50%, 20px);
+    background: #FFD866;
+    color: #1a1410;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 60;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  #saveBtn:disabled { opacity: 0.6; }
+
+  /* ---- editor additions ---- */
+  #panel { padding-bottom: 0; }
+  .add-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .add-row input, .name-input {
+    flex: 1; min-width: 0; padding: 7px 9px; border-radius: 6px;
+    border: 1px solid #444; background: #1e1e2a; color: #fff; font-size: 12px;
+  }
+  .name-input { flex: 1 1 100%; font-weight: 600; margin-bottom: 2px; }
+  .name-input:focus, .add-row input:focus { outline: none; border-color: #FFD866; }
+  .add-row button {
+    padding: 7px 12px; border: none; border-radius: 6px;
+    background: #3AC9BE; color: #08211f; font-weight: 700; cursor: pointer;
+  }
+  .delete-btn {
+    flex-shrink: 0; margin-left: auto; padding: 6px 8px;
+    border: 1px solid #7a2020; border-radius: 6px; background: #3a0e0e;
+    color: #ffb3b3; font-size: 10.5px; font-weight: 700; cursor: pointer;
+  }
+  .delete-btn.armed { background: #c62828; color: #fff; border-color: #c62828; }
+  .panel-footer {
+    position: sticky; bottom: 0; display: flex; gap: 6px;
+    background: rgba(15,15,25,0.97); padding: 10px 0 12px;
+  }
+  #saveBtn, #downloadBtn {
+    position: static; flex: 1; width: auto; padding: 10px 6px; border: none;
+    border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;
+  }
+  #saveBtn { background: #FFD866; color: #1e1e2a; }
+  #downloadBtn { background: #2b2b3a; color: #cfd3e0; border: 1px solid #555; }
+  #downloadBtn.needed { background: #3AC9BE; color: #08211f; border-color: #3AC9BE; }
+  #saveBtn:disabled, #downloadBtn:disabled { opacity: 0.45; cursor: default; }
+  .warn {
+    background: #5a1414; border: 1px solid #c62828; color: #ffd6d6;
+    border-radius: 8px; padding: 9px; margin-bottom: 10px; font-size: 11.5px; line-height: 1.4;
+  }
+  #fileNote:empty { display: none; }
+  #fileNote { color: #6FE3D8; margin: 0 0 6px; }
+  #saveBtn { flex: 2; }
+  #reloadBtn { background: #2b2b3a; color: #cfd3e0; border: 1px solid #555; flex: 1;
+    padding: 10px 6px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer; }
+  #unsaved { color: #FFD866; margin: 0 0 6px; }
+  #bulkBox { display: none; background: rgba(255,255,255,0.05); border: 1px solid #444; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  #bulkBox.open { display: block; }
+  #bulkText { width: 100%; min-height: 140px; border-radius: 8px; border: 1px solid #444; background: #101024; color: #fff; font: 12px/1.4 ui-monospace, monospace; padding: 8px; }
+  #bulkResult { font-size: 12px; line-height: 1.5; margin-top: 8px; color: #ddd; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  #bulkResult b { color: #FFD866; }
+  #unsaved:empty { display: none; }
+</style>
+</head>
+<body>
+
+<div id="sky"></div>
+<div id="vignette"></div>
+<!-- String lights -->
+<svg id="lights" viewBox="0 0 1920 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0,10 Q 160,55 320,10 T 640,10 T 960,10 T 1280,10 T 1600,10 T 1920,10"
+        fill="none" stroke="#3A2A55" stroke-width="3" opacity="0.6"/>
+  <g fill="#FFE096">
+    <!-- bulbs spaced along the swag, alternating warm tones -->
+    <circle cx="80"  cy="34" r="7"/>
+    <circle cx="240" cy="46" r="7" fill="#FDCB2F"/>
+    <circle cx="400" cy="34" r="7"/>
+    <circle cx="560" cy="46" r="7" fill="#FB9202"/>
+    <circle cx="720" cy="34" r="7"/>
+    <circle cx="880" cy="46" r="7" fill="#FDCB2F"/>
+    <circle cx="1040" cy="34" r="7"/>
+    <circle cx="1200" cy="46" r="7" fill="#FB9202"/>
+    <circle cx="1360" cy="34" r="7"/>
+    <circle cx="1520" cy="46" r="7" fill="#FDCB2F"/>
+    <circle cx="1680" cy="34" r="7"/>
+    <circle cx="1840" cy="46" r="7" fill="#FB9202"/>
+  </g>
+</svg>
+
+<div id="header">
+  <div class="wordmark">In The Park Daze</div>
+  <div class="subtitle">Thank You To Our Community</div>
+</div>
+
+<div id="band"></div>
+<div id="viewport">
+  <div id="scroller">
+    <div id="credits-content"></div>
+    <div class="spacer-end"></div>
+  </div>
+</div>
+
+
+<div id="gear" title="Edit credits">&#9881;</div>
+<div id="panel">
+  <h4>Credits</h4>
+  <div id="staleWarn" class="warn" hidden></div>
+  <div class="hint">
+    Add, rename, set tiers, take people off the credits, or delete them.
+    Hit Save and the stream updates within about 15 seconds.
+  </div>
+  <button type="button" id="bulkOpen" class="remove-btn" style="width:100%;margin-bottom:10px;background:#1f6b4a;border-color:#2F8F5B;color:#d9ffe9">Bulk update from YouTube members list</button>
+  <div id="bulkBox">
+    <div class="hint" style="margin-bottom:6px">In YouTube Studio go to Earn &gt; Memberships &gt; Your members, select the whole page (Ctrl+A), copy it, and paste it into the box below (here in the editor, not into the file). The changes appear right away; then tap Apply changes, then Save. Only YouTube tiers change: mods, Twitch and Prime stay as they are.</div>
+    <textarea id="bulkText" placeholder="Paste the YouTube Studio members page here"></textarea>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button type="button" id="bulkCheck" class="remove-btn" style="flex:1">Check changes</button>
+      <button type="button" id="bulkApply" class="remove-btn" style="flex:1" disabled>Apply changes</button>
+    </div>
+    <div id="bulkResult"></div>
+  </div>
+  <button type="button" id="loadFileBtn" class="remove-btn" style="width:100%;margin-bottom:10px">Load this file's list (replaces the saved list)</button>
+  <div class="add-row">
+    <input type="text" id="newName" placeholder="New person, e.g. @handle">
+    <button type="button" id="addBtn">Add</button>
+  </div>
+  <input type="text" id="filterInput" placeholder="Find a name">
+  <div id="rosterList"></div>
+  <div class="panel-footer">
+    <button type="button" id="saveBtn">Save</button>
+    <button type="button" id="reloadBtn">Discard changes</button>
+  </div>
+  <div id="unsaved" class="hint"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+  const CLOSING_MESSAGE = "And to viewers like you, thank you!";   // top line of the closing ticket
+  const SCROLL_SPEED_PX_PER_SEC = 55;
+
+  // The roster as of 2026-10-11 (39 YouTube members, 8 mods, 1 Twitch T1, 1 Prime).
+  // Shown automatically until the first Save. After that the saved list wins;
+  // use "Load this file's list" in the editor to replace it with this one.
+  const FALLBACK_ROSTER = [
+    {"id": 1, "name": "@thedisneyman68", "youtube": "insider", "twitch": "", "mod": false},
+    {"id": 2, "name": "@MrsSmiffle", "youtube": "insider", "twitch": "", "mod": true},
+    {"id": 3, "name": "@PJFluffy65", "youtube": "insider", "twitch": "", "mod": false},
+    {"id": 4, "name": "@TIMtotheUnknown14", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 5, "name": "@BrandonMiraculous523", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 6, "name": "@Figgyfangirl", "youtube": "insider", "twitch": "", "mod": true},
+    {"id": 7, "name": "@Erocz4ever", "youtube": "supporter", "twitch": "", "mod": true},
+    {"id": 8, "name": "@OCSteveD673", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 9, "name": "@StarWars_71", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 10, "name": "@danifrommiami8162", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 11, "name": "@matthart517", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 12, "name": "@TheRifRaf101", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 13, "name": "@CertReps", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 14, "name": "@b5babe599", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 15, "name": "@ecdillon5816", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 16, "name": "@Mandymary", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 17, "name": "@menofmainstreet", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 18, "name": "@Murrays-Adventures", "youtube": "insider", "twitch": "", "mod": false},
+    {"id": 19, "name": "@Tiggergirl4", "youtube": "insider", "twitch": "", "mod": false},
+    {"id": 20, "name": "@donnalemon6487", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 21, "name": "@princesspaulabelle", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 22, "name": "@waltswaffordky", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 23, "name": "@Jen-LilysMom", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 24, "name": "@Debbi_Bernfeld", "youtube": "insider", "twitch": "", "mod": false},
+    {"id": 25, "name": "@Lessthancaring", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 26, "name": "@Cakes2112", "youtube": "supporter", "twitch": "", "mod": true},
+    {"id": 27, "name": "@MrsDaze83", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 28, "name": "@Thismagicdream", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 29, "name": "@EEB1112", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 30, "name": "@ShawnF2713", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 31, "name": "@DisneyCast-CrewMemberMonique", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 32, "name": "@Mandigirlsadventures", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 33, "name": "@EphemerX", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 34, "name": "@cin7h14hh", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 35, "name": "@TheMegaBoxManiac", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 36, "name": "@ABQBlueSky", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 37, "name": "@MagicwithMatthew", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 38, "name": "@SamFordSOUTHJERSEY", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 39, "name": "@Dem-bones-R-me", "youtube": "supporter", "twitch": "", "mod": false},
+    {"id": 40, "name": "@MikeBeitchman", "youtube": "", "twitch": "", "mod": true},
+    {"id": 41, "name": "@Zip-a-Dee-DooDoug", "youtube": "", "twitch": "", "mod": true},
+    {"id": 42, "name": "@DrSmiffleDDS", "youtube": "", "twitch": "", "mod": true},
+    {"id": 43, "name": "@FloridaBamaGeorge", "youtube": "", "twitch": "", "mod": true},
+    {"id": 44, "name": "ohsweetginger", "youtube": "", "twitch": "t1", "mod": false},
+    {"id": 45, "name": "Nobleglass", "youtube": "", "twitch": "prime", "mod": false}
+  ];
+
+  // ==========================================================
+  // CLOUD (Upstash REST, same account as the park overlay)
+  // One key holds the whole roster: { ver, nextId, people: [...] }
+  // Never add query params to these URLs (Upstash reads them as
+  // extra Redis arguments; see the park overlay's notes).
+  // ==========================================================
+  const CLOUD_BASE = "https://charming-worm-109173.upstash.io";
+  const CLOUD_TOKEN = "gQAAAAAAAap1AAIgcDJmZTg1N2I4YTg1ZDc0ZDNiYTY1ZGNlNmExZDU4MDEyZg";
+  const ROSTER_KEY = "itpd_credits_roster_2026";
+  const POLL_MS = 15000;
+
+  function fetchT(url, opts) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    return fetch(url, Object.assign({ cache: "no-store", signal: ctl.signal,
+      headers: { Authorization: `Bearer ${CLOUD_TOKEN}` } }, opts)).finally(() => clearTimeout(t));
+  }
+  async function cloudRead() {          // throws on network trouble; null = never saved
+    const res = await fetchT(`${CLOUD_BASE}/get/${ROSTER_KEY}`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    if (d.result === null || d.result === undefined) return null;
+    const r = JSON.parse(d.result);
+    return (r && Array.isArray(r.people)) ? r : null;
+  }
+  async function cloudWrite(roster) {
+    const res = await fetchT(`${CLOUD_BASE}/set/${ROSTER_KEY}`, { method: "POST", body: JSON.stringify(roster) });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+  }
+
+  function fallbackRoster() {
+    return { ver: 0, nextId: Math.max(0, ...FALLBACK_ROSTER.map(p => p.id)) + 1,
+             people: FALLBACK_ROSTER.map(p => Object.assign({}, p)) };
+  }
+
+  // ==========================================================
+  // STATUS - ?debug=1
+  // ==========================================================
+  const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
+  function status(msg) {
+    if (!DEBUG) return;
+    let b = document.getElementById("debug");
+    if (!b) {
+      b = document.createElement("div");
+      b.id = "debug";
+      b.style.cssText = "position:fixed;left:6px;right:6px;bottom:6px;z-index:99;background:#000;color:#0f0;font:13px/1.35 monospace;padding:8px;border-radius:6px;white-space:pre-wrap";
+      document.body.appendChild(b);
+    }
+    b.textContent = msg + " (" + new Date().toLocaleTimeString() + ")";
+  }
+
+  // ==========================================================
+  // RENDERING
+  // ==========================================================
+  const container = document.getElementById("credits-content");
+  const scroller = document.getElementById("scroller");
+  const viewport = document.getElementById("viewport");
+
+  const SECTIONS = [
+    { title: "Daze Insiders",      tier: "insider",   icon: "&#9813;",   pick: p => p.youtube === "insider" },
+    { title: "Daze Supporters",    tier: "supporter", icon: "&#10022;",  pick: p => p.youtube === "supporter" },
+    { title: "Twitch Tier 3",      tier: "twitch_t3", icon: "&#9670;",   pick: p => p.twitch === "t3" },
+    { title: "Twitch Tier 2",      tier: "twitch_t2", icon: "&#9733;",   pick: p => p.twitch === "t2" },
+    { title: "Twitch Tier 1",      tier: "twitch_t1", icon: "&#9679;",   pick: p => p.twitch === "t1" },
+    { title: "Prime Subscription", tier: "twitch_prime", icon: "&#9670;", pick: p => p.twitch === "prime" },
+    { title: "Channel Moderators", tier: "moderator", icon: "&#128737;", pick: p => !!p.mod }
+  ];
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  // The same person can end up listed twice (a re-paste, "@name" vs "name",
+  // a stray space or invisible character). Merge them into one entry,
+  // keeping the highest tier and any Mod / Twitch / Prime setting.
+  const personKey = (n) => String(n || "").replace(/[\u200B-\u200F\u2060\uFEFF\u00A0\s]/g, "").replace(/^@/, "").toLowerCase();
+  function dedupe(people) {
+    const rankYT = { insider: 2, supporter: 1, "": 0 };
+    const rankTW = { t3: 4, t2: 3, t1: 2, prime: 1, "": 0 };
+    const map = new Map(), order = [];
+    (people || []).forEach(p => {
+      const k = personKey(p.name);
+      if (!k) return;
+      const cur = map.get(k);
+      if (!cur) { const c = Object.assign({}, p, { name: String(p.name).replace(/[\u200B-\u200F\u2060\uFEFF]/g, "").trim() }); map.set(k, c); order.push(k); return; }
+      if ((rankYT[p.youtube || ""] || 0) > (rankYT[cur.youtube || ""] || 0)) cur.youtube = p.youtube;
+      if ((rankTW[p.twitch || ""] || 0) > (rankTW[cur.twitch || ""] || 0)) cur.twitch = p.twitch;
+      cur.mod = cur.mod || !!p.mod;
+      cur.id = Math.min(cur.id || Infinity, p.id || Infinity);
+      if (!/^@/.test(cur.name) && /^@/.test(p.name)) cur.name = p.name.trim();
+    });
+    return order.map(k => map.get(k));
+  }
+
+  function buildContent(people) {
+    people = dedupe(people);
+    container.innerHTML = "";
+    SECTIONS.forEach(sec => {
+      const names = people.filter(sec.pick).map(p => p.name).filter(n => n.trim());
+      if (!names.length) return;
+      const box = el("div", "section tier-" + sec.tier);
+      const title = el("div", "section-title");
+      const stub = el("span", "stub"); stub.innerHTML = sec.icon;
+      title.appendChild(stub);
+      title.appendChild(el("span", "lab", sec.title));
+      if (sec.tier === "insider") title.appendChild(el("span", "vip", "VIP"));
+      box.appendChild(title);
+      names.forEach(n => box.appendChild(el("p", "name", n)));
+      container.appendChild(box);
+    });
+    // closing ticket, matching the "Ticket for Next Time" end card in the videos
+    const thanks = el("div", "section tier-thanks");
+    const tk = el("div", "closing-ticket");
+    const st = el("div", "stub"); st.appendChild(el("span", "", "SPECIAL THANKS")); tk.appendChild(st);
+    const bd = el("div", "body");
+    bd.appendChild(el("div", "k", CLOSING_MESSAGE));
+    bd.appendChild(el("div", "t", "See you next park day!"));
+    bd.appendChild(el("div", "rule"));
+    bd.appendChild(el("div", "m", "VALID ANY PARK DAY WE'RE LIVE"));
+    tk.appendChild(bd);
+    const tr = el("div", "tear"); tr.appendChild(el("span", "", "ADMIT ONE")); tk.appendChild(tr);
+    thanks.appendChild(tk);
+    container.appendChild(thanks);
+  }
+
+  function startScroll() {
+    scroller.style.animation = "none";
+    void scroller.offsetWidth;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      scroller.style.animation = "";
+      const distance = scroller.offsetHeight + viewport.offsetHeight;
+      scroller.style.animationDuration = (distance / SCROLL_SPEED_PX_PER_SEC) + "s";
+    }));
+  }
+
+  const CACHE_KEY = "itpd_credits_last_roster_2026";
+  let current = null;    // roster on screen
+  let pending = null;    // newer roster waiting for the loop to finish
+  const sig = r => JSON.stringify(r && r.people);
+
+  function show(people) { buildContent(people); startScroll(); }
+
+  scroller.addEventListener("animationiteration", () => {
+    if (pending && sig(pending) !== sig(current) && !editing.previewing) {
+      current = pending;
+      show(current.people);
+    }
+    pending = null;
+  });
+
+  async function poll() {
+    try {
+      const r = await cloudRead();
+      status(r ? "Synced with Upstash (" + r.people.length + " people)" : "Upstash reachable; nothing saved yet (showing built-in list)");
+      if (!r) return null;
+      if (current && r.ver < (current.ver || 0)) return null;   // stale read, ignore
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(r)); } catch (e) {}
+      cloudVer = r.ver;
+      if (IS_EDIT) updateStale();
+      if (sig(r) !== sig(current)) pending = r;
+      return r;
+    } catch (e) {
+      status("Upstash unreachable: " + e.message + " (keeping what's on screen)");
+      return null;
+    }
+  }
+
+  function cached() {
+    try { const s = localStorage.getItem(CACHE_KEY); return s ? JSON.parse(s) : null; }
+    catch (e) { return null; }
+  }
+
+  // ==========================================================
+  // EDITOR - only with ?edit=1. Never on the stream copy.
+  // ==========================================================
+  const IS_EDIT = new URLSearchParams(location.search).get("edit") === "1";
+  const $ = id => document.getElementById(id);
+  const gear = $("gear"), panel = $("panel"), listEl = $("rosterList");
+  const filterInput = $("filterInput"), newName = $("newName");
+  const saveBtn = $("saveBtn"), reloadBtn = $("reloadBtn");
+  const toastEl = $("toast"), unsavedEl = $("unsaved"), staleWarn = $("staleWarn");
+
+  let cloudVer = 0;
+  const editing = { draft: null, baseVer: 0, dirty: false, armedDelete: null, previewing: false };
+
+  let toastTimer = null;
+  function toast(msg, ms) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms || 2600);
+  }
+
+  function startDraft() {
+    editing.draft = JSON.parse(JSON.stringify(current));
+    const before = editing.draft.people.length;
+    editing.draft.people = dedupe(editing.draft.people);
+    const merged = before - editing.draft.people.length;
+    editing.baseVer = current.ver || 0;
+    editing.dirty = false;
+    if (merged > 0) setTimeout(() => { markDirty(true); toast(`Merged ${merged} duplicate entr${merged === 1 ? "y" : "ies"}. Hit Save to clean up the saved list.`, 6000); }, 50);
+    editing.armedDelete = null;
+    editing.previewing = false;
+    buildRows(); markDirty(false); updateStale();
+  }
+
+  function markDirty(on) {
+    editing.dirty = on;
+    unsavedEl.textContent = on ? "Unsaved changes. The stream still shows the old list until you Save." : "";
+  }
+
+  function updateStale() {
+    if (!editing.draft) return;
+    const newer = cloudVer > editing.baseVer;
+    staleWarn.hidden = !newer;
+    staleWarn.textContent = newer
+      ? (editing.dirty
+          ? "The credits were changed from another device since you started. Discard changes to load theirs, then redo yours."
+          : "The credits were changed from another device. Loading the latest...")
+      : "";
+    if (newer && !editing.dirty) { startDraft(); }
+    saveBtn.disabled = newer;
+  }
+
+  function preview() {
+    editing.previewing = true;
+    show(editing.draft.people);
+  }
+
+  function tierButtons(cls, attrName, attrVal, options, value) {
+    return options.map(([v, label]) =>
+      `<button type="button" class="${cls}${value === v ? " active" : ""}" ${attrName}="${attrVal(v)}" data-v="${v}">${label}</button>`
+    ).join("");
+  }
+
+  function buildRows() {
+    const f = filterInput.value.trim().toLowerCase();
+    listEl.innerHTML = "";
+    editing.draft.people.filter(p => !f || p.name.toLowerCase().includes(f)).forEach(p => {
+      const row = document.createElement("div");
+      row.className = "roster-row";
+      row.dataset.id = p.id;
+      const armed = editing.armedDelete === p.id;
+      row.innerHTML = `
+        <input type="text" class="name-input" aria-label="Name">
+        <div class="tier-group"><span class="tier-group-label">YouTube</span>
+          <div class="tier-btns">${tierButtons("tier-btn", "data-tier", v => v || "none",
+            [["", "None"], ["supporter", "Supporter"], ["insider", "Insider"]], p.youtube || "")}</div></div>
+        <div class="tier-group"><span class="tier-group-label">Twitch</span>
+          <div class="tier-btns">${tierButtons("twitch-tier-btn", "data-twitchtier", v => v ? "twitch_" + v : "none",
+            [["", "None"], ["prime", "Prime"], ["t1", "T1"], ["t2", "T2"], ["t3", "T3"]], p.twitch || "")}</div></div>
+        <div class="row-actions">
+          <button type="button" class="mod-toggle${p.mod ? " active" : ""}">Mod</button>
+          <button type="button" class="remove-btn" title="Keeps the person, clears tiers and Mod">Off credits</button>
+          <button type="button" class="delete-btn${armed ? " armed" : ""}">${armed ? "Tap again to delete" : "Delete"}</button>
+        </div>`;
+      row.querySelector(".name-input").value = p.name;
+      listEl.appendChild(row);
+    });
+  }
+
+  listEl.addEventListener("click", e => {
+    const row = e.target.closest(".roster-row");
+    if (!row) return;
+    const id = Number(row.dataset.id);
+    const p = editing.draft.people.find(x => x.id === id);
+    const hit = sel => e.target.closest(sel);
+    if (hit(".delete-btn")) {
+      if (editing.armedDelete === id) {
+        editing.draft.people = editing.draft.people.filter(x => x.id !== id);
+        editing.armedDelete = null;
+        toast("Deleted. Hit Save to make it stick.");
+      } else editing.armedDelete = id;
+    } else {
+      editing.armedDelete = null;
+      if (hit(".tier-btn")) p.youtube = hit(".tier-btn").dataset.v;
+      else if (hit(".twitch-tier-btn")) p.twitch = hit(".twitch-tier-btn").dataset.v;
+      else if (hit(".mod-toggle")) p.mod = !p.mod;
+      else if (hit(".remove-btn")) { p.youtube = ""; p.twitch = ""; p.mod = false; }
+      else return;
+    }
+    buildRows(); markDirty(true); preview();
+  });
+
+  listEl.addEventListener("input", e => {
+    const input = e.target.closest(".name-input");
+    if (!input) return;
+    const id = Number(input.closest(".roster-row").dataset.id);
+    editing.draft.people.find(x => x.id === id).name = input.value;
+    markDirty(true);
+  });
+  listEl.addEventListener("focusout", e => { if (e.target.closest(".name-input")) preview(); });
+
+  function addPerson() {
+    const name = newName.value.trim();
+    if (!name) { newName.focus(); return; }
+    const id = editing.draft.nextId++;
+    editing.draft.people.push({ id, name, youtube: "", twitch: "", mod: false });
+    newName.value = "";
+    filterInput.value = name;       // show just the new row so its tier can be set
+    buildRows(); markDirty(true);
+    toast("Added. Set their tier, then Save.");
+  }
+  let loadArmed = false;
+  $("loadFileBtn").addEventListener("click", () => {
+    const btn = $("loadFileBtn");
+    if (!loadArmed) {
+      loadArmed = true;
+      btn.textContent = "Tap again: replace everyone with this file's list";
+      setTimeout(() => { loadArmed = false; btn.textContent = "Load this file's list (replaces the saved list)"; }, 5000);
+      return;
+    }
+    loadArmed = false;
+    btn.textContent = "Load this file's list (replaces the saved list)";
+    const f = fallbackRoster();
+    editing.draft.people = f.people;
+    editing.draft.nextId = Math.max(f.nextId, editing.draft.nextId);
+    filterInput.value = "";
+    buildRows(); markDirty(true); preview();
+    toast("File's list loaded. Hit Save to put it on stream.", 4000);
+  });
+
+  // ---------------- Bulk update from the YouTube Studio members page ----------------
+  // Reads "@handle" followed by its level ("Daze Supporter" / "Daze Insider")
+  // from a straight copy-paste of the page. Changes YouTube tiers only.
+  const NEVER_CREDIT = ["longdong_710"];          // standing rule: never on the credits
+  const key = (n) => personKey(n);
+  function parseMembers(text) {
+    // Works whether the copy came out one value per line or as tab-separated
+    // table rows, and ignores invisible characters browsers add when copying.
+    const clean = String(text).replace(/[\u200B-\u200F\u2060\uFEFF\u00A0]/g, " ");
+    const tokens = clean.split(/\r?\n|\t/).map(t => t.trim()).filter(Boolean);
+    const found = new Map();
+    const handleRe = /(?:^|\s)@([\p{L}\p{N}._\-]{2,})/u;
+    const levelRe = /Daze\s+(Insider|Supporter)/i;
+    for (let i = 0; i < tokens.length; i++) {
+      const h = tokens[i].match(handleRe);
+      if (!h) continue;
+      // level is in the same token or one of the next few
+      let lvl = tokens[i].match(levelRe);
+      for (let j = i + 1; !lvl && j < Math.min(i + 6, tokens.length); j++) {
+        if (handleRe.test(tokens[j])) break;
+        lvl = tokens[j].match(levelRe);
+      }
+      if (lvl && !found.has(key(h[1]))) found.set(key(h[1]), { name: "@" + h[1], youtube: lvl[1].toLowerCase() });
+    }
+    return found;
+  }
+  let bulkPlan = null;
+  $("bulkOpen").addEventListener("click", () => $("bulkBox").classList.toggle("open"));
+  let pasteTimer = null;
+  $("bulkText").addEventListener("input", () => { clearTimeout(pasteTimer); pasteTimer = setTimeout(() => $("bulkCheck").click(), 400); });
+  $("bulkCheck").addEventListener("click", () => {
+    const found = parseMembers($("bulkText").value);
+    const out = $("bulkResult");
+    if (!found.size) {
+      const sample = $("bulkText").value.trim().split(/\r?\n/).slice(0, 6).join(" | ").slice(0, 200);
+      out.textContent = "Couldn't find any members in that text. It needs the @names and their levels (Daze Supporter / Daze Insider) from the Your members page.\n\nThe start of what was pasted: " + (sample || "(nothing)");
+      $("bulkApply").disabled = true; return;
+    }
+    editing.draft.people = dedupe(editing.draft.people);
+    const people = editing.draft.people;
+    const byKey = new Map(people.map(p => [key(p.name), p]));
+    const added = [], changed = [], removed = [], skipped = [];
+    found.forEach((m, k) => {
+      if (NEVER_CREDIT.includes(k)) { skipped.push(m.name); return; }
+      const p = byKey.get(k);
+      if (!p) added.push(m);
+      else if (p.youtube !== m.youtube) changed.push({ p, to: m.youtube });
+    });
+    people.forEach(p => { if (p.youtube && !found.has(key(p.name))) removed.push(p); });
+    bulkPlan = { added, changed, removed };
+    const list = (a, f) => a.length ? a.map(f).join(", ") : "none";
+    out.innerHTML = "";
+    out.textContent =
+      `Found ${found.size} members on the page.\n\n` +
+      `NEW (${added.length}): ${list(added, m => m.name + " (" + m.youtube + ")")}\n\n` +
+      `TIER CHANGE (${changed.length}): ${list(changed, c => c.p.name + " " + (c.p.youtube || "none") + " -> " + c.to)}\n\n` +
+      `NO LONGER MEMBERS (${removed.length}): ${list(removed, p => p.name + (p.mod || p.twitch ? " (stays: mod/Twitch)" : ""))}\n\n` +
+      (skipped.length ? `NEVER CREDITED, skipped: ${skipped.join(", ")}\n\n` : "") +
+      "Nothing is saved yet. Tap Apply changes, check the list, then Save.";
+    $("bulkApply").disabled = !(added.length || changed.length || removed.length);
+    if ($("bulkApply").disabled) out.textContent += "\n\nThe credits already match this list.";
+  });
+  $("bulkApply").addEventListener("click", () => {
+    if (!bulkPlan) return;
+    const { added, changed, removed } = bulkPlan;
+    changed.forEach(c => { c.p.youtube = c.to; });
+    removed.forEach(p => {
+      p.youtube = "";
+      if (!p.mod && !p.twitch) editing.draft.people = editing.draft.people.filter(x => x !== p);   // no other reason to credit them
+    });
+    added.forEach(m => {
+      if (editing.draft.people.some(x => personKey(x.name) === personKey(m.name))) return;   // already there: never add twice
+      editing.draft.people.push({ id: editing.draft.nextId++, name: m.name, youtube: m.youtube, twitch: "", mod: false });
+    });
+    editing.draft.people = dedupe(editing.draft.people);
+    bulkPlan = null; $("bulkApply").disabled = true;
+    $("bulkResult").textContent += "\n\nApplied. Review below, then hit Save to put it on stream.";
+    filterInput.value = ""; buildRows(); markDirty(true); preview();
+    toast(`Updated: ${added.length} new, ${changed.length} tier changes, ${removed.length} lapsed. Hit Save.`, 5000);
+  });
+
+  $("addBtn").addEventListener("click", addPerson);
+  newName.addEventListener("keydown", e => { if (e.key === "Enter") addPerson(); });
+  filterInput.addEventListener("input", buildRows);
+
+  gear.addEventListener("click", () => {
+    const opening = !panel.classList.contains("open");
+    panel.classList.toggle("open");
+    if (opening && !editing.draft) startDraft();
+  });
+
+  reloadBtn.addEventListener("click", async () => {
+    const r = await poll();
+    if (r) current = r;
+    startDraft();
+    editing.previewing = false;
+    show(current.people);
+    toast("Showing the saved list.");
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    toast("Saving...", 15000);
+    try {
+      const latest = await cloudRead();
+      if (latest && latest.ver > editing.baseVer) {
+        cloudVer = latest.ver; updateStale();
+        toast("Not saved: someone changed the credits from another device.", 6000);
+        return;
+      }
+      const out = {
+        ver: Math.max(Math.floor(Date.now() / 1000), editing.baseVer + 1),
+        nextId: editing.draft.nextId,
+        people: dedupe(editing.draft.people).map(p => ({ id: p.id, name: p.name.trim(),
+          youtube: p.youtube || "", twitch: p.twitch || "", mod: !!p.mod }))
+          .filter(p => p.name)
+      };
+      await cloudWrite(out);
+      // read it back to be sure it took
+      const back = await cloudRead();
+      if (!back || back.ver !== out.ver) throw new Error("didn't stick");
+      current = out; cloudVer = out.ver;
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(out)); } catch (e) {}
+      startDraft();
+      editing.previewing = false;
+      show(current.people);
+      toast("Saved. The stream updates within about 15 seconds.", 4000);
+    } catch (e) {
+      toast("Didn't save (" + e.message + "). Check your connection and hit Save again.", 6000);
+    } finally {
+      if (!(cloudVer > editing.baseVer)) saveBtn.disabled = false;
+    }
+  });
+
+  // ==========================================================
+  // START
+  // ==========================================================
+  if (IS_EDIT) gear.style.display = "flex";
+
+  (async function init() {
+    const r = await poll();
+    current = r || cached() || fallbackRoster();
+    pending = null;
+    show(current.people);
+    setInterval(poll, POLL_MS);
+  })();
+</script>
+</body>
+</html>
