@@ -13,23 +13,6 @@
     itpd-battle-overlay.html?session=SSN_SESSION&v=3.50.25&server&server2#url=https://charming-worm-109173.upstash.io&tok=READ_WRITE_TOKEN
   The part before # is exactly what SSN's own reactions overlay link uses. After #: Upstash
   settings, plus optional &pos=bottom, &scale=1.2, &nofloat (scoreboard only).
-
-  LOOK OPTIONS (ITPD, 2026-10-24). Scoreboard options go AFTER the #; the floating-reaction
-  options go before it with SSN's own (align, layout, speed, scale, limit) and rise/base
-  also work there.
-    (The controller's Look buttons override these live; "Use link settings" goes back to them.)
-    look=full      ticket with title, both counts, tug-of-war bar and percentages (default)
-    look=compact   one slim row: emoji, count, bar, count, emoji (no title or stub)
-    look=meter     just the tug-of-war bar with an emoji at each end
-    hide=title,stub,counts,pct,emoji,bg   switch parts off one at a time (any mix)
-    pos=top (default) | bottom | top-left | top-right | left | right
-    scale=0.8      size of the scoreboard (after the #); width=700 sets its width in px
-    nofloat        scoreboard only, no floating reactions
-    base=14        floating reactions start 14% up the screen, above the bottom graphics
-    rise=40        and fade out 40% of the screen higher
-  Recommended:
-    ?session=...&v=3.50.25&server&server2&align=right&layout=column&speed=1.6&scale=0.8&limit=20&rise=40&base=14
-    #url=...&tok=...&look=compact
 -->
 <html lang="en">
 <head>
@@ -655,18 +638,29 @@ body {
 		if (eventName !== "reaction" && eventName !== "liked" && eventName !== "like") {
 			return false;
 		}
+		// ITPD (2026-10-26): count BEFORE SSN's duplicate filter. That filter drops any
+		// identical reaction within 2.5 s, and YouTube reactions carry no user or id, so in a
+		// busy burst most hearts looked like duplicates and weren't counted (and the more
+		// popular emoji lost the most). The counter keeps its own tiny guard against the same
+		// reaction arriving twice by two connections at once.
+		var itpdDup = window.ITPDBattle && window.ITPDBattle.isDouble ? window.ITPDBattle.isDouble(payload) : false;
+		if (window.ITPDBattle && !itpdDup) {
+			try { window.ITPDBattle.onReaction(payload, eventName); } catch (itpdErr) {}
+		}
 		if (wasSeenRecently(payload)) {
 			return false;
-		}
-		// ITPD: pass the reaction to the battle counter (added 2026-10-23)
-		if (window.ITPDBattle) {
-			try { window.ITPDBattle.onReaction(payload, eventName); } catch (itpdErr) {}
 		}
 		if (window.ITPDBattle && window.ITPDBattle.noFloat) {
 			return true;
 		}
 
 		if (eventName === "liked" || eventName === "like") {
+			// ITPD (2026-10-26): TikTok like storms spawn up to 20 floating hearts each, which
+			// slows the page and looks like hearts that the (YouTube-only) battle isn't counting.
+			// Off by default in this overlay; #...&floatlikes turns them back on.
+			if (window.ITPDBattle && !window.ITPDBattle.floatLikes) {
+				return true;
+			}
 			spawnLikeBurst(payload);
 			return true;
 		}
@@ -799,60 +793,31 @@ body {
 	}
 })();
 	</script>
-	<!-- ===== ITPD reaction battle scoreboard (added 2026-10-23; ITPD ticket look 2026-10-24) ===== -->
-	<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+	<!-- ===== ITPD reaction battle scoreboard (added 2026-10-23) ===== -->
 	<style>
-	/* Sizes are for a 1920x1080 source. Position, look and parts are set in the link (see the notes at the top). */
-	#itpd-battle{--itpd-scale:1;--tx:-50%;--ty:0;--colA:#F7931E;--colB:#E0322B;
-	  position:fixed;left:50%;top:40px;transform:translate(var(--tx),var(--ty)) scale(var(--itpd-scale));transform-origin:top center;z-index:10;
-	  display:flex;width:900px;background:#FFFBF3;border-radius:22px;box-shadow:0 12px 32px rgba(0,0,0,.4);overflow:hidden;
-	  color:#17152A;font-family:"Baloo 2","Trebuchet MS",sans-serif;opacity:0;transition:opacity .6s;pointer-events:none}
+	#itpd-battle{position:fixed;left:50%;top:40px;transform:translateX(-50%) scale(var(--itpd-scale,1));transform-origin:top center;z-index:10;
+	  width:820px;background:rgba(20,16,40,.82);border-radius:22px;padding:18px 24px 20px;box-shadow:0 8px 30px rgba(0,0,0,.35);
+	  color:#fff;font-family:"Segoe UI",Roboto,Arial,sans-serif;opacity:0;transition:opacity .6s;pointer-events:none}
+	body.itpd-bottom #itpd-battle{top:auto;bottom:40px;transform-origin:bottom center}
 	#itpd-battle.on{opacity:1}
-	#itpd-battle .stub{width:62px;flex-shrink:0;background:#22306B;border-right:3px dashed rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}
-	#itpd-battle .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 15px/1 "DM Mono",monospace;letter-spacing:3px;color:rgba(255,255,255,.88);white-space:nowrap}
-	#itpd-battle .body{flex:1;min-width:0;padding:14px 26px 16px}
-	#itpd-title{text-align:center;font-weight:800;font-size:32px;line-height:1.1;color:#22306B;margin-bottom:8px}
-	#itpd-battle .row{display:flex;align-items:center;gap:16px}
-	#itpd-battle .side{display:flex;align-items:center;gap:10px;flex-shrink:0;font-weight:800;font-size:46px;line-height:1;font-variant-numeric:tabular-nums}
-	#itpd-battle .num{min-width:1.6em;text-align:center}
-	#itpd-battle .emo{font-size:54px;line-height:1;transition:transform .2s}
-	#itpd-battle .emo.pop{transform:scale(1.3)}
-	#itpd-battle .side.lead .num{color:#22306B}
-	#itpd-battle .side:not(.lead) .num{color:#6B6780}
-	#itpd-battle .meter{flex:1;min-width:0}
-	#itpd-bar{position:relative;height:30px;border-radius:15px;overflow:hidden;background:var(--colB);box-shadow:inset 0 0 0 3px rgba(23,21,42,.08)}
-	#itpd-barA{position:absolute;left:0;top:0;bottom:0;width:50%;background:var(--colA);transition:width .6s ease}
-	#itpd-barA::after{content:"";position:absolute;right:-3px;top:0;bottom:0;width:6px;background:#FFFBF3}  /* the rope knot between sides */
-	#itpd-pct{display:flex;justify-content:space-between;font-weight:800;font-size:22px;line-height:1;margin-top:6px;color:#6B6780}
-	/* looks */
-	#itpd-battle.look-compact .stub, #itpd-battle.look-compact #itpd-title{display:none}
-	#itpd-battle.look-compact{width:760px;border-radius:18px} #itpd-battle.look-compact .body{padding:12px 22px}
-	#itpd-battle.look-meter .stub, #itpd-battle.look-meter #itpd-title, #itpd-battle.look-meter .num, #itpd-battle.look-meter #itpd-pct{display:none}
-	#itpd-battle.look-meter{width:620px;border-radius:40px} #itpd-battle.look-meter .body{padding:10px 18px}
-	#itpd-battle.look-meter .emo{font-size:46px}
-	/* parts switched off one at a time with hide=... */
-	#itpd-battle.no-title #itpd-title, #itpd-battle.no-stub .stub, #itpd-battle.no-counts .num, #itpd-battle.no-pct #itpd-pct, #itpd-battle.no-emoji .emo{display:none}
-	#itpd-battle.no-bg{background:transparent;box-shadow:none} #itpd-battle.no-bg .stub{display:none}
-	#itpd-battle.no-bg #itpd-title, #itpd-battle.no-bg .num, #itpd-battle.no-bg #itpd-pct{color:#fff !important;text-shadow:0 2px 6px rgba(0,0,0,.7)}
-	/* positions (pos=...) */
-	#itpd-battle.pos-bottom{top:auto;bottom:140px;transform-origin:bottom center}
-	#itpd-battle.pos-top-left{left:40px;--tx:0;transform-origin:top left}
-	#itpd-battle.pos-top-right{left:auto;right:40px;--tx:0;transform-origin:top right}
-	#itpd-battle.pos-left{left:40px;top:50%;--tx:0;--ty:-50%;transform-origin:left center}
-	#itpd-battle.pos-right{left:auto;right:40px;top:50%;--tx:0;--ty:-50%;transform-origin:right center}
-	@media (prefers-reduced-motion:reduce){#itpd-battle .emo{transition:none}#itpd-barA{transition:none}}
+	#itpd-title{text-align:center;font-weight:800;font-size:30px;letter-spacing:.02em;margin-bottom:12px}
+	#itpd-battle .sides{display:flex;align-items:center;justify-content:space-between;font-weight:800}
+	#itpd-battle .side{display:flex;align-items:center;gap:12px;font-size:44px;font-variant-numeric:tabular-nums}
+	#itpd-battle .emo{font-size:58px;line-height:1;transition:transform .2s}
+	#itpd-battle .emo.pop{transform:scale(1.35)}
+	#itpd-battle .side.lead .num{text-shadow:0 0 14px rgba(255,255,255,.6)}
+	#itpd-bar{position:relative;height:30px;border-radius:15px;overflow:hidden;background:#ff3b6b;margin-top:12px}
+	#itpd-barA{position:absolute;left:0;top:0;bottom:0;width:50%;background:#ff8a1f;transition:width .5s ease}
+	#itpd-pct{display:flex;justify-content:space-between;font-weight:700;font-size:22px;margin-top:6px;opacity:.9}
 	</style>
-	<div id="itpd-battle" class="look-full" aria-hidden="true">
-	  <div class="stub"><span>BATTLE</span></div>
-	  <div class="body">
-	    <div id="itpd-title">Party poppers vs Hearts</div>
-	    <div class="row">
-	      <div class="side" id="itpd-sideA"><span class="emo" id="itpd-emoA">&#x1f389;</span><span class="num" id="itpd-numA">0</span></div>
-	      <div class="meter"><div id="itpd-bar"><div id="itpd-barA"></div></div><div id="itpd-pct"><span id="itpd-pctA">50%</span><span id="itpd-pctB">50%</span></div></div>
-	      <div class="side" id="itpd-sideB"><span class="num" id="itpd-numB">0</span><span class="emo" id="itpd-emoB">&#x2764;&#xfe0f;</span></div>
-	    </div>
+	<div id="itpd-battle" aria-hidden="true">
+	  <div id="itpd-title">Party poppers vs Hearts</div>
+	  <div class="sides">
+	    <div class="side" id="itpd-sideA"><span class="emo" id="itpd-emoA">&#x1f389;</span><span class="num" id="itpd-numA">0</span></div>
+	    <div class="side" id="itpd-sideB"><span class="num" id="itpd-numB">0</span><span class="emo" id="itpd-emoB">&#x2764;&#xfe0f;</span></div>
 	  </div>
+	  <div id="itpd-bar"><div id="itpd-barA"></div></div>
+	  <div id="itpd-pct"><span id="itpd-pctA">50%</span><span id="itpd-pctB">50%</span></div>
 	</div>
 	<script>
 	(function(){
@@ -869,50 +834,32 @@ body {
 	    hundred: { emoji:"\ud83d\udcaf", name:"100s",          match:["\ud83d\udcaf","1f4af","hundred"] }
 	  };
 	  function $(id){ return document.getElementById(id); }
-	  // ---- ITPD look options (after the #): look, hide, pos, scale, width ----
-	  var Q = new URLSearchParams(location.search);
-	  function opt(k){ return H.has(k) ? H.get(k) : Q.get(k); }
-	  var box = $("itpd-battle");
-	  // The link sets the starting look; the controller can change it live (state.look /
-	  // state.hide / state.pos), and its "Use link settings" button hands control back.
-	  var LINK = { look: opt("look"), hide: opt("hide"), pos: H.get("pos") };   // pos only after the #: SSN uses its own before it
-	  var appliedLook = "";
-	  function applyLook(look, hide, pos){
-	    look = String(look || "full").toLowerCase();
-	    if (["full","compact","meter"].indexOf(look) < 0) look = "full";
-	    var on = box.classList.contains("on");
-	    var cls = ["look-" + look];
-	    String(hide || "").toLowerCase().split(/[,\s]+/).forEach(function(part){
-	      if (["title","stub","counts","pct","emoji","bg"].indexOf(part) >= 0) cls.push("no-" + part);
-	    });
-	    pos = String(pos || "top").toLowerCase();
-	    if (["bottom","top-left","top-right","left","right"].indexOf(pos) >= 0) cls.push("pos-" + pos);
-	    var key = cls.join(" ");
-	    if (key === appliedLook) return;
-	    appliedLook = key;
-	    box.className = key + (on ? " on" : "");
-	  }
-	  applyLook(LINK.look, LINK.hide, LINK.pos);
-	  var sc = parseFloat(H.get("scale")); if (sc > 0) box.style.setProperty("--itpd-scale", sc);
-	  var w = parseInt(H.get("width"), 10); if (w >= 300 && w <= 1800) box.style.width = w + "px";
-	  var COLORS = { party:"#F7931E", heart:"#E0322B", laugh:"#FFB800", wow:"#3B63C4", hundred:"#D82A83" };
-	  var api = window.ITPDBattle = { noFloat: H.has("nofloat"), onReaction: function(){} };
+	  if (H.get("pos") === "bottom") document.body.classList.add("itpd-bottom");
+	  var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--itpd-scale", sc);
+	  var api = window.ITPDBattle = { noFloat: H.has("nofloat"), floatLikes: H.has("floatlikes"), onReaction: function(){} };
+	  // Same payload object, or an identical one within 15 ms (two connections delivering
+	  // the same reaction at once), counts once. Real reactions from different viewers repeat
+	  // the same emoji in quick bursts, so a longer window would drop real ones. (Reactions
+	  // reach this page by one connection today, so this rarely matters.)
+	  var lastSig = "", lastAt = 0, lastObj = null, seenIds = {}, seenCount = 0;
+	  api.isDouble = function(p){
+	    var sig = [p.event, p.type, p.chatmessage, p.contentimg, p.id].join("|"), now = Date.now();
+	    var dup = p === lastObj || (sig === lastSig && now - lastAt < 15);
+	    if (!dup && p.id != null && p.id !== ""){            // reactions that carry an id count once per id
+	      var k = String(p.type) + ":" + String(p.id);
+	      if (seenIds[k]) dup = true; else { seenIds[k] = now; seenCount++; }
+	      if (seenCount > 3000){ seenIds = {}; seenCount = 0; }
+	    }
+	    lastSig = sig; lastAt = now; lastObj = p;
+	    return dup;
+	  };
 	  // Optional: floating reactions rise only part of the way up and fade out
 	  // there (rise=45 means 45% of the screen height). Works before or after the #.
-	  // base=14 starts them 14% up the screen, above the location tag and clock, instead
-	  // of from below the bottom edge. Works before or after the #.
-	  var rise = parseFloat(H.get("rise") || Q.get("rise"));
-	  var base = parseFloat(H.get("base") || Q.get("base"));
-	  var hasBase = base > 0 && base < 80;
-	  if (hasBase){
-	    var sb = document.createElement("style");
-	    sb.textContent = ".reaction{bottom:" + base + "vh !important}";
-	    document.head.appendChild(sb);
-	  }
+	  var rise = parseFloat(H.get("rise") || new URLSearchParams(location.search).get("rise"));
 	  if (rise > 5 && rise < 116){
 	    var st = document.createElement("style");
 	    st.textContent = "@keyframes float-up{0%{opacity:0;transform:translate3d(0,0,0) scale(.72) rotate(0deg)}" +
-	      "12%{opacity:1}70%{opacity:1}100%{opacity:0;transform:translate3d(var(--drift,0vw),-" + (hasBase ? rise : rise + 14) + "vh,0) scale(1.08) rotate(var(--spin,0deg))}}";
+	      "12%{opacity:1}70%{opacity:1}100%{opacity:0;transform:translate3d(var(--drift,0vw),-" + (rise + 14) + "vh,0) scale(1.08) rotate(var(--spin,0deg))}}";
 	    document.head.appendChild(st);
 	  }
 	  if (!URL_ || !TOK) return;            // no Upstash settings: floating reactions only
@@ -945,15 +892,9 @@ body {
 	  }
 	  function paint(){
 	    var A = PRESETS[state.a] || PRESETS.party, B = PRESETS[state.b] || PRESETS.heart;
-	    var useState = state.look || state.hide !== undefined || state.pos;
-	    if (useState && !state.useLink) applyLook(state.look || LINK.look, state.hide !== undefined ? state.hide : LINK.hide, state.pos || LINK.pos);
-	    else applyLook(LINK.look, LINK.hide, LINK.pos);
 	    $("itpd-battle").classList.toggle("on", !!state.on);
 	    $("itpd-title").textContent = state.title || (A.name + " vs " + B.name);
 	    $("itpd-emoA").textContent = A.emoji; $("itpd-emoB").textContent = B.emoji;
-	    var cA = COLORS[state.a] || COLORS.party, cB = COLORS[state.b] || COLORS.heart;
-	    if (cA === cB) cB = "#22306B";
-	    box.style.setProperty("--colA", cA); box.style.setProperty("--colB", cB);
 	    $("itpd-numA").textContent = counts.a; $("itpd-numB").textContent = counts.b;
 	    var tot = counts.a + counts.b, pa = tot ? Math.round(counts.a * 100 / tot) : 50;
 	    $("itpd-barA").style.width = pa + "%"; $("itpd-pctA").textContent = pa + "%"; $("itpd-pctB").textContent = (100 - pa) + "%";

@@ -77,6 +77,10 @@ button{font:inherit;color:inherit}
 .msg.maybesub{background:color-mix(in srgb,var(--yt) 12%,transparent);border-radius:8px;padding:8px;border:none;margin:4px 0}
 .subtag{font-size:.7rem;font-weight:800;color:var(--yt)}
 .nm.tap{text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
+#compose{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:31}
+#compose.open{display:flex}
+#compose textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:1rem;resize:vertical}
+#compose .count{font-size:.75rem;color:var(--muted);text-align:right;margin-top:4px}
 #acts{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:30}
 #acts.open{display:flex}
 #acts .card h2{font-size:1.05rem;margin:0 0 10px;overflow-wrap:anywhere}
@@ -119,6 +123,15 @@ button{font:inherit;color:inherit}
 
 <div id="log" aria-live="off"></div>
 <button id="jump">Jump to newest</button>
+
+<div id="compose" role="dialog" aria-modal="true" aria-labelledby="composeTitle">
+  <div class="card">
+    <h2 id="composeTitle" style="font-size:1.05rem;margin:0 0 10px">Post in YouTube chat</h2>
+    <textarea id="composeText" maxlength="200"></textarea>
+    <div class="count" id="composeCount"></div>
+    <div class="row"><button class="btn primary" id="composeGo">Post</button><button class="btn" id="composeCancel">Cancel</button></div>
+  </div>
+</div>
 
 <div id="acts" role="dialog" aria-modal="true" aria-labelledby="actsTitle">
   <div class="card">
@@ -340,8 +353,8 @@ button{font:inherit;color:inherit}
   // the default) in the API, so viewers saying so is the best live signal.
   var SUB_RX = /\b(?:just\s+)?(?:subscribed|subbed|new\s+sub(?:scriber)?|hit\s+(?:the\s+)?sub(?:scribe)?(?:\s+button)?)\b/i;
   function askSubAlert(name, confirmed){
-    if (!cfg("wtok") || !cfg("rurl")){ alert("To send alerts from here, add the Upstash URL and the alerts token in ⚙."); return; }
-    if (!confirmed && !confirm("Show a NEW SUBSCRIBER alert on stream for " + name + "?")) return;
+    if (!cfg("wtok") || !cfg("rurl")){ tell("To send alerts from here, add the Upstash URL and the alerts token in \u2699."); return; }
+    if (!confirmed){ compose("Show a NEW SUBSCRIBER alert on stream for " + name + "?", null, "Show alert", function(){ askSubAlert(name, true); }); return; }
     var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
     fetch(url + "/get/itpd_alerts_state_2026", { headers:H, cache:"no-store" })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -353,7 +366,7 @@ button{font:inherit;color:inherit}
       })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function(j){ if (j.error) throw new Error(j.error); note("Subscriber alert sent for " + name + ".", "", Date.now()); })
-      .catch(function(e){ diag("Subscriber alert failed: " + e.message); alert("Couldn’t send the alert: " + e.message); });
+      .catch(function(e){ diag("Subscriber alert failed: " + e.message); tell("Couldn\u2019t send the alert: " + e.message); });
   }
 
   // ---------- actions on a YouTube chatter (tap their name) ----------
@@ -388,7 +401,7 @@ button{font:inherit;color:inherit}
   function postToChat(text, tries){
     tries = tries || 0;
     var url = cfg("purl"), key = cfg("pkey");
-    if (!url || !key){ alert("To post in YouTube chat from here, add the Chat Poster URL and bot key in \u2699."); return; }
+    if (!url || !key){ tell("To post in YouTube chat from here, add the Chat Poster URL and bot key in \u2699."); return; }
     if (!tries) note("Posting in YouTube chat: " + text, "", Date.now());
     fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, text:text, source:"manual" }), redirect:"follow", cache:"no-store" })
       .then(function(r){ return r.json(); })
@@ -400,6 +413,32 @@ button{font:inherit;color:inherit}
       })
       .catch(function(e){ note("Couldn\u2019t reach the Chat Poster: " + e.message, "gap", Date.now()); });
   }
+
+  // In-page boxes instead of the browser's prompt()/confirm(): phone browsers can
+  // silently block those pop-ups after a few uses (then they return nothing and the
+  // tap seems to "just disappear"), which is what happened to the thank-yous on 10/26.
+  var composeDone = null;
+  function compose(title, text, goLabel, done){
+    $("composeTitle").textContent = title;
+    var ta = $("composeText");
+    ta.value = text; ta.style.display = text === null ? "none" : "";
+    $("composeCount").style.display = text === null ? "none" : "";
+    $("composeGo").textContent = goLabel || "Post";
+    composeDone = done;
+    updCount();
+    $("compose").classList.add("open");
+    if (text !== null) setTimeout(function(){ try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} }, 50);
+  }
+  function updCount(){ $("composeCount").textContent = $("composeText").value.length + " / 200"; }
+  $("composeText").addEventListener("input", updCount);
+  $("composeCancel").addEventListener("click", function(){ $("compose").classList.remove("open"); composeDone = null; });
+  $("compose").addEventListener("click", function(e){ if (e.target === $("compose")){ $("compose").classList.remove("open"); composeDone = null; } });
+  $("composeGo").addEventListener("click", function(){
+    var fn = composeDone; composeDone = null;
+    $("compose").classList.remove("open");
+    if (fn) fn($("composeText").value);
+  });
+  function tell(msg){ note(msg, "gap", Date.now()); }
 
   function addAct(label, why, enabled, fn){
     var b = document.createElement("button");
@@ -422,13 +461,11 @@ button{font:inherit;color:inherit}
     var what = whatFor(m);
     if (cls.kind === "paid" && what){
       addAct("\ud83d\udc9b Thank in chat for " + what, canPost ? "You can edit the message first" : "Add the Chat Poster in \u2699", canPost, function(){
-        var t = prompt("Message to post in YouTube chat:", thanksFor(m));
-        if (t && t.trim()) postToChat(t.trim());
+        compose("Thank " + h + " in YouTube chat", thanksFor(m), "Post", function(t){ if (t && t.trim()) postToChat(t.trim()); });
       });
     }
     addAct("\ud83d\udcac Say something to them in chat", canPost ? "Starts with " + h : "Add the Chat Poster in \u2699", canPost, function(){
-      var t = prompt("Message to post in YouTube chat:", h + " ");
-      if (t && t.trim() && t.trim() !== h) postToChat(t.trim());
+      compose("Message " + h + " in YouTube chat", h + " ", "Post", function(t){ if (t && t.trim() && t.trim() !== h) postToChat(t.trim()); });
     });
     addAct("\u2b50 NEW SUBSCRIBER alert on stream", canAlert ? "Shows the on-screen alert with their name" : "Add the alerts token in \u2699", canAlert,
       function(){ askSubAlert(name, true); });
