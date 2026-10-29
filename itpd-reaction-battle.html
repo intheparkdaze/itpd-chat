@@ -14,6 +14,9 @@
 
   OVERLAY (IRLToolkit browser source, 1920x1080, transparent):
     itpd-reaction-battle.html#session=SSN_SESSION&url=https://charming-worm-109173.upstash.io&tok=READ_WRITE_TOKEN
+  LOOK BUTTONS (10/24): Full / Compact / Meter only, show or hide parts, position, and
+  "Use link settings". They save look, hide, pos and useLink in the battle state, which
+  itpd-battle-overlay.html applies live; starting a new battle keeps the chosen look.
   CONTROLLER (phone or PC; same link plus &edit):
     itpd-reaction-battle.html#session=SSN_SESSION&url=&#x2026;&tok=&#x2026;&edit
   Optional for the overlay: &pos=top | bottom (default top), &scale=1.2
@@ -52,6 +55,11 @@
   .ctl .hint{font-size:13px;color:#b7b0d6}
   .ctl pre{font-size:12px;white-space:pre-wrap;background:#0f0c1f;padding:8px;border-radius:8px;max-height:220px;overflow:auto}
   #status{font-size:13px;margin-top:8px}
+  .ctl .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .ctl .grid button{padding:12px 6px;font-size:15px}
+  .ctl button.sel{background:#ffd166;border-color:#ffd166;color:#17132b}
+  .ctl button.off{opacity:.55;text-decoration:line-through}
+  .ctl button.link{background:transparent}
 </style>
 </head>
 <body>
@@ -75,6 +83,23 @@
   <label for="ttl">Title on screen</label><input id="ttl" maxlength="40">
   <div class="row"><button class="go" id="startBtn">Start new battle</button></div>
   <div class="row"><button class="stop" id="stopBtn">Hide and pause</button><button id="showBtn">Show again</button></div>
+  <h2>Look on screen</h2>
+  <div class="hint">Changes show on stream within about 5 seconds.</div>
+  <div class="grid" id="lookBtns">
+    <button data-look="full">Full</button><button data-look="compact">Compact</button><button data-look="meter">Meter only</button>
+  </div>
+  <label>Show or hide parts (tap to switch)</label>
+  <div class="grid" id="partBtns">
+    <button data-part="title">Title</button><button data-part="counts">Counts</button><button data-part="pct">Percent</button>
+    <button data-part="stub">Stub</button><button data-part="emoji">Emoji</button><button data-part="bg">Card</button>
+  </div>
+  <label>Position</label>
+  <div class="grid" id="posBtns">
+    <button data-pos="top-left">Top left</button><button data-pos="top">Top</button><button data-pos="top-right">Top right</button>
+    <button data-pos="left">Left</button><button data-pos="bottom">Bottom</button><button data-pos="right">Right</button>
+  </div>
+  <div class="row"><button class="link" id="linkBtn">Use link settings</button></div>
+  <div class="hint" id="lookNote">Using the look set in the overlay&#x2019;s link.</div>
   <h2>Live score</h2>
   <div class="score" id="cScore">&#x2013;</div>
   <div id="status" class="hint">Waiting for the overlay&#x2026;</div>
@@ -129,8 +154,9 @@
     function autoTitle(){ $("ttl").value = PRESETS[$("selA").value].name + " vs " + PRESETS[$("selB").value].name; }
     autoTitle(); $("selA").onchange = autoTitle; $("selB").onchange = autoTitle;
 
+    var saveChain = Promise.resolve();
     function save(patch, note){
-      getJSON(STATE_KEY).then(function(cur){
+      saveChain = saveChain.then(function(){ return getJSON(STATE_KEY); }).then(function(cur){
         cur = cur || { seq:0, on:false };
         Object.keys(patch).forEach(function(k){ cur[k] = patch[k]; });
         return setJSON(STATE_KEY, cur);
@@ -140,15 +166,47 @@
       if ($("selA").value === $("selB").value){ alert("Pick two different reactions."); return; }
       getJSON(STATE_KEY).then(function(cur){
         var seq = ((cur && cur.seq) || 0) + 1;
-        return setJSON(STATE_KEY, { on:true, seq:seq, a:$("selA").value, b:$("selB").value, title:$("ttl").value.trim(), startedAt:Date.now() });
+        var next = { on:true, seq:seq, a:$("selA").value, b:$("selB").value, title:$("ttl").value.trim(), startedAt:Date.now() };
+        if (cur) ["look","hide","pos","useLink"].forEach(function(k){ if (cur[k] !== undefined) next[k] = cur[k]; });   // keep the chosen look
+        return setJSON(STATE_KEY, next);
       }).then(function(){ $("status").textContent = "Battle started; scores reset."; }).catch(function(e){ $("status").textContent = "Couldn\u2019t start: " + e.message; });
     };
     $("stopBtn").onclick = function(){ save({ on:false }, "Hidden and paused: reactions aren\u2019t counted until you tap \u201cShow again\u201d."); };
     $("showBtn").onclick = function(){ save({ on:true }, "Showing again."); };
 
+    // ---- Look on screen (read by itpd-battle-overlay.html) ----
+    var lookState = { look:"", hide:"", pos:"", useLink:true };
+    var lookTouched = 0;                 // don't let a poll overwrite taps made in the last few seconds
+    function hiddenList(){ return String(lookState.hide || "").split(",").filter(Boolean); }
+    function paintLook(){
+      var live = !lookState.useLink && (lookState.look || lookState.hide || lookState.pos);
+      document.querySelectorAll("#lookBtns button").forEach(function(b){ b.classList.toggle("sel", !!live && (lookState.look || "full") === b.dataset.look); });
+      document.querySelectorAll("#posBtns button").forEach(function(b){ b.classList.toggle("sel", !!live && (lookState.pos || "top") === b.dataset.pos); });
+      var hid = hiddenList();
+      document.querySelectorAll("#partBtns button").forEach(function(b){ b.classList.toggle("off", !!live && hid.indexOf(b.dataset.part) >= 0); });
+      $("lookNote").textContent = live ? "Controller look: " + (lookState.look || "full") + ", " + (lookState.pos || "top") +
+        (hid.length ? ", hidden: " + hid.join(", ") : "") + "." : "Using the look set in the overlay\u2019s link.";
+    }
+    function setLook(patch, note){
+      lookTouched = Date.now();
+      Object.keys(patch).forEach(function(k){ lookState[k] = patch[k]; });
+      lookState.useLink = false;
+      paintLook();
+      save({ look:lookState.look || "full", hide:lookState.hide || "", pos:lookState.pos || "top", useLink:false }, note);
+    }
+    document.querySelectorAll("#lookBtns button").forEach(function(b){ b.onclick = function(){ setLook({ look:b.dataset.look }, "Look: " + b.textContent + "."); }; });
+    document.querySelectorAll("#posBtns button").forEach(function(b){ b.onclick = function(){ setLook({ pos:b.dataset.pos }, "Position: " + b.textContent + "."); }; });
+    document.querySelectorAll("#partBtns button").forEach(function(b){ b.onclick = function(){
+      var hid = lookState.useLink ? [] : hiddenList(), part = b.dataset.part, i = hid.indexOf(part);
+      if (i >= 0) hid.splice(i, 1); else hid.push(part);
+      setLook({ hide:hid.join(",") }, (i >= 0 ? "Showing " : "Hiding ") + b.textContent.toLowerCase() + ".");
+    }; });
+    $("linkBtn").onclick = function(){ lookTouched = Date.now(); lookState.useLink = true; paintLook(); save({ useLink:true }, "Back to the look set in the overlay\u2019s link."); };
+
     function poll(){
       Promise.all([getJSON(STATE_KEY), getJSON(COUNT_KEY)]).then(function(r){
         var st = r[0], c = r[1];
+        if (st && Date.now() - lookTouched > 6000) { lookState = { look:st.look || "", hide:st.hide || "", pos:st.pos || "", useLink: !!st.useLink || !(st.look || st.hide || st.pos) }; paintLook(); }
         if (st && c && c.seq === st.seq){
           $("cScore").textContent = PRESETS[st.a].emoji + " " + c.a + "  \u2013  " + c.b + " " + PRESETS[st.b].emoji + (st.on ? "" : "  (hidden)");
         } else $("cScore").textContent = st && st.on ? "0 \u2013 0" : "\u2013";
