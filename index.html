@@ -90,6 +90,16 @@ button{font:inherit;color:inherit}
 .subbtn{margin-top:6px;border:none;border-radius:8px;padding:7px 12px;background:var(--yt);color:#fff;font-weight:700;font-size:.85rem}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
+#quickBtn{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--gold);color:#1b1830;font-size:1.6rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#quick{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#quick.open{display:flex}
+#quick .card h2{font-size:1.05rem;margin:0 0 6px}
+#quickList .qb{display:block;width:100%;text-align:left;margin-top:8px;padding:12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem}
+#quickList .qb small{display:block;font-weight:400;color:var(--muted);font-size:.78rem;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#quickList .qe{border:2px solid var(--line);border-radius:10px;padding:8px;margin-top:8px}
+#quickList .qe input,#quickList .qe textarea{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:.95rem;margin-top:4px}
+#quickList .qe .r{display:flex;gap:6px}
+#quickList .qe .r input{flex:1}
 #jump{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));border:none;border-radius:20px;padding:10px 18px;background:var(--tw);color:#fff;font-weight:700;display:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 
 #sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:20}
@@ -123,6 +133,21 @@ button{font:inherit;color:inherit}
 
 <div id="log" aria-live="off"></div>
 <button id="jump">Jump to newest</button>
+<button id="quickBtn" aria-label="Quick messages">&#x26A1;</button>
+
+<div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
+  <div class="card">
+    <h2 id="quickTitle">Quick messages</h2>
+    <div class="small" id="quickNote">Tap one to check it, then post it in YouTube chat. Mods can post the same messages by typing the command in chat. &#x21C4; = two wordings that take turns.</div>
+    <div id="quickList"></div>
+    <div class="row">
+      <button class="btn" id="quickEdit">Edit list</button>
+      <button class="btn" id="quickAdd" style="display:none">Add message</button>
+      <button class="btn primary" id="quickSave" style="display:none">Save list</button>
+      <button class="btn" id="quickClose">Close</button>
+    </div>
+  </div>
+</div>
 
 <div id="compose" role="dialog" aria-modal="true" aria-labelledby="composeTitle">
   <div class="card">
@@ -471,6 +496,139 @@ button{font:inherit;color:inherit}
       function(){ askSubAlert(name, true); });
     $("acts").classList.add("open");
   }
+
+  // ---------- quick messages (shared list; mods use the same ones as !commands via the Daze Bot) ----------
+  var QUICK_KEY = "itpd_quickmsgs_2026";
+  var QUICK_DEFAULTS = [
+    { id:"welcome", emoji:"\ud83d\udc4b", label:"Welcome in", cmd:"welcome", mods:true, text:"Welcome in, Daze crew! \ud83d\udc9b Say hi and tell us where you're watching from!" },
+    { id:"like", emoji:"\ud83d\udc4d", label:"Like & subscribe", cmd:"like", mods:true, text:"Enjoying the stream? Tap \ud83d\udc4d and hit subscribe so you never miss a park day! \ud83d\udc9b" },
+    { id:"goal", emoji:"\ud83c\udfaf", label:"Like goal", cmd:"goal", mods:true, text:"We're at {likes} likes, help us hit {nextgoal}! Tap that \ud83d\udc4d \ud83d\udc9b" },
+    { id:"rules", emoji:"\ud83d\udcdc", label:"Chat rules", cmd:"rules", mods:true, text:"Chat rules: be kind, keep it family friendly, no spam or self-promo, and please listen to our mods. Thanks for keeping the Daze crew awesome! \ud83d\udc9b" },
+    { id:"family", emoji:"\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67", label:"Family friendly", cmd:"family", mods:true, text:"Friendly reminder: this is a family-friendly stream, so please keep chat clean and kind. Thank you! \ud83d\udc9b" },
+    { id:"discord", emoji:"\ud83d\udcac", label:"Discord", cmd:"discord", mods:true, text:"Join the Daze crew on Discord: https://discord.gg/w8Uzd3Wa2" },
+    { id:"merch", emoji:"\ud83d\udecd\ufe0f", label:"Merch", cmd:"merch", mods:true, text:"Grab some Daze gear: https://intheparksdaze.store/" },
+    { id:"links", emoji:"\ud83d\udd17", label:"All links", cmd:"links", mods:true, text:"Everything ITPD in one place: https://linktr.ee/intheparkdaze" },
+    { id:"schedule", emoji:"\ud83d\udcc5", label:"Schedule", cmd:"schedule", mods:true, text:"We're live Wed\u2013Fri 6:30 PM, Saturdays 5:30 PM and Sunday mornings 8 AM (ET), weather permitting!" },
+    { id:"ride", emoji:"\ud83c\udfa2", label:"Ride / BRB", cmd:"", mods:false, text:"Heading on a ride! Back in a few, so stick around \ud83c\udfa2" },
+    { id:"night", emoji:"\ud83c\udf19", label:"Goodnight", cmd:"", mods:false, text:"Thanks for hanging out with us tonight, Daze crew! See you next stream \ud83d\udc9b" }
+  ];
+  var quick = { ver:0, items:QUICK_DEFAULTS.slice() }, quickEditing = false, quickPosted = {};
+  try { quickPosted = JSON.parse(store.get("itpd_phonechat_quickposted") || "{}"); } catch(e){}
+
+  function loadQuick(){
+    if (!cfg("rurl") || !cfg("rtok")) return Promise.resolve(quick);
+    return upstash("/get/" + QUICK_KEY).then(function(r){
+      if (r){ try { var q = JSON.parse(r); if (q && q.items) quick = q; } catch(e){} }
+      return quick;
+    }).catch(function(){ return quick; });
+  }
+  // {likes} and {nextgoal} come from the records overlay's saved numbers
+  function fillQuick(text){
+    if (!/\{(likes|nextgoal)\}/.test(text)) return Promise.resolve(text);
+    return Promise.all([upstash("/get/itpd_records_live_2026"), upstash("/get/itpd_records_goal_2026")]).then(function(r){
+      var live = r[0] ? JSON.parse(r[0]) : null, g = r[1] ? JSON.parse(r[1]) : null;
+      if (!live || !g) return text;
+      var best = g.lastVideo === live.videoId ? (g.best || 0) : 0;
+      return text.replace(/\{likes\}/g, String(live.likes)).replace(/\{nextgoal\}/g, String(best + g.step));
+    }).catch(function(){ return text; });
+  }
+  function paintQuick(){
+    var box = $("quickList"); box.textContent = "";
+    $("quickEdit").textContent = quickEditing ? "Cancel editing" : "Edit list";
+    $("quickAdd").style.display = $("quickSave").style.display = quickEditing ? "" : "none";
+    quick.items.forEach(function(it, i){
+      if (!quickEditing){
+        var b = document.createElement("button"); b.className = "qb";
+        b.textContent = (it.emoji ? it.emoji + "  " : "") + it.label + (it.cmd ? "   !" + it.cmd : "");
+        var sm = document.createElement("small"); sm.textContent = (it.alt && it.alt.trim() ? "\u21c4 " : "") + it.text; b.appendChild(sm);
+        b.addEventListener("click", function(){ useQuick(it); });
+        box.appendChild(b);
+      } else {
+        var d = document.createElement("div"); d.className = "qe";
+        d.innerHTML = '<div class="r"><input data-f="emoji" placeholder="Emoji" style="flex:0 0 70px"><input data-f="label" placeholder="Button name"><input data-f="cmd" placeholder="command (no !)"></div>' +
+                      '<textarea data-f="text" maxlength="200" placeholder="Message"></textarea>' +
+                      '<textarea data-f="alt" maxlength="200" placeholder="Alternative wording (optional: the two take turns)"></textarea>' +
+                      '<label class="check" style="margin-top:6px"><input type="checkbox" data-f="mods"> Mods can use the command</label>' +
+                      '<button class="btn" data-del style="margin-top:6px">Delete</button>';
+        ["emoji","label","cmd","text","alt"].forEach(function(f){ d.querySelector('[data-f="' + f + '"]').value = it[f] || ""; });
+        d.querySelector('[data-f="mods"]').checked = it.mods !== false;
+        d.querySelectorAll("[data-f]").forEach(function(inp){
+          inp.addEventListener("input", function(){ var f = inp.dataset.f; it[f] = f === "mods" ? inp.checked : (f === "cmd" ? inp.value.replace(/^!/, "").trim().toLowerCase() : inp.value); });
+          inp.addEventListener("change", function(){ if (inp.dataset.f === "mods") it.mods = inp.checked; });
+        });
+        d.querySelector("[data-del]").addEventListener("click", function(){ quick.items.splice(i, 1); paintQuick(); });
+        box.appendChild(d);
+      }
+    });
+  }
+  // Two wordings take turns (shared with the Daze Bot through itpd_quickmsgs_rot_2026),
+  // so the same text doesn't show up twice in a row whoever posts it.
+  var ROT_KEY = "itpd_quickmsgs_rot_2026";
+  function pickWording(it){
+    var hasAlt = !!(it.alt && it.alt.trim());
+    if (!hasAlt) return Promise.resolve({ text:it.text, idx:0 });
+    return upstash("/get/" + ROT_KEY).then(function(r){
+      var rot = r ? JSON.parse(r) : {}; var last = rot[it.id];
+      var idx = last === 0 ? 1 : last === 1 ? 0 : 0;
+      return { text: idx ? it.alt : it.text, idx: idx };
+    }).catch(function(){
+      var last = quickRot[it.id]; var idx = last === 0 ? 1 : 0;
+      return { text: idx ? it.alt : it.text, idx: idx };
+    });
+  }
+  var quickRot = {};
+  function rememberWording(it, idx){
+    quickRot[it.id] = idx;
+    if (!(it.alt && it.alt.trim()) || !cfg("wtok") || !cfg("rurl")) return;
+    var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
+    fetch(url + "/get/" + ROT_KEY, { headers:H, cache:"no-store" }).then(function(r){ return r.json(); }).then(function(j){
+      var rot = j.result ? JSON.parse(j.result) : {}; rot[it.id] = idx;
+      return fetch(url + "/set/" + ROT_KEY, { method:"POST", headers:H, cache:"no-store", body:JSON.stringify(rot) });
+    }).catch(function(){});
+  }
+  function useQuick(it){
+    pickWording(it).then(function(pw){ return fillQuick(pw.text).then(function(t){ return { t:t, idx:pw.idx }; }); }).then(function(res){
+      var t = res.t;
+      var ago = quickPosted[it.id] ? Math.round((Date.now() - quickPosted[it.id]) / 60000) : -1;
+      var title = it.label + (ago >= 0 && ago < 10 ? " (posted " + (ago < 1 ? "under a minute" : ago + " min") + " ago)" : "");
+      closeQuick();
+      compose(title, t, "Post", function(txt){
+        if (!txt || !txt.trim()) return;
+        if (/\{(likes|nextgoal)\}/.test(txt)){ tell("The likes numbers aren't available yet (is the records overlay running?). Edit them in before posting."); return; }
+        quickPosted[it.id] = Date.now(); store.set("itpd_phonechat_quickposted", JSON.stringify(quickPosted));
+        rememberWording(it, res.idx);
+        postToChat(txt.trim());
+      });
+    });
+  }
+  function openQuick(){
+    quickEditing = false; paintQuick(); $("quick").classList.add("open");
+    loadQuick().then(function(){ if (!quickEditing) paintQuick(); });
+  }
+  function closeQuick(){ $("quick").classList.remove("open"); quickEditing = false; }
+  $("quickBtn").addEventListener("click", openQuick);
+  $("quickClose").addEventListener("click", closeQuick);
+  $("quick").addEventListener("click", function(e){ if (e.target === $("quick")) closeQuick(); });
+  $("quickEdit").addEventListener("click", function(){
+    if (quickEditing){ quickEditing = false; loadQuick().then(paintQuick); return; }
+    if (!cfg("wtok") || !cfg("rurl")){ tell("To edit the shared list, add the Upstash URL and the alerts token in \u2699."); return; }
+    quickEditing = true; paintQuick();
+  });
+  $("quickAdd").addEventListener("click", function(){ quick.items.push({ id:"m" + Date.now(), emoji:"\ud83d\udcac", label:"New message", cmd:"", mods:true, text:"" }); paintQuick(); });
+  $("quickSave").addEventListener("click", function(){
+    var cmds = {}, bad = "";
+    quick.items.forEach(function(it){ if (it.cmd){ if (cmds[it.cmd]) bad = "!" + it.cmd + " is used twice"; cmds[it.cmd] = 1; } if (!it.text.trim()) bad = bad || "\u201c" + it.label + "\u201d has no message"; if (it.alt && /\{(likes|nextgoal)\}/.test(it.text) !== /\{(likes|nextgoal)\}/.test(it.alt)) bad = bad || "\u201c" + it.label + "\u201d: use {likes} and {nextgoal} in both wordings or neither"; });
+    if (bad){ tell("Not saved: " + bad + "."); return; }
+    var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
+    var baseVer = quick.ver || 0;
+    fetch(url + "/get/" + QUICK_KEY, { headers:H, cache:"no-store" }).then(function(r){ return r.json(); }).then(function(j){
+      var cur = j.result ? JSON.parse(j.result) : null;
+      if (cur && (cur.ver || 0) !== baseVer) throw new Error("someone else changed the list just now; reopen it and try again");
+      var next = { ver: baseVer + 1, items: quick.items, updated: Date.now() };
+      return fetch(url + "/set/" + QUICK_KEY, { method:"POST", headers:H, cache:"no-store", body:JSON.stringify(next) }).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); quick = next; });
+    }).then(function(){ quickEditing = false; paintQuick(); note("Quick messages saved (the Daze Bot picks them up within a minute).", "", Date.now()); })
+      .catch(function(e){ tell("Quick messages not saved: " + e.message); });
+  });
 
   // ---------- what counts as a chat row ----------
   // Returns null to hide, or {kind:"chat"|"follow"|"paid"}
