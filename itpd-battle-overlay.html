@@ -655,18 +655,29 @@ body {
 		if (eventName !== "reaction" && eventName !== "liked" && eventName !== "like") {
 			return false;
 		}
+		// ITPD (2026-10-26): count BEFORE SSN's duplicate filter. That filter drops any
+		// identical reaction within 2.5 s, and YouTube reactions carry no user or id, so in a
+		// busy burst most hearts looked like duplicates and weren't counted (and the more
+		// popular emoji lost the most). The counter keeps its own tiny guard against the same
+		// reaction arriving twice by two connections at once, or a repeated id.
+		var itpdDup = window.ITPDBattle && window.ITPDBattle.isDouble ? window.ITPDBattle.isDouble(payload) : false;
+		if (window.ITPDBattle && !itpdDup) {
+			try { window.ITPDBattle.onReaction(payload, eventName); } catch (itpdErr) {}
+		}
 		if (wasSeenRecently(payload)) {
 			return false;
-		}
-		// ITPD: pass the reaction to the battle counter (added 2026-10-23)
-		if (window.ITPDBattle) {
-			try { window.ITPDBattle.onReaction(payload, eventName); } catch (itpdErr) {}
 		}
 		if (window.ITPDBattle && window.ITPDBattle.noFloat) {
 			return true;
 		}
 
 		if (eventName === "liked" || eventName === "like") {
+			// ITPD (2026-10-26): TikTok like storms spawn up to 20 floating hearts each, which
+			// slows the page and looks like hearts that the (YouTube-only) battle isn't counting.
+			// Off by default in this overlay; #...&floatlikes turns them back on.
+			if (window.ITPDBattle && !window.ITPDBattle.floatLikes) {
+				return true;
+			}
 			spawnLikeBurst(payload);
 			return true;
 		}
@@ -896,7 +907,22 @@ body {
 	  var sc = parseFloat(H.get("scale")); if (sc > 0) box.style.setProperty("--itpd-scale", sc);
 	  var w = parseInt(H.get("width"), 10); if (w >= 300 && w <= 1800) box.style.width = w + "px";
 	  var COLORS = { party:"#F7931E", heart:"#E0322B", laugh:"#FFB800", wow:"#3B63C4", hundred:"#D82A83" };
-	  var api = window.ITPDBattle = { noFloat: H.has("nofloat"), onReaction: function(){} };
+	  var api = window.ITPDBattle = { noFloat: H.has("nofloat"), floatLikes: H.has("floatlikes"), onReaction: function(){} };
+	  // Same payload object, or an identical one within 15 ms (two connections delivering
+	  // the same reaction at once), counts once; so does a repeated id. Real reactions from
+	  // different viewers repeat the same emoji in quick bursts, so a longer window would drop them.
+	  var lastSig = "", lastAt = 0, lastObj = null, seenIds = {}, seenCount = 0;
+	  api.isDouble = function(p){
+	    var sig = [p.event, p.type, p.chatmessage, p.contentimg, p.id].join("|"), now = Date.now();
+	    var dup = p === lastObj || (sig === lastSig && now - lastAt < 15);
+	    if (!dup && p.id != null && p.id !== ""){
+	      var k = String(p.type) + ":" + String(p.id);
+	      if (seenIds[k]) dup = true; else { seenIds[k] = now; seenCount++; }
+	      if (seenCount > 3000){ seenIds = {}; seenCount = 0; }
+	    }
+	    lastSig = sig; lastAt = now; lastObj = p;
+	    return dup;
+	  };
 	  // Optional: floating reactions rise only part of the way up and fade out
 	  // there (rise=45 means 45% of the screen height). Works before or after the #.
 	  // base=14 starts them 14% up the screen, above the location tag and clock, instead
