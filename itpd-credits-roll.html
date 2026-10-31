@@ -599,6 +599,15 @@
 
 <script>
   const CLOSING_MESSAGE = "And to viewers like you, thank you!";   // top line of the closing ticket
+
+  // Which ending ticket to show. Add to the link in IRLToolkit:
+  //   ...itpd-credits-roll.html?mode=intro   (start of stream: "Let's go to the park!")
+  //   ...itpd-credits-roll.html?mode=outro   (end of stream: "See you next park day!", the default)
+  // #mode=intro after the # works too.
+  const MODE = (new URLSearchParams(location.search).get("mode") || new URLSearchParams(location.hash.slice(1)).get("mode") || "outro").toLowerCase() === "intro" ? "intro" : "outro";
+  const ENDING = MODE === "intro"
+    ? { stub: "NOW BOARDING", k: "Thanks to everyone who makes these park days possible!", t: "Let\u2019s go to the park!", m: "VALID FOR TODAY\u2019S PARK DAY" }
+    : { stub: "SPECIAL THANKS", k: CLOSING_MESSAGE, t: "See you next park day!", m: "VALID ANY PARK DAY WE\u2019RE LIVE" };
   const SCROLL_SPEED_PX_PER_SEC = 55;
 
   // The roster as of 2026-10-11 (39 YouTube members, 8 mods, 1 Twitch T1, 1 Prime).
@@ -768,12 +777,12 @@
     // closing ticket, matching the "Ticket for Next Time" end card in the videos
     const thanks = el("div", "section tier-thanks");
     const tk = el("div", "closing-ticket");
-    const st = el("div", "stub"); st.appendChild(el("span", "", "SPECIAL THANKS")); tk.appendChild(st);
+    const st = el("div", "stub"); st.appendChild(el("span", "", ENDING.stub)); tk.appendChild(st);
     const bd = el("div", "body");
-    bd.appendChild(el("div", "k", CLOSING_MESSAGE));
-    bd.appendChild(el("div", "t", "See you next park day!"));
+    bd.appendChild(el("div", "k", ENDING.k));
+    bd.appendChild(el("div", "t", ENDING.t));
     bd.appendChild(el("div", "rule"));
-    bd.appendChild(el("div", "m", "VALID ANY PARK DAY WE'RE LIVE"));
+    bd.appendChild(el("div", "m", ENDING.m));
     tk.appendChild(bd);
     const tr = el("div", "tear"); tr.appendChild(el("span", "", "ADMIT ONE")); tk.appendChild(tr);
     thanks.appendChild(tk);
