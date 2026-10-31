@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ITPD intro strip</title>
+<!--
+  ITPD INTRO STRIP (Broadcast UI/UX, 2026-10-30)
+  The "Today's Park Day" ticket for the bottom strip of the intro scene (block 3:
+  under the intro video, beside the credits roll).
+
+    [ TODAY stub | We're in the park in 2:14 | EP EPCOT  Today's plan text | rotating slot ]
+
+  - Countdown starts when the page loads (IRLToolkit loads the source when the intro
+    scene goes live). At zero it reads "Here we go!". Restart it from the phone if needed.
+  - Park code, name and colour follow the park overlay's venue.
+  - The rotating slot cycles chat prompts (and the live like count when the like counter
+    is running). When the Daze Bot welcomes someone, their welcome shows here instead,
+    so DON'T also put itpd-dazebot-overlay.html in the intro scene.
+
+  LINK (settings after the #, never in this file):
+    Stream:  itpd-intro-strip.html#url=https://charming-worm-109173.upstash.io&tok=TOKEN
+    Phone:   itpd-intro-strip.html#edit&url=https://charming-worm-109173.upstash.io&tok=TOKEN   (?edit before the # also works when hosted)
+  In a normal browser tab the page is see-through (looks white); add &preview to see the
+  strip on a dark background with a connection check.
+  Optional after the #: &left=450&bottom=22&width=1446 (strip position/size in px on a
+    1920x1080 source; defaults fit the intro layout), &test (fake welcome cards).
+  Upstash key: itpd_intro_state_2026 { plan, length, prompts, seq }. Reads
+    itpd_parkoverlay_state_2026, itpd_records_live_2026, itpd_bot_cards_2026.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{--park:#22306B;--paper:#FFFBF3;--ink:#17152A;--navy:#22306B;--muted:#6B6780;--gold:#FFD34E;--mag:#D82A83}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:transparent;overflow:hidden;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink)}
+  #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+
+  #strip{position:absolute;left:var(--left,450px);bottom:var(--bottom,22px);width:var(--width,1446px);height:196px;display:flex;
+    background:var(--paper);border-radius:26px;box-shadow:0 14px 36px rgba(0,0,0,.45);overflow:hidden;
+    transform:translateY(130%);transition:transform .8s cubic-bezier(.2,.9,.3,1.1)}
+  #strip.in{transform:none}
+  .stub{width:66px;flex-shrink:0;background:var(--park);border-right:4px dashed rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;transition:background .6s}
+  .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 18px/1 "DM Mono",monospace;letter-spacing:4px;color:#fff}
+  .sec{display:flex;flex-direction:column;justify-content:center;padding:0 34px;position:relative}
+  .sec + .sec{border-left:4px dashed #E2D9C6}
+  .k{font-weight:700;font-size:24px;letter-spacing:2px;color:var(--park);line-height:1;text-transform:uppercase;transition:color .6s}
+
+  /* countdown */
+  #cd{width:350px;flex-shrink:0}
+  #cdNum{font-weight:800;font-size:104px;line-height:.95;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:6px}
+  #cd.done .k{color:var(--mag)}
+  #cd.done #cdNum{font-size:54px;color:var(--mag);white-space:nowrap}
+
+  /* today's plan */
+  #plan{flex:1;min-width:0}
+  #where{display:flex;align-items:center;gap:12px}
+  #code{background:var(--park);color:#fff;border-radius:8px;padding:3px 10px 1px;font-weight:800;font-size:24px;letter-spacing:1px;transition:background .6s}
+  #park{font-weight:800;font-size:30px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #planText{font-weight:700;font-size:36px;line-height:1.15;color:var(--navy);margin-top:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #planText:empty{display:none}
+
+  /* rotating slot */
+  #rot{width:440px;flex-shrink:0;background:#FFF4D6}
+  #rotInner{transition:opacity .45s}
+  #rotInner.fade{opacity:0}
+  #rotK{color:#B07A00}
+  #rotRow{display:flex;align-items:center;gap:16px;margin-top:10px}
+  #rotIcon{font-size:52px;line-height:1;flex-shrink:0}
+  #rotIcon img{width:84px;height:84px;border-radius:50%;object-fit:cover;display:block;box-shadow:0 0 0 4px var(--paper),0 0 0 7px var(--c,#22306B)}
+  #rotText{font-weight:800;font-size:31px;line-height:1.15;color:var(--ink);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+  #rotText.long{font-size:26px}
+  #rotText small{display:block;font-weight:700;font-size:22px;color:var(--muted);margin-top:2px}
+
+  @media (prefers-reduced-motion:reduce){#strip{transition:none}#rotInner{transition:none}}
+
+  /* ---------- phone controller ---------- */
+  body.ctl{background:#15142a;color:#fff;overflow:auto;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  body.ctl #stage{display:none}
+  #ctl{display:none;max-width:560px;margin:0 auto;padding:16px 16px 60px}
+  body.ctl #ctl{display:block}
+  #ctl h1{font-size:22px;margin:0 0 4px} #ctl h2{font-size:16px;color:#FFD866;margin:20px 0 6px}
+  #ctl .hint{color:#a9a6c4;font-size:14px;line-height:1.4}
+  #ctl input,#ctl textarea{width:100%;padding:11px;border-radius:9px;border:1px solid #444;background:#101024;color:#fff;font-size:16px}
+  #ctl textarea{min-height:120px}
+  #ctl button{width:100%;padding:14px;border-radius:12px;border:2px solid #3b3a60;background:#23224a;color:#fff;font-weight:800;font-size:16px;margin-top:8px}
+  #ctl button.go{background:#2F8F5B;border-color:#2F8F5B}
+  #cStatus{margin-top:10px;color:#9fe2b5;min-height:20px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="strip">
+    <div class="stub"><span>TODAY</span></div>
+    <div class="sec" id="cd"><div class="k" id="cdK">We're in the park in</div><div id="cdNum">2:30</div></div>
+    <div class="sec" id="plan">
+      <div id="where"><span id="code">ITPD</span><span id="park">Today's park day</span></div>
+      <div id="planText"></div>
+    </div>
+    <div class="sec" id="rot"><div id="rotInner">
+      <div class="k" id="rotK">While you wait</div>
+      <div id="rotRow"><div id="rotIcon">&#x1F4AC;</div><div id="rotText">Where are you watching from?</div></div>
+    </div></div>
+  </div>
+</div>
+
+<div id="ctl">
+  <h1>Intro strip</h1>
+  <div class="hint">Set before the intro scene goes live. Changes reach the stream within a few seconds.</div>
+  <h2>Today's plan</h2>
+  <input id="iPlan" placeholder="e.g. Food &amp; Wine eats, then Eat to the Beat at 5:30">
+  <h2>Countdown length (minutes:seconds)</h2>
+  <input id="iLen" placeholder="2:30">
+  <h2>While-you-wait messages (one per line)</h2>
+  <textarea id="iPrompts"></textarea>
+  <div class="hint">Start a line with an emoji to use it as the icon. The live like count and Daze Bot welcomes are added automatically.</div>
+  <button class="go" id="bSave">Save</button>
+  <button id="bRestart">Restart the countdown now</button>
+  <div id="cStatus"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var H = new URLSearchParams(location.hash.slice(1)), Q = new URLSearchParams(location.search);
+  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
+  var EDIT = Q.has("edit") || H.has("edit"), TEST = H.has("test");
+  var KEY = "itpd_intro_state_2026";
+  var $ = function(id){ return document.getElementById(id); };
+
+  var DEFAULT_PROMPTS = [
+    "\u{1F4AC} Where are you watching from? Tell us in chat!",
+    "\u{1F44D} Tap like to help other park fans find us",
+    "\u{1F514} Tap the bell so you never miss a park day",
+    "\u{1F3A2} What should we ride first? Vote in chat!"
+  ];
+  // Same order and colours as the park overlay's venue list
+  var VENUES = [["MK","Magic Kingdom","#4A63A3"],["EP","EPCOT","#1B9C9C"],["HS","Hollywood Studios","#E8622C"],["AK","Animal Kingdom","#2F6B3A"],
+    ["BOO","Not-So-Scary Halloween Party","#6A2C91"],["JOY","Very Merry Christmas Party","#B3202D"],["JWN","Jollywood Nights","#1B2A5C"],["DS","Disney Springs","#3F7C8A"],
+    ["TTC","Transportation & Ticket Center","#5A6C7D"],["USF","Universal Studios","#C8202F"],["IOA","Islands of Adventure","#146356"],["EU","Epic Universe","#4B2E83"],
+    ["HHN","Halloween Horror Nights","#B00020"],["CW","CityWalk","#E0197C"]];
+
+  function get(k){
+    return fetch(URL_ + "/get/" + k, { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(d){ try { return d.result ? JSON.parse(d.result) : null; } catch(e){ return null; } });
+  }
+  function set(k, v){
+    return fetch(URL_ + "/set/" + k, { method:"POST", cache:"no-store", headers:{ Authorization:"Bearer " + TOK }, body:JSON.stringify(v) })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); });
+  }
+  function parseLen(t){ var m = String(t || "").match(/^\s*(\d+)\s*(?::\s*(\d{1,2}))?\s*$/); if (!m) return 0; return m[2] !== undefined ? (+m[1]) * 60 + (+m[2]) : (+m[1] > 10 ? +m[1] : +m[1] * 60); }
+  function fmt(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+
+  if (!URL_ || !TOK){
+    document.body.innerHTML = "<div style='margin:20px;padding:18px 22px;max-width:760px;background:#15142a;color:#ffb3b3;border-radius:12px;font:18px/1.5 system-ui,sans-serif'>" +
+      "<b>Intro strip: missing settings.</b><br>The link needs <code>#url=https://charming-worm-109173.upstash.io&amp;tok=YOUR_TOKEN</code> at the end. " +
+      "Found url: " + (URL_ ? "yes" : "NO") + ", tok: " + (TOK ? "yes" : "NO") + ".</div>";
+    return;
+  }
+
+  // ================= PHONE CONTROLLER =================
+  if (EDIT){
+    document.body.classList.add("ctl");
+    var st = $("cStatus");
+    get(KEY).then(function(s){
+      s = s || {};
+      $("iPlan").value = s.plan || "";
+      $("iLen").value = fmt(s.length || 150);
+      $("iPrompts").value = (s.prompts && s.prompts.length ? s.prompts : DEFAULT_PROMPTS).join("\n");
+    }).catch(function(){ st.textContent = "Couldn't load the saved settings."; });
+    function save(extra, msg){
+      return get(KEY).then(function(cur){
+        cur = cur || {};
+        cur.plan = $("iPlan").value.trim();
+        cur.length = parseLen($("iLen").value) || 150;
+        cur.prompts = $("iPrompts").value.split("\n").map(function(x){ return x.trim(); }).filter(Boolean);
+        Object.keys(extra || {}).forEach(function(k){ cur[k] = extra[k]; });
+        return set(KEY, cur);
+      }).then(function(){ st.textContent = msg; }).catch(function(){ st.textContent = "Couldn't save. Check your connection."; });
+    }
+    $("bSave").onclick = function(){ save({}, "Saved."); };
+    $("bRestart").onclick = function(){ get(KEY).then(function(c){ save({ seq:((c && c.seq) || 0) + 1 }, "Countdown restarted on stream."); }); };
+    return;
+  }
+
+  // ================= STREAM COPY =================
+  if (H.has("preview")){
+    document.body.style.background = "#2b3346";
+    var pv = document.createElement("div");
+    pv.id = "pv"; pv.style.cssText = "position:fixed;left:12px;top:10px;z-index:9;color:#fff;font:15px/1.4 system-ui,sans-serif;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:8px";
+    pv.textContent = "Preview: the strip sits in the bottom strip of a 1920x1080 frame. Remove &preview for IRLToolkit.";
+    document.body.appendChild(pv);
+  }
+  var stage = $("stage");
+  function fit(){ var k = Math.min(innerWidth / 1920, innerHeight / 1080) || 1; stage.style.transform = "scale(" + k + ")"; }
+  fit(); addEventListener("resize", fit);
+  ["left","bottom","width"].forEach(function(p){ var v = parseInt(H.get(p), 10); if (v >= 0 && v < 3000) document.documentElement.style.setProperty("--" + p, v + "px"); });
+
+  var state = { plan:"", length:150, prompts:DEFAULT_PROMPTS, seq:null };
+  var startAt = Date.now(), lastSeq = null, likes = null;
+
+  // countdown (starts on load; the phone's Restart sets it going again)
+  function tick(){
+    var left = state.length - (Date.now() - startAt) / 1000;
+    if (left > 0){ $("cd").classList.remove("done"); $("cdK").textContent = "We're in the park in"; $("cdNum").textContent = fmt(left); }
+    else { $("cd").classList.add("done"); $("cdK").textContent = "Next stop: the park"; $("cdNum").textContent = "Here we go!"; }
+  }
+  setInterval(tick, 250);
+
+  function paintPlan(){
+    $("planText").textContent = state.plan || "";
+  }
+  function loadState(){
+    get(KEY).then(function(s){
+      var pv0 = $("pv"); if (pv0) pv0.textContent = "Preview: connected to Upstash" + (s ? "." : " (no plan saved yet: set one on the phone).") + " Remove &preview for IRLToolkit.";
+      if (!s) return;
+      state.plan = s.plan || ""; state.length = s.length > 0 ? s.length : 150;
+      state.prompts = s.prompts && s.prompts.length ? s.prompts : DEFAULT_PROMPTS;
+      if (lastSeq !== null && s.seq !== lastSeq) startAt = Date.now();   // restart pressed on the phone
+      lastSeq = s.seq || 0;
+      paintPlan(); tick();
+    }).catch(function(e){ var pv = $("pv"); if (pv) pv.textContent = "Preview: can't reach Upstash (" + e.message + "). Check the token."; });
+  }
+  function loadPark(){
+    get("itpd_parkoverlay_state_2026").then(function(s){
+      var v = s && typeof s.venue === "number" ? VENUES[s.venue] : null;
+      document.documentElement.style.setProperty("--park", v ? v[2] : "#22306B");
+      $("code").textContent = v ? v[0] : "ITPD";
+      $("park").textContent = v ? v[1] : "Today's park day";
+    }).catch(function(){});
+  }
+  function loadLikes(){
+    get("itpd_records_live_2026").then(function(l){ likes = l && l.videoId && l.likes >= 0 ? l.likes : null; }).catch(function(){});
+  }
+
+  // rotating slot: prompts (+ likes), interrupted by Daze Bot welcomes
+  var welcomes = [], seenCards = {}, loadedAt = Date.now(), rotI = 0, rotTimer = null, onWelcome = false;
+  function show(k, icon, text, color){
+    var inner = $("rotInner");
+    inner.classList.add("fade");
+    setTimeout(function(){
+      $("rotK").textContent = k;
+      var ic = $("rotIcon"); ic.innerHTML = "";
+      if (icon && /^https?:/.test(icon)){ var im = document.createElement("img"); im.src = icon; im.alt = ""; im.onerror = function(){ ic.textContent = "\u{1F44B}"; }; ic.appendChild(im); }
+      else ic.textContent = icon || "\u2728";
+      ic.style.setProperty("--c", color || "#22306B");
+      $("rotText").innerHTML = ""; $("rotText").appendChild(document.createTextNode(text.main));
+      $("rotText").classList.toggle("long", !!text.sub && text.main.length > 14);
+      if (text.sub){ var sm = document.createElement("small"); sm.textContent = text.sub; $("rotText").appendChild(sm); }
+      inner.classList.remove("fade");
+    }, 450);
+  }
+  function nextRot(){
+    if (welcomes.length){
+      var c = welcomes.shift();
+      if (c.kind === "friend") show(c.mod ? "Friend & mod" : "Friend of the Daze", c.img || "\u2B50", { main:c.name, sub:"Welcome! Go check out their channel" }, "#C2185B");
+      else if (c.kind === "mod") show("Our awesome mod", c.img || "\u{1F6E1}\uFE0F", { main:c.name, sub:"is here! Thanks for keeping chat happy" }, "#5E84F1");
+      else {
+        var ppl = c.people || [], first = ppl[0] || {};
+        show("First time here?", first.img || "\u{1F44B}", { main: ppl.length > 1 ? "Welcome, " + ppl.map(function(p){ return p.name; }).slice(0, 2).join(" & ") + (ppl.length > 2 || c.more ? " +" + ((ppl.length - 2 > 0 ? ppl.length - 2 : 0) + (c.more || 0)) : "") : "Welcome, " + (first.name || "friend") + "!", sub:"So glad you found us" }, "#22306B");
+      }
+      onWelcome = true;
+      rotTimer = setTimeout(nextRot, 8000);
+      return;
+    }
+    onWelcome = false;
+    var items = state.prompts.slice();
+    if (likes !== null) items.push("\u{1F44D} " + likes + " likes so far. Can we beat the record today?");
+    var line = items[rotI++ % items.length] || "";
+    var m = line.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u);
+    show("While you wait", m ? m[1] : "\u2728", { main: m ? m[2] : line }, "#B07A00");
+    rotTimer = setTimeout(nextRot, 15000);
+  }
+  function welcomeNow(){ if (!onWelcome && welcomes.length){ clearTimeout(rotTimer); nextRot(); } }
+  function pollCards(){
+    get("itpd_bot_cards_2026").then(function(d){
+      (d && d.items || []).forEach(function(c){
+        if (seenCards[c.id]) return; seenCards[c.id] = 1;
+        if (c.at >= loadedAt - 5000) welcomes.push(c);
+      });
+      welcomeNow();
+    }).catch(function(){});
+  }
+
+  loadState(); loadPark(); loadLikes(); pollCards();
+  setInterval(loadState, 4000); setInterval(loadPark, 30000); setInterval(loadLikes, 30000); setInterval(pollCards, 3000);
+  setTimeout(function(){ $("strip").classList.add("in"); }, 300);
+  rotTimer = setTimeout(nextRot, 2500);
+
+  if (TEST){
+    setTimeout(function(){ welcomes.push({ kind:"first", people:[{ name:"@NewDazeFan" }] }); welcomeNow(); }, 4000);
+    setTimeout(function(){ welcomes.push({ kind:"friend", mod:true, name:"@Zip-a-Dee-DooDoug" }); welcomeNow(); }, 6000);
+  }
+})();
+</script>
+</body>
+</html>
