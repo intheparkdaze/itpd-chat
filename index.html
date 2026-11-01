@@ -77,6 +77,10 @@ button{font:inherit;color:inherit}
 .msg.maybesub{background:color-mix(in srgb,var(--yt) 12%,transparent);border-radius:8px;padding:8px;border:none;margin:4px 0}
 .subtag{font-size:.7rem;font-weight:800;color:var(--yt)}
 .nm.tap{text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
+#compose{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:31}
+#compose.open{display:flex}
+#compose textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:1rem;resize:vertical}
+#compose .count{font-size:.75rem;color:var(--muted);text-align:right;margin-top:4px}
 #acts{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:30}
 #acts.open{display:flex}
 #acts .card h2{font-size:1.05rem;margin:0 0 10px;overflow-wrap:anywhere}
@@ -86,6 +90,16 @@ button{font:inherit;color:inherit}
 .subbtn{margin-top:6px;border:none;border-radius:8px;padding:7px 12px;background:var(--yt);color:#fff;font-weight:700;font-size:.85rem}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
+#quickBtn{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--gold);color:#1b1830;font-size:1.6rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#quick{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#quick.open{display:flex}
+#quick .card h2{font-size:1.05rem;margin:0 0 6px}
+#quickList .qb{display:block;width:100%;text-align:left;margin-top:8px;padding:12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem}
+#quickList .qb small{display:block;font-weight:400;color:var(--muted);font-size:.78rem;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#quickList .qe{border:2px solid var(--line);border-radius:10px;padding:8px;margin-top:8px}
+#quickList .qe input,#quickList .qe textarea{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:.95rem;margin-top:4px}
+#quickList .qe .r{display:flex;gap:6px}
+#quickList .qe .r input{flex:1}
 #jump{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));border:none;border-radius:20px;padding:10px 18px;background:var(--tw);color:#fff;font-weight:700;display:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 
 #sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:20}
@@ -119,6 +133,30 @@ button{font:inherit;color:inherit}
 
 <div id="log" aria-live="off"></div>
 <button id="jump">Jump to newest</button>
+<button id="quickBtn" aria-label="Quick messages">&#x26A1;</button>
+
+<div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
+  <div class="card">
+    <h2 id="quickTitle">Quick messages</h2>
+    <div class="small" id="quickNote">Tap one to check it, then post it in YouTube chat. Mods can post the same messages by typing the command in chat. &#x21C4; = two wordings that take turns.</div>
+    <div id="quickList"></div>
+    <div class="row">
+      <button class="btn" id="quickEdit">Edit list</button>
+      <button class="btn" id="quickAdd" style="display:none">Add message</button>
+      <button class="btn primary" id="quickSave" style="display:none">Save list</button>
+      <button class="btn" id="quickClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="compose" role="dialog" aria-modal="true" aria-labelledby="composeTitle">
+  <div class="card">
+    <h2 id="composeTitle" style="font-size:1.05rem;margin:0 0 10px">Post in YouTube chat</h2>
+    <textarea id="composeText" maxlength="200"></textarea>
+    <div class="count" id="composeCount"></div>
+    <div class="row"><button class="btn primary" id="composeGo">Post</button><button class="btn" id="composeCancel">Cancel</button></div>
+  </div>
+</div>
 
 <div id="acts" role="dialog" aria-modal="true" aria-labelledby="actsTitle">
   <div class="card">
@@ -340,8 +378,8 @@ button{font:inherit;color:inherit}
   // the default) in the API, so viewers saying so is the best live signal.
   var SUB_RX = /\b(?:just\s+)?(?:subscribed|subbed|new\s+sub(?:scriber)?|hit\s+(?:the\s+)?sub(?:scribe)?(?:\s+button)?)\b/i;
   function askSubAlert(name, confirmed){
-    if (!cfg("wtok") || !cfg("rurl")){ alert("To send alerts from here, add the Upstash URL and the alerts token in ⚙."); return; }
-    if (!confirmed && !confirm("Show a NEW SUBSCRIBER alert on stream for " + name + "?")) return;
+    if (!cfg("wtok") || !cfg("rurl")){ tell("To send alerts from here, add the Upstash URL and the alerts token in \u2699."); return; }
+    if (!confirmed){ compose("Show a NEW SUBSCRIBER alert on stream for " + name + "?", null, "Show alert", function(){ askSubAlert(name, true); }); return; }
     var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
     fetch(url + "/get/itpd_alerts_state_2026", { headers:H, cache:"no-store" })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -353,7 +391,7 @@ button{font:inherit;color:inherit}
       })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function(j){ if (j.error) throw new Error(j.error); note("Subscriber alert sent for " + name + ".", "", Date.now()); })
-      .catch(function(e){ diag("Subscriber alert failed: " + e.message); alert("Couldn’t send the alert: " + e.message); });
+      .catch(function(e){ diag("Subscriber alert failed: " + e.message); tell("Couldn\u2019t send the alert: " + e.message); });
   }
 
   // ---------- actions on a YouTube chatter (tap their name) ----------
@@ -388,9 +426,9 @@ button{font:inherit;color:inherit}
   function postToChat(text, tries){
     tries = tries || 0;
     var url = cfg("purl"), key = cfg("pkey");
-    if (!url || !key){ alert("To post in YouTube chat from here, add the Chat Poster URL and bot key in \u2699."); return; }
+    if (!url || !key){ tell("To post in YouTube chat from here, add the Chat Poster URL and bot key in \u2699."); return; }
     if (!tries) note("Posting in YouTube chat: " + text, "", Date.now());
-    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, text:text }), redirect:"follow", cache:"no-store" })
+    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, text:text, source:"manual" }), redirect:"follow", cache:"no-store" })
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (j && j.ok){ note("Posted in YouTube chat.", "", Date.now()); return; }
@@ -400,6 +438,32 @@ button{font:inherit;color:inherit}
       })
       .catch(function(e){ note("Couldn\u2019t reach the Chat Poster: " + e.message, "gap", Date.now()); });
   }
+
+  // In-page boxes instead of the browser's prompt()/confirm(): phone browsers can
+  // silently block those pop-ups after a few uses (then they return nothing and the
+  // tap seems to "just disappear"), which is what happened to the thank-yous on 10/26.
+  var composeDone = null;
+  function compose(title, text, goLabel, done){
+    $("composeTitle").textContent = title;
+    var ta = $("composeText");
+    ta.value = text; ta.style.display = text === null ? "none" : "";
+    $("composeCount").style.display = text === null ? "none" : "";
+    $("composeGo").textContent = goLabel || "Post";
+    composeDone = done;
+    updCount();
+    $("compose").classList.add("open");
+    if (text !== null) setTimeout(function(){ try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} }, 50);
+  }
+  function updCount(){ $("composeCount").textContent = $("composeText").value.length + " / 200"; }
+  $("composeText").addEventListener("input", updCount);
+  $("composeCancel").addEventListener("click", function(){ $("compose").classList.remove("open"); composeDone = null; });
+  $("compose").addEventListener("click", function(e){ if (e.target === $("compose")){ $("compose").classList.remove("open"); composeDone = null; } });
+  $("composeGo").addEventListener("click", function(){
+    var fn = composeDone; composeDone = null;
+    $("compose").classList.remove("open");
+    if (fn) fn($("composeText").value);
+  });
+  function tell(msg){ note(msg, "gap", Date.now()); }
 
   function addAct(label, why, enabled, fn){
     var b = document.createElement("button");
@@ -422,18 +486,180 @@ button{font:inherit;color:inherit}
     var what = whatFor(m);
     if (cls.kind === "paid" && what){
       addAct("\ud83d\udc9b Thank in chat for " + what, canPost ? "You can edit the message first" : "Add the Chat Poster in \u2699", canPost, function(){
-        var t = prompt("Message to post in YouTube chat:", thanksFor(m));
-        if (t && t.trim()) postToChat(t.trim());
+        compose("Thank " + h + " in YouTube chat", thanksFor(m), "Post", function(t){ if (t && t.trim()) postToChat(t.trim()); });
       });
     }
     addAct("\ud83d\udcac Say something to them in chat", canPost ? "Starts with " + h : "Add the Chat Poster in \u2699", canPost, function(){
-      var t = prompt("Message to post in YouTube chat:", h + " ");
-      if (t && t.trim() && t.trim() !== h) postToChat(t.trim());
+      compose("Message " + h + " in YouTube chat", h + " ", "Post", function(t){ if (t && t.trim() && t.trim() !== h) postToChat(t.trim()); });
     });
     addAct("\u2b50 NEW SUBSCRIBER alert on stream", canAlert ? "Shows the on-screen alert with their name" : "Add the alerts token in \u2699", canAlert,
       function(){ askSubAlert(name, true); });
     $("acts").classList.add("open");
   }
+
+  // ---------- quick messages (shared list; mods use the same ones as !commands via the Daze Bot) ----------
+  var QUICK_KEY = "itpd_quickmsgs_2026";
+  var QUICK_DEFAULTS = [
+    { id:"welcome", emoji:"\ud83d\udc4b", label:"Welcome in", cmd:"welcome", mods:true, text:"Welcome in, Daze crew! \ud83d\udc9b Say hi and tell us where you're watching from!" },
+    { id:"like", emoji:"\ud83d\udc4d", label:"Like & subscribe", cmd:"like", mods:true, text:"Enjoying the stream? Tap \ud83d\udc4d and hit subscribe so you never miss a park day! \ud83d\udc9b" },
+    { id:"goal", emoji:"\ud83c\udfaf", label:"Like goal", cmd:"goal", mods:true, text:"We're at {likes} likes, help us hit {nextgoal}! Tap that \ud83d\udc4d \ud83d\udc9b" },
+    { id:"rules", emoji:"\ud83d\udcdc", label:"Chat rules", cmd:"rules", mods:true, text:"Chat rules: be kind, keep it family friendly, no spam or self-promo, and please listen to our mods. Thanks for keeping the Daze crew awesome! \ud83d\udc9b" },
+    { id:"family", emoji:"\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67", label:"Family friendly", cmd:"family", mods:true, text:"Friendly reminder: this is a family-friendly stream, so please keep chat clean and kind. Thank you! \ud83d\udc9b" },
+    { id:"discord", emoji:"\ud83d\udcac", label:"Discord", cmd:"discord", mods:true, text:"Join the Daze crew on Discord: https://discord.gg/w8Uzd3Wa2" },
+    { id:"merch", emoji:"\ud83d\udecd\ufe0f", label:"Merch", cmd:"merch", mods:true, text:"Grab some Daze gear: https://intheparksdaze.store/" },
+    { id:"links", emoji:"\ud83d\udd17", label:"All links", cmd:"links", mods:true, text:"Everything ITPD in one place: https://linktr.ee/intheparkdaze" },
+    { id:"schedule", emoji:"\ud83d\udcc5", label:"Schedule", cmd:"schedule", mods:true, text:"We're live Wed\u2013Fri 6:30 PM, Saturdays 5:30 PM and Sunday mornings 8 AM (ET), weather permitting!" },
+    { id:"ride", emoji:"\ud83c\udfa2", label:"Ride / BRB", cmd:"", mods:false, text:"Heading on a ride! Back in a few, so stick around \ud83c\udfa2" },
+    { id:"night", emoji:"\ud83c\udf19", label:"Goodnight", cmd:"", mods:false, text:"Thanks for hanging out with us tonight, Daze crew! See you next stream \ud83d\udc9b" }
+  ];
+  var quick = { ver:0, items:QUICK_DEFAULTS.slice() }, quickEditing = false, quickPosted = {};
+  try { quickPosted = JSON.parse(store.get("itpd_phonechat_quickposted") || "{}"); } catch(e){}
+
+  function loadQuick(){
+    if (!cfg("rurl") || !cfg("rtok")) return Promise.resolve(quick);
+    return upstash("/get/" + QUICK_KEY).then(function(r){
+      if (r){ try { var q = JSON.parse(r); if (q && q.items) quick = q; } catch(e){} }
+      return quick;
+    }).catch(function(){ return quick; });
+  }
+  // {likes} and {nextgoal} come from the records overlay's saved numbers
+  function fillQuick(text){
+    if (!/\{(likes|nextgoal)\}/.test(text)) return Promise.resolve(text);
+    return Promise.all([upstash("/get/itpd_records_live_2026"), upstash("/get/itpd_records_goal_2026")]).then(function(r){
+      var live = r[0] ? JSON.parse(r[0]) : null, g = r[1] ? JSON.parse(r[1]) : null;
+      if (!live || !g) return text;
+      var best = g.lastVideo === live.videoId ? (g.best || 0) : 0;
+      return text.replace(/\{likes\}/g, String(live.likes)).replace(/\{nextgoal\}/g, String(best + g.step));
+    }).catch(function(){ return text; });
+  }
+  function paintQuick(){
+    var box = $("quickList"); box.textContent = "";
+    $("quickEdit").textContent = quickEditing ? "Cancel editing" : "Edit list";
+    $("quickAdd").style.display = $("quickSave").style.display = quickEditing ? "" : "none";
+    quick.items.forEach(function(it, i){
+      if (!quickEditing){
+        var b = document.createElement("button"); b.className = "qb";
+        var acc = accessOf(it);
+        b.textContent = (it.emoji ? it.emoji + "  " : "") + it.label + (it.cmd ? "   !" + it.cmd + (acc === "everyone" ? "  \u00b7 everyone" : acc === "mods" ? "  \u00b7 mods" : "") : "");
+        var sm = document.createElement("small");
+        sm.textContent = it.builtin ? (it.builtin === "modsonly" ? "Bot's reply when a viewer tries a mods-only command" : "Answered by the Daze Bot when typed in chat")
+                       : it.lines && it.lines.length ? "\ud83c\udfb2 " + it.lines.length + " random lines"
+                       : (it.alt && it.alt.trim() ? "\u21c4 " : "") + it.text;
+        b.appendChild(sm);
+        b.addEventListener("click", function(){ useQuick(it); });
+        box.appendChild(b);
+      } else {
+        var d = document.createElement("div"); d.className = "qe";
+        d.innerHTML = '<div class="r"><input data-f="emoji" placeholder="Emoji" style="flex:0 0 70px"><input data-f="label" placeholder="Button name"><input data-f="cmd" placeholder="command (no !)"></div>' +
+                      '<textarea data-f="text" maxlength="200" placeholder="Message"></textarea>' +
+                      '<textarea data-f="alt" maxlength="200" placeholder="Alternative wording (optional: the two take turns)"></textarea>' +
+                      '<textarea data-f="lines" placeholder="Random lines (optional, one per line): the command picks one each time; use {line} in the message"></textarea>' +
+                      '<label class="small" style="display:block;margin-top:6px">Who can use the command <select data-f="access"><option value="everyone">Everyone</option><option value="mods">Mods</option><option value="host">Only us</option></select></label>' +
+                      (it.builtin ? '<div class="small" style="margin-top:4px">' + builtinHint(it.builtin) + '</div>' : '') +
+                      '<button class="btn" data-del style="margin-top:6px">Delete</button>';
+        ["emoji","label","cmd","text","alt"].forEach(function(f){ d.querySelector('[data-f="' + f + '"]').value = it[f] || ""; });
+        d.querySelector('[data-f="lines"]').value = (it.lines || []).join("\n");
+        d.querySelector('[data-f="access"]').value = accessOf(it);
+        if (it.builtin){ d.querySelector('[data-f="alt"]').style.display = "none"; d.querySelector('[data-f="lines"]').style.display = "none"; if (it.builtin === "wait") d.querySelector('[data-f="text"]').style.display = "none"; }
+        d.querySelectorAll("[data-f]").forEach(function(inp){
+          function upd(){ var f = inp.dataset.f;
+            if (f === "lines") it.lines = inp.value.split("\n").map(function(x){ return x.trim(); }).filter(Boolean);
+            else if (f === "cmd") it.cmd = inp.value.replace(/^!/, "").trim().toLowerCase();
+            else it[f] = inp.value; }
+          inp.addEventListener("input", upd); inp.addEventListener("change", upd);
+        });
+        d.querySelector("[data-del]").addEventListener("click", function(){
+          if (it.builtin && !confirmDel[it.id]){ confirmDel[it.id] = 1; tell("Tap Delete again to remove " + it.label + " (the bot stops answering !" + (it.cmd || it.id) + "). Setting it to 'Only us' just switches it off for viewers."); return; }
+          quick.items.splice(i, 1); paintQuick(); });
+        box.appendChild(d);
+      }
+    });
+  }
+  // Two wordings take turns (shared with the Daze Bot through itpd_quickmsgs_rot_2026),
+  // so the same text doesn't show up twice in a row whoever posts it.
+  var ROT_KEY = "itpd_quickmsgs_rot_2026";
+  function pickWording(it){
+    var hasAlt = !!(it.alt && it.alt.trim());
+    if (!hasAlt) return Promise.resolve({ text:it.text, idx:0 });
+    return upstash("/get/" + ROT_KEY).then(function(r){
+      var rot = r ? JSON.parse(r) : {}; var last = rot[it.id];
+      var idx = last === 0 ? 1 : last === 1 ? 0 : 0;
+      return { text: idx ? it.alt : it.text, idx: idx };
+    }).catch(function(){
+      var last = quickRot[it.id]; var idx = last === 0 ? 1 : 0;
+      return { text: idx ? it.alt : it.text, idx: idx };
+    });
+  }
+  var quickRot = {};
+  function rememberWording(it, idx){
+    quickRot[it.id] = idx;
+    if (!(it.alt && it.alt.trim()) || !cfg("wtok") || !cfg("rurl")) return;
+    var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
+    fetch(url + "/get/" + ROT_KEY, { headers:H, cache:"no-store" }).then(function(r){ return r.json(); }).then(function(j){
+      var rot = j.result ? JSON.parse(j.result) : {}; rot[it.id] = idx;
+      return fetch(url + "/set/" + ROT_KEY, { method:"POST", headers:H, cache:"no-store", body:JSON.stringify(rot) });
+    }).catch(function(){});
+  }
+  var confirmDel = {};
+  function accessOf(it){ return it.access || (it.mods === false ? "host" : "mods"); }
+  function builtinHint(b){
+    return b === "park" ? "Built in: {place} = where you are, from the park overlay."
+         : b === "weather" ? "Built in: {temp}, {sky} and {place} come from the National Weather Service."
+         : b === "wait" ? "Built in: !wait = longest waits, !wait tron = one ride. Wording is fixed because Queue-Times' credit must be included."
+         : b === "commands" ? "Built in: {list} = every command set to Everyone."
+         : b === "modsonly" ? "Sent once per viewer per stream when they try a mods-only command. {name} = their handle."
+         : "";
+  }
+  function useQuick(it){
+    if (it.builtin){ tell(it.builtin === "modsonly" ? "That's the bot's automatic reply; edit its wording in Edit list." : "Viewers' command: the Daze Bot answers it when someone types !" + it.cmd + " in chat."); closeQuick(); return; }
+    if (it.lines && it.lines.length){
+      var line = it.lines[Math.floor(Math.random() * it.lines.length)];
+      closeQuick();
+      compose(it.label, (it.text || "{line}").replace(/\{line\}/g, line).replace(/\{name\}\s*/g, ""), "Post", function(txt){ if (txt && txt.trim()) postToChat(txt.trim()); });
+      return;
+    }
+    pickWording(it).then(function(pw){ return fillQuick(pw.text).then(function(t){ return { t:t, idx:pw.idx }; }); }).then(function(res){
+      var t = res.t;
+      var ago = quickPosted[it.id] ? Math.round((Date.now() - quickPosted[it.id]) / 60000) : -1;
+      var title = it.label + (ago >= 0 && ago < 10 ? " (posted " + (ago < 1 ? "under a minute" : ago + " min") + " ago)" : "");
+      closeQuick();
+      compose(title, t, "Post", function(txt){
+        if (!txt || !txt.trim()) return;
+        if (/\{(likes|nextgoal)\}/.test(txt)){ tell("The likes numbers aren't available yet (is the records overlay running?). Edit them in before posting."); return; }
+        quickPosted[it.id] = Date.now(); store.set("itpd_phonechat_quickposted", JSON.stringify(quickPosted));
+        rememberWording(it, res.idx);
+        postToChat(txt.trim());
+      });
+    });
+  }
+  function openQuick(){
+    quickEditing = false; paintQuick(); $("quick").classList.add("open");
+    loadQuick().then(function(){ if (!quickEditing) paintQuick(); });
+  }
+  function closeQuick(){ $("quick").classList.remove("open"); quickEditing = false; }
+  $("quickBtn").addEventListener("click", openQuick);
+  $("quickClose").addEventListener("click", closeQuick);
+  $("quick").addEventListener("click", function(e){ if (e.target === $("quick")) closeQuick(); });
+  $("quickEdit").addEventListener("click", function(){
+    if (quickEditing){ quickEditing = false; loadQuick().then(paintQuick); return; }
+    if (!cfg("wtok") || !cfg("rurl")){ tell("To edit the shared list, add the Upstash URL and the alerts token in \u2699."); return; }
+    quickEditing = true; paintQuick();
+  });
+  $("quickAdd").addEventListener("click", function(){ quick.items.push({ id:"m" + Date.now(), emoji:"\ud83d\udcac", label:"New message", cmd:"", mods:true, text:"" }); paintQuick(); });
+  $("quickSave").addEventListener("click", function(){
+    var cmds = {}, bad = "";
+    quick.items.forEach(function(it){ if (it.cmd){ if (cmds[it.cmd]) bad = "!" + it.cmd + " is used twice"; cmds[it.cmd] = 1; } if (!it.builtin && !(it.text || "").trim() && !(it.lines && it.lines.length)) bad = bad || "\u201c" + it.label + "\u201d has no message"; (it.lines || []).forEach(function(l){ if (l.length > 170) bad = bad || "a random line in \u201c" + it.label + "\u201d is over 170 characters"; }); if (it.alt && /\{(likes|nextgoal)\}/.test(it.text) !== /\{(likes|nextgoal)\}/.test(it.alt)) bad = bad || "\u201c" + it.label + "\u201d: use {likes} and {nextgoal} in both wordings or neither"; });
+    if (bad){ tell("Not saved: " + bad + "."); return; }
+    var url = cfg("rurl").replace(/\/+$/,""), H = { Authorization:"Bearer " + cfg("wtok") };
+    var baseVer = quick.ver || 0;
+    fetch(url + "/get/" + QUICK_KEY, { headers:H, cache:"no-store" }).then(function(r){ return r.json(); }).then(function(j){
+      var cur = j.result ? JSON.parse(j.result) : null;
+      if (cur && (cur.ver || 0) !== baseVer) throw new Error("someone else changed the list just now; reopen it and try again");
+      var next = { ver: baseVer + 1, v2: true, items: quick.items, updated: Date.now() };
+      return fetch(url + "/set/" + QUICK_KEY, { method:"POST", headers:H, cache:"no-store", body:JSON.stringify(next) }).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); quick = next; });
+    }).then(function(){ quickEditing = false; paintQuick(); note("Quick messages saved (the Daze Bot picks them up within a minute).", "", Date.now()); })
+      .catch(function(e){ tell("Quick messages not saved: " + e.message); });
+  });
 
   // ---------- what counts as a chat row ----------
   // Returns null to hide, or {kind:"chat"|"follow"|"paid"}
