@@ -12,13 +12,19 @@
 
     [ TODAY stub | We're in the park in 2:14 | EP EPCOT  Today's plan text | rotating slot ]
 
-  - Countdown starts when the page loads (IRLToolkit loads the source when the intro
-    scene goes live). At zero it reads "Here we go!". Restart it from the phone if needed.
+  - Countdown starts when the page loads AND restarts whenever OBS reports the intro
+    scene going live (obs-browser's obsSourceActiveChanged / obsSourceVisibleChanged
+    events), so a source IRLToolkit pre-loaded minutes earlier still starts from the top.
+    At zero it reads "Here we go!". Restart it from the phone if needed.
   - Park code, name and colour follow the park overlay's venue.
   - The rotating slot cycles chat prompts (and the live like count when the like counter
     is running). When the Daze Bot welcomes someone, their welcome shows here instead,
     so DON'T also put itpd-dazebot-overlay.html in the intro scene.
 
+  OUTRO (2026-11-02): add &mode=outro after the # (or ?mode=outro) for the end-of-stream
+  version: THANK YOU stub, "Thanks for riding" with today's likes and park, "Next park day"
+  (typed on the phone; blank points to the Live tab), and rotating sign-off messages.
+  No countdown and no Daze Bot welcomes (add &welcomes to keep them).
   LINK (settings after the #, never in this file):
     Stream:  itpd-intro-strip.html#url=https://charming-worm-109173.upstash.io&tok=TOKEN
     Phone:   itpd-intro-strip.html#edit&url=https://charming-worm-109173.upstash.io&tok=TOKEN   (?edit before the # also works when hosted)
@@ -52,6 +58,13 @@
   #cdNum{font-weight:800;font-size:104px;line-height:.95;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:6px}
   #cd.done .k{color:var(--mag)}
   #cd.done #cdNum{font-size:54px;color:var(--mag);white-space:nowrap}
+  /* outro: likes recap in the left section */
+  body.outro #cdNum{font-size:76px;white-space:nowrap}
+  body.outro #cdNum small{font-size:30px;font-weight:700;color:var(--muted);margin-left:6px}
+  #cdSub{font-weight:700;font-size:22px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #cdSub:empty{display:none}
+  #planUrl{font:500 20px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:8px}
+  #planUrl:empty{display:none}
 
   /* today's plan */
   #plan{flex:1;min-width:0}
@@ -93,10 +106,11 @@
 <div id="stage">
   <div id="strip">
     <div class="stub"><span>TODAY</span></div>
-    <div class="sec" id="cd"><div class="k" id="cdK">We're in the park in</div><div id="cdNum">2:30</div></div>
+    <div class="sec" id="cd"><div class="k" id="cdK">We're in the park in</div><div id="cdNum">2:30</div><div id="cdSub"></div></div>
     <div class="sec" id="plan">
       <div id="where"><span id="code">ITPD</span><span id="park">Today's park day</span></div>
       <div id="planText"></div>
+      <div id="planUrl"></div>
     </div>
     <div class="sec" id="rot"><div id="rotInner">
       <div class="k" id="rotK">While you wait</div>
@@ -112,7 +126,11 @@
   <input id="iPlan" placeholder="e.g. Food &amp; Wine eats, then Eat to the Beat at 5:30">
   <h2>Countdown length (minutes:seconds)</h2>
   <input id="iLen" placeholder="2:30">
-  <h2>While-you-wait messages (one per line)</h2>
+  <h2>Outro: next park day</h2>
+  <input id="iNext" placeholder="e.g. Saturday 9 AM &middot; Magic Kingdom (blank = points to the Live tab)">
+  <h2>Outro: sign-off messages (one per line)</h2>
+  <textarea id="iOutro"></textarea>
+  <h2>Intro: while-you-wait messages (one per line)</h2>
   <textarea id="iPrompts"></textarea>
   <div class="hint">Start a line with an emoji to use it as the icon. The live like count and Daze Bot welcomes are added automatically.</div>
   <button class="go" id="bSave">Save</button>
@@ -126,6 +144,14 @@
   var H = new URLSearchParams(location.hash.slice(1)), Q = new URLSearchParams(location.search);
   var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
   var EDIT = Q.has("edit") || H.has("edit"), TEST = H.has("test");
+  // ?mode=outro (or #mode=outro): the end-of-stream version (thanks, next park day, sign-offs)
+  var OUTRO = String(Q.get("mode") || H.get("mode") || "").toLowerCase() === "outro";
+  var OUTRO_PROMPTS = [
+    "\u{1F39F}\uFE0F Join the Daze crew: tap Join under the video",
+    "\u{1F3AC} The replay will be up on the channel",
+    "\u{1F514} Tap the bell so you never miss a park day",
+    "\u{1F44B} Thanks for hanging out with us today!"
+  ];
   var KEY = "itpd_intro_state_2026";
   var $ = function(id){ return document.getElementById(id); };
 
@@ -169,6 +195,8 @@
       $("iPlan").value = s.plan || "";
       $("iLen").value = fmt(s.length || 150);
       $("iPrompts").value = (s.prompts && s.prompts.length ? s.prompts : DEFAULT_PROMPTS).join("\n");
+      $("iNext").value = s.next || "";
+      $("iOutro").value = (s.outroPrompts && s.outroPrompts.length ? s.outroPrompts : OUTRO_PROMPTS).join("\n");
     }).catch(function(){ st.textContent = "Couldn't load the saved settings."; });
     function save(extra, msg){
       return get(KEY).then(function(cur){
@@ -176,6 +204,8 @@
         cur.plan = $("iPlan").value.trim();
         cur.length = parseLen($("iLen").value) || 150;
         cur.prompts = $("iPrompts").value.split("\n").map(function(x){ return x.trim(); }).filter(Boolean);
+        cur.next = $("iNext").value.trim();
+        cur.outroPrompts = $("iOutro").value.split("\n").map(function(x){ return x.trim(); }).filter(Boolean);
         Object.keys(extra || {}).forEach(function(k){ cur[k] = extra[k]; });
         return set(KEY, cur);
       }).then(function(){ st.textContent = msg; }).catch(function(){ st.textContent = "Couldn't save. Check your connection."; });
@@ -198,18 +228,55 @@
   fit(); addEventListener("resize", fit);
   ["left","bottom","width"].forEach(function(p){ var v = parseInt(H.get(p), 10); if (v >= 0 && v < 3000) document.documentElement.style.setProperty("--" + p, v + "px"); });
 
-  var state = { plan:"", length:150, prompts:DEFAULT_PROMPTS, seq:null };
+  var state = { plan:"", length:150, prompts:DEFAULT_PROMPTS, seq:null, next:"", outroPrompts:OUTRO_PROMPTS };
+  var parkName = "";
+  if (OUTRO){
+    document.body.classList.add("outro");
+    document.querySelector("#strip .stub span").textContent = "THANK YOU";
+    $("cdK").textContent = "Thanks for riding";
+    $("where").innerHTML = "";
+    var nk = document.createElement("div"); nk.className = "k"; nk.textContent = "Next park day"; $("where").appendChild(nk);
+  }
   var startAt = Date.now(), lastSeq = null, likes = null;
 
   // countdown (starts on load; the phone's Restart sets it going again)
   function tick(){
+    if (OUTRO){
+      $("cdNum").innerHTML = "";
+      if (likes !== null){ $("cdNum").appendChild(document.createTextNode(likes)); var sm = document.createElement("small"); sm.textContent = "\u{1F44D} likes"; $("cdNum").appendChild(sm); }
+      else $("cdNum").appendChild(document.createTextNode("Today"));
+      $("cdSub").textContent = parkName ? "at " + parkName : "";
+      return;
+    }
     var left = state.length - (Date.now() - startAt) / 1000;
     if (left > 0){ $("cd").classList.remove("done"); $("cdK").textContent = "We're in the park in"; $("cdNum").textContent = fmt(left); }
     else { $("cd").classList.add("done"); $("cdK").textContent = "Next stop: the park"; $("cdNum").textContent = "Here we go!"; }
   }
   setInterval(tick, 250);
 
+  // IRLToolkit (cloud OBS) may load every source when it starts, not when the scene is
+  // shown, so a countdown started on load can run out before anyone sees it. OBS's
+  // browser source tells the page when its scene goes live ("active"): restart the
+  // countdown then. Outside OBS (a normal browser tab) these events never fire and the
+  // countdown simply starts on load.
+  var lastActiveRestart = 0;
+  function onActive(e){
+    var d = e && e.detail || {};
+    var on = d.active === true || d.visible === true;
+    if (!on || Date.now() - lastActiveRestart < 3000) return;   // active + visible can both fire
+    lastActiveRestart = Date.now();
+    startAt = Date.now(); tick();
+  }
+  ["obsSourceActiveChanged", "obsSourceVisibleChanged"].forEach(function(ev){
+    window.addEventListener(ev, onActive); document.addEventListener(ev, onActive);
+  });
+
   function paintPlan(){
+    if (OUTRO){
+      $("planText").textContent = state.next || "Upcoming streams are on our Live tab";
+      $("planUrl").textContent = state.next ? "" : "youtube.com/@InTheParkDaze/streams";
+      return;
+    }
     $("planText").textContent = state.plan || "";
   }
   function loadState(){
@@ -218,8 +285,11 @@
       if (!s) return;
       state.plan = s.plan || ""; state.length = s.length > 0 ? s.length : 150;
       state.prompts = s.prompts && s.prompts.length ? s.prompts : DEFAULT_PROMPTS;
-      if (lastSeq !== null && s.seq !== lastSeq) startAt = Date.now();   // restart pressed on the phone
-      lastSeq = s.seq || 0;
+      state.next = s.next || "";
+      state.outroPrompts = s.outroPrompts && s.outroPrompts.length ? s.outroPrompts : OUTRO_PROMPTS;
+      var seqNow = s.seq || 0;   // a plan saved before Restart was ever pressed has no seq yet
+      if (lastSeq !== null && seqNow !== lastSeq) startAt = Date.now();   // restart pressed on the phone
+      lastSeq = seqNow;
       paintPlan(); tick();
     }).catch(function(e){ var pv = $("pv"); if (pv) pv.textContent = "Preview: can't reach Upstash (" + e.message + "). Check the token."; });
   }
@@ -227,12 +297,13 @@
     get("itpd_parkoverlay_state_2026").then(function(s){
       var v = s && typeof s.venue === "number" ? VENUES[s.venue] : null;
       document.documentElement.style.setProperty("--park", v ? v[2] : "#22306B");
-      $("code").textContent = v ? v[0] : "ITPD";
-      $("park").textContent = v ? v[1] : "Today's park day";
+      if (!OUTRO) $("code").textContent = v ? v[0] : "ITPD";
+      if (!OUTRO) $("park").textContent = v ? v[1] : "Today's park day";
+      parkName = v ? v[1] : "";
     }).catch(function(){});
   }
   function loadLikes(){
-    get("itpd_records_live_2026").then(function(l){ likes = l && l.videoId && l.likes >= 0 ? l.likes : null; }).catch(function(){});
+    get("itpd_records_live_2026").then(function(l){ likes = l && l.videoId && l.likes >= 0 ? l.likes : null; tick(); }).catch(function(){});
   }
 
   // rotating slot: prompts (+ likes), interrupted by Daze Bot welcomes
@@ -266,11 +337,11 @@
       return;
     }
     onWelcome = false;
-    var items = state.prompts.slice();
-    if (likes !== null) items.push("\u{1F44D} " + likes + " likes so far. Can we beat the record today?");
+    var items = (OUTRO ? state.outroPrompts : state.prompts).slice();
+    if (!OUTRO && likes !== null) items.push("\u{1F44D} " + likes + " likes so far. Can we beat the record today?");
     var line = items[rotI++ % items.length] || "";
     var m = line.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u);
-    show("While you wait", m ? m[1] : "\u2728", { main: m ? m[2] : line }, "#B07A00");
+    show(OUTRO ? "Before you go" : "While you wait", m ? m[1] : "\u2728", { main: m ? m[2] : line }, "#B07A00");
     rotTimer = setTimeout(nextRot, 15000);
   }
   function welcomeNow(){ if (!onWelcome && welcomes.length){ clearTimeout(rotTimer); nextRot(); } }
@@ -278,7 +349,7 @@
     get("itpd_bot_cards_2026").then(function(d){
       (d && d.items || []).forEach(function(c){
         if (seenCards[c.id]) return; seenCards[c.id] = 1;
-        if (c.at >= loadedAt - 5000) welcomes.push(c);
+        if (c.at >= loadedAt - 5000 && (!OUTRO || H.has("welcomes"))) welcomes.push(c);
       });
       welcomeNow();
     }).catch(function(){});
