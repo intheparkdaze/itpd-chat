@@ -11,7 +11,7 @@
 <style>
 :root{
   --bg:#f3f1f8; --panel:#ffffff; --ink:#1b1830; --muted:#625c7a; --line:#dcd7ea;
-  --yt:#d61f1f; --tw:#7a3ff0; --tt:#0e9e9a; --gold:#a26a00; --ok:#1d8a47; --warn:#b26b00; --bad:#c42b2b;
+  --yt:#d61f1f; --tw:#7a3ff0; --tt:#0e9e9a; --fb:#1877f2; --gold:#a26a00; --ok:#1d8a47; --warn:#b26b00; --bad:#c42b2b;
   --gift:#fff3d6; --follow:#e3f6ec;
   color-scheme: light;
   box-sizing:border-box;
@@ -21,7 +21,7 @@
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#1b1830; --panel:#252140; --ink:#efeaff; --muted:#a59fc2; --line:#3a345c;
-    --yt:#ff5a5a; --tw:#b28bff; --tt:#3fd6cf; --gold:#ffc94d; --ok:#4fd27f; --warn:#ffb340; --bad:#ff6b6b;
+    --yt:#ff5a5a; --tw:#b28bff; --tt:#3fd6cf; --fb:#5b9dff; --gold:#ffc94d; --ok:#4fd27f; --warn:#ffb340; --bad:#ff6b6b;
     --gift:#3a3020; --follow:#1f3a2c;
     color-scheme: dark;
   }
@@ -52,7 +52,7 @@ button{font:inherit;color:inherit}
 .ticker::-webkit-scrollbar{display:none}
 .chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);font-variant-numeric:tabular-nums}
 .chip i{font-style:normal;font-weight:800;font-size:.7rem;padding:1px 5px;border-radius:4px;color:#fff}
-.chip.youtube i{background:var(--yt)} .chip.twitch i{background:var(--tw)} .chip.tiktok i{background:var(--tt)}
+.chip.youtube i{background:var(--yt)} .chip.twitch i{background:var(--tw)} .chip.tiktok i{background:var(--tt)} .chip.facebook i{background:var(--fb)}
 .chip.rec i{background:var(--muted)}
 .chip.rec.bad{border-color:var(--bad);color:var(--bad)}
 .chip.old{opacity:.55}
@@ -65,7 +65,7 @@ button{font:inherit;color:inherit}
 .msg .who{font-weight:700;font-size:.9rem;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
 .msg .who .t{font-weight:400;color:var(--muted);font-size:.75rem;margin-left:auto}
 .plat{font-size:.68rem;font-weight:800;padding:1px 5px;border-radius:4px;color:#fff;letter-spacing:.02em}
-.plat.youtube{background:var(--yt)} .plat.twitch{background:var(--tw)} .plat.tiktok{background:var(--tt)} .plat.other{background:var(--muted)}
+.plat.youtube{background:var(--yt)} .plat.twitch{background:var(--tw)} .plat.tiktok{background:var(--tt)} .plat.facebook{background:var(--fb)} .plat.other{background:var(--muted)}
 .mod{font-size:.7rem;font-weight:700;color:var(--tw)}
 .text{font-size:1rem}
 .text img{height:1.35em;vertical-align:-.3em}
@@ -86,6 +86,8 @@ button{font:inherit;color:inherit}
 #acts .card h2{font-size:1.05rem;margin:0 0 10px;overflow-wrap:anywhere}
 #acts .act{display:block;width:100%;text-align:left;margin-top:8px;padding:13px 12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem}
 #acts .act[disabled]{opacity:.45}
+#acts .modhead{font-size:.8rem;font-weight:800;color:var(--muted);margin:14px 0 2px;letter-spacing:.04em}
+#acts .act.danger{border-color:color-mix(in srgb,var(--bad) 55%,var(--line))}
 #acts .why{font-size:.75rem;color:var(--muted);font-weight:400;display:block;margin-top:2px}
 .subbtn{margin-top:6px;border:none;border-radius:8px;padding:7px 12px;background:var(--yt);color:#fff;font-weight:700;font-size:.85rem}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
@@ -126,6 +128,7 @@ button{font:inherit;color:inherit}
     <div class="lamp" id="lamp-youtube"><b>YouTube</b><span>No messages yet</span></div>
     <div class="lamp" id="lamp-twitch"><b>Twitch</b><span>No messages yet</span></div>
     <div class="lamp" id="lamp-tiktok"><b>TikTok</b><span>No messages yet</span></div>
+    <div class="lamp" id="lamp-facebook" style="display:none"><b>Facebook</b><span>No messages yet</span></div>
     <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
   </div>
   <div class="ticker" id="ticker" aria-label="Live counts"></div>
@@ -224,7 +227,7 @@ button{font:inherit;color:inherit}
   var MAX_MSGS = 400, BACKFILL_N = 300;
   var FRESH_S = 120, AGING_S = 600;
   var COUNTER_EVENTS = { viewer_update:"viewers", likes_update:"likes", subscriber_update:"subs", follower_update:"followers" };
-  var HIDE_EVENTS = { joined:1, liked:1, reaction:1, shared:1, envelope:1, view_update:1, live_chat_ended:1, user_banned:1,
+  var HIDE_EVENTS = { joined:1, liked:1, like:1, reaction:1, shared:1, envelope:1, view_update:1, live_chat_ended:1, user_banned:1,
     hype_train:1, stream_online:1, stream_offline:1, ad_break:1, ad_request:1, ad_schedule:1, community_highlight:1, knock:1,
     question_new:1, emote:1, powerup:1, watch_streak:1 };
 
@@ -247,7 +250,7 @@ button{font:inherit;color:inherit}
 
   var ws = null, retry = 0, retryTimer = null, wantOpen = false;
   var downSince = null, lastPacket = 0, connectedOnce = false, hiddenAt = 0;
-  var lastByPlat = { youtube:0, twitch:0, tiktok:0 };
+  var lastByPlat = { youtube:0, twitch:0, tiktok:0, facebook:0 };
   var counters = {};                // "youtube.viewers" -> {v, ts}
   var recorderSeen = 0;
   var seenKeys = new Set(), seenOrder = [];
@@ -276,7 +279,9 @@ button{font:inherit;color:inherit}
   // ---------- status strip + ticker ----------
   function paintLamps(){
     var now = Date.now();
-    ["youtube","twitch","tiktok"].forEach(function(p){
+    // 11/01: the Facebook light only appears once Facebook chat has been seen
+    if (lastByPlat.facebook) $("lamp-facebook").style.display = "";
+    ["youtube","twitch","tiktok","facebook"].forEach(function(p){
       var el = $("lamp-"+p), t = lastByPlat[p];
       el.classList.remove("fresh","aging","stale");
       if (!t){ el.querySelector("span").textContent = "No messages yet"; return; }
@@ -294,7 +299,7 @@ button{font:inherit;color:inherit}
   function paintTicker(){
     var t = $("ticker"), now = Date.now(), html = [];
     t.textContent = "";
-    var defs = [["youtube","YT"],["twitch","TW"],["tiktok","TT"]];
+    var defs = [["youtube","YT"],["twitch","TW"],["tiktok","TT"],["facebook","FB"]];
     var labels = { viewers:"👁", likes:"👍", subs:"subs", followers:"followers" };
     var anyCount = false;
     defs.forEach(function(d){
@@ -370,6 +375,7 @@ button{font:inherit;color:inherit}
     if (t.indexOf("youtube") === 0) return "youtube";
     if (t.indexOf("twitch") === 0) return "twitch";
     if (t.indexOf("tiktok") === 0) return "tiktok";
+    if (t.indexOf("facebook") === 0) return "facebook";
     return "other";
   }
 
@@ -390,8 +396,21 @@ button{font:inherit;color:inherit}
         return fetch(url + "/set/itpd_alerts_state_2026", { method:"POST", headers:H, cache:"no-store", body:JSON.stringify(cur) });
       })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function(j){ if (j.error) throw new Error(j.error); note("Subscriber alert sent for " + name + ".", "", Date.now()); })
+      .then(function(j){ if (j.error) throw new Error(j.error); note("Subscriber alert sent for " + name + ".", "", Date.now()); subThanks(name); })
       .catch(function(e){ diag("Subscriber alert failed: " + e.message); tell("Couldn\u2019t send the alert: " + e.message); });
+  }
+
+  // 11/01: the on-screen alert isn't seen during rides and shows (no alerts on those
+  // scenes), so sending one also thanks them in YouTube chat, as In The Park Daze.
+  // Wording: the "New subscriber thanks" item in the ⚡ list ({name} = their handle).
+  function subThanks(name){
+    if (!cfg("purl") || !cfg("pkey")){ note("Tip: add the Chat Poster in \u2699 to also thank new subscribers in chat.", "", Date.now()); return; }
+    loadQuick().then(function(){                           // latest wording from the shared list
+      var it = (quick.items || []).filter(function(x){ return x.builtin === "subthanks"; })[0];
+      var tpl = it ? it.text : "Welcome to the Daze crew, {name}! Thank you so much for subscribing \ud83d\udc9b";
+      if (!tpl || !tpl.trim()) return;                     // empty wording = chat thank-you switched off
+      postToChat(tpl.replace(/\{name\}/g, handleOf(name)));
+    });
   }
 
   // ---------- actions on a YouTube chatter (tap their name) ----------
@@ -465,6 +484,21 @@ button{font:inherit;color:inherit}
   });
   function tell(msg){ note(msg, "gap", Date.now()); }
 
+  function moderate(op, m){
+    var url = cfg("purl"), key = cfg("pkey"), name = String(m.chatname || "");
+    var verb = op === "delete" ? "Removing message from " : op === "timeout" ? "Timing out " : "Banning ";
+    note(verb + name + "\u2026", "", Date.now());
+    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, cache:"no-store", redirect:"follow",
+                 body:JSON.stringify({ key:key, action:"moderate", op:op, messageId:m.id, author:name, text:plainText(m) }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.ok){ tell("Couldn\u2019t " + (op === "delete" ? "remove the message" : op === "timeout" ? "time out " + name : "ban " + name) + ": " + ((j && j.reason) || "no answer")); return; }
+        note(op === "delete" ? "Message from " + name + " removed." : op === "timeout" ? name + " timed out for 5 minutes." : name + " banned from chat.", "", Date.now());
+        if (op === "delete") markDeleted({ type:m.type, id:m.id });
+      })
+      .catch(function(e){ tell("Couldn\u2019t reach the Chat Poster: " + e.message); });
+  }
+
   function addAct(label, why, enabled, fn){
     var b = document.createElement("button");
     b.className = "act"; b.textContent = label; b.disabled = !enabled;
@@ -494,6 +528,23 @@ button{font:inherit;color:inherit}
     });
     addAct("\u2b50 NEW SUBSCRIBER alert on stream", canAlert ? "Shows the on-screen alert with their name" : "Add the alerts token in \u2699", canAlert,
       function(){ askSubAlert(name, true); });
+    // 11/03: moderation (YouTube only), through this phone's Chat Poster (as the channel)
+    if (platOf(m) === "youtube"){
+      var hd = document.createElement("div"); hd.className = "modhead"; hd.textContent = "MODERATE"; $("actsList").appendChild(hd);
+      var why = canPost ? "" : "Add the Chat Poster in \u2699";
+      addAct("\ud83d\uddd1\ufe0f Remove this message", why || "Deletes it from YouTube chat", canPost, function(){
+        compose("Remove this message from " + name + "?", null, "Remove", function(){ moderate("delete", m); });
+      });
+      addAct("\u23f8\ufe0f Timeout 5 minutes", why || name + " can't chat for 5 minutes", canPost, function(){
+        compose("Time out " + name + " for 5 minutes?", null, "Time out", function(){ moderate("timeout", m); });
+      });
+      addAct("\ud83d\udeab Ban from chat", why || "Permanent. You'll be asked twice.", canPost, function(){
+        compose("Ban " + name + " from your chat permanently?", null, "Yes, ban", function(){
+          setTimeout(function(){ compose("Are you sure? Banning " + name + " can only be undone in YouTube Studio.", null, "Ban " + name, function(){ moderate("ban", m); }); }, 250);
+        });
+      });
+      [].slice.call($("actsList").querySelectorAll(".act")).slice(-3).forEach(function(b){ b.classList.add("danger"); });
+    }
     $("acts").classList.add("open");
   }
 
@@ -608,10 +659,14 @@ button{font:inherit;color:inherit}
          : b === "wait" ? "Built in: !wait = longest waits, !wait tron = one ride. Wording is fixed because Queue-Times' credit must be included."
          : b === "commands" ? "Built in: {list} = every command set to Everyone."
          : b === "modsonly" ? "Sent once per viewer per stream when they try a mods-only command. {name} = their handle."
+         : b === "subthanks" ? "Posted in chat as In The Park Daze whenever you send a NEW SUBSCRIBER alert from this phone. {name} = their handle. Empty = off."
+         : b === "thx_support" ? "Posted by the Daze Bot for YouTube Super Chats, Super Stickers, Jewels and gifted memberships. {name} = their handle, {what} = what they sent. No amounts. Empty = off."
+         : b === "thx_member" ? "Posted by the Daze Bot when someone becomes a member. {name} = their handle. Empty = off."
+         : b === "thx_milestone" ? "Posted by the Daze Bot for a membership milestone. {name} = their handle. Empty = off."
          : "";
   }
   function useQuick(it){
-    if (it.builtin){ tell(it.builtin === "modsonly" ? "That's the bot's automatic reply; edit its wording in Edit list." : "Viewers' command: the Daze Bot answers it when someone types !" + it.cmd + " in chat."); closeQuick(); return; }
+    if (it.builtin){ tell(it.builtin === "modsonly" ? "That's the bot's automatic reply; edit its wording in Edit list." : it.builtin === "subthanks" ? "Posted automatically when you send a NEW SUBSCRIBER alert; edit its wording in Edit list." : /^thx_/.test(it.builtin) ? "The Daze Bot posts this automatically when it happens; edit the wording in Edit list." : "Viewers' command: the Daze Bot answers it when someone types !" + it.cmd + " in chat."); closeQuick(); return; }
     if (it.lines && it.lines.length){
       var line = it.lines[Math.floor(Math.random() * it.lines.length)];
       closeQuick();
@@ -748,7 +803,7 @@ button{font:inherit;color:inherit}
     var body = document.createElement("div"); body.className = "body";
     var who = document.createElement("div"); who.className = "who";
     var pl = document.createElement("span"); pl.className = "plat " + plat;
-    pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : String(m.type || "?").slice(0,3).toUpperCase();
+    pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : plat === "facebook" ? "FB" : String(m.type || "?").slice(0,3).toUpperCase();
     who.appendChild(pl);
     var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = m.chatname || ""; who.appendChild(nm);
     var maybeSub = plat === "youtube" && cls.kind === "chat" && SUB_RX.test(plainText(m));
