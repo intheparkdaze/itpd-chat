@@ -34,10 +34,10 @@ button{font:inherit;color:inherit}
 
 .top{background:var(--panel);border-bottom:1px solid var(--line)}
 .strip{display:flex;gap:6px;padding:8px 10px 6px;align-items:stretch}
-.lamp{flex:1;min-width:0;border-radius:10px;padding:6px 8px;border:2px solid var(--line);display:flex;flex-direction:column;justify-content:center}
-.lamp b{font-size:.95rem;display:flex;align-items:center;gap:6px}
+.lamp{flex:1;min-width:0;border-radius:10px;padding:5px 6px;border:2px solid var(--line);display:flex;flex-direction:column;justify-content:center}
+.lamp b{font-size:.85rem;white-space:nowrap;overflow:hidden;display:flex;align-items:center;gap:6px}
 .lamp b::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
-.lamp span{font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lamp span{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lamp.fresh{border-color:var(--ok)} .lamp.fresh b::before{background:var(--ok)}
 .lamp.aging{border-color:var(--warn)} .lamp.aging b::before{background:var(--warn)}
 .lamp.stale{border-color:var(--bad)} .lamp.stale b::before{background:var(--bad)}
@@ -128,7 +128,7 @@ button{font:inherit;color:inherit}
     <div class="lamp" id="lamp-youtube"><b>YouTube</b><span>No messages yet</span></div>
     <div class="lamp" id="lamp-twitch"><b>Twitch</b><span>No messages yet</span></div>
     <div class="lamp" id="lamp-tiktok"><b>TikTok</b><span>No messages yet</span></div>
-    <div class="lamp" id="lamp-facebook" style="display:none"><b>Facebook</b><span>No messages yet</span></div>
+    <div class="lamp" id="lamp-facebook"><b>Facebook</b><span>No messages yet</span></div>
     <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
   </div>
   <div class="ticker" id="ticker" aria-label="Live counts"></div>
@@ -279,14 +279,13 @@ button{font:inherit;color:inherit}
   // ---------- status strip + ticker ----------
   function paintLamps(){
     var now = Date.now();
-    // 11/01: the Facebook light only appears once Facebook chat has been seen
-    if (lastByPlat.facebook) $("lamp-facebook").style.display = "";
     ["youtube","twitch","tiktok","facebook"].forEach(function(p){
       var el = $("lamp-"+p), t = lastByPlat[p];
       el.classList.remove("fresh","aging","stale");
-      if (!t){ el.querySelector("span").textContent = "No messages yet"; return; }
+      var vc = counters[p + ".viewers"], vtxt = vc ? "\ud83d\udc41 " + fmtNum(vc.v) + " \u00b7 " : "";
+      if (!t){ el.querySelector("span").textContent = vtxt + "No messages yet"; return; }
       var s = Math.max(0, Math.round((now - t)/1000));
-      el.querySelector("span").textContent = "Last " + fmtAge(s);
+      el.querySelector("span").textContent = vtxt + "Last " + fmtAge(s);
       el.classList.add(s <= FRESH_S ? "fresh" : s <= AGING_S ? "aging" : "stale");
     });
     var link = $("lampLink"), up = ws && ws.readyState === 1;
@@ -375,7 +374,7 @@ button{font:inherit;color:inherit}
     if (t.indexOf("youtube") === 0) return "youtube";
     if (t.indexOf("twitch") === 0) return "twitch";
     if (t.indexOf("tiktok") === 0) return "tiktok";
-    if (t.indexOf("facebook") === 0) return "facebook";
+    if (t.indexOf("facebook") === 0 || t.indexOf("fb") === 0) return "facebook";
     return "other";
   }
 
@@ -860,11 +859,11 @@ button{font:inherit;color:inherit}
     if (ev && !fromBackfill){ var en = String(ev); eventsSeen[en] = (eventsSeen[en] || 0) + 1; }
     if (ev === "viewer_updates" && obj.meta && typeof obj.meta === "object"){
       Object.keys(obj.meta).forEach(function(t){ setCounter(platOf({type:t}), "viewers", obj.meta[t], ts); });
-      paintTicker(); return false;
+      paintLamps(); return false;
     }
     if (typeof ev === "string" && COUNTER_EVENTS[ev]){
       setCounter(platOf(obj), COUNTER_EVENTS[ev], typeof obj.meta === "object" && obj.meta ? obj.meta.count : obj.meta, ts);
-      paintTicker(); return false;
+      paintLamps(); return false;
     }
 
     var cls = classify(obj);
