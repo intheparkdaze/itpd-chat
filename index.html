@@ -45,6 +45,9 @@ button{font:inherit;color:inherit}
 .lamp.link.down b::before{background:var(--bad)}
 .lamp.link.up b::before{background:var(--ok)}
 .lamp.link.up{border-color:var(--ok)}
+/* 11/03: platform lights use the same coloured tags as chat rows, to save space */
+.ptag{font-style:normal;font-weight:800;font-size:.72rem;padding:1px 5px;border-radius:4px;color:#fff;letter-spacing:.02em}
+.ptag.youtube{background:var(--yt)} .ptag.twitch{background:var(--tw)} .ptag.tiktok{background:var(--tt)} .ptag.facebook{background:var(--fb)}
 .menu{flex:none;width:44px;border-radius:10px;border:2px solid var(--line);background:transparent;font-size:1.3rem}
 
 /* Ticker: live counts, scrolls sideways if it overflows */
@@ -125,10 +128,10 @@ button{font:inherit;color:inherit}
 <div class="top">
   <div class="strip" role="status" aria-live="polite">
     <div class="lamp link down" id="lampLink"><b>Relay</b><span id="linkTxt">Not connected</span></div>
-    <div class="lamp" id="lamp-youtube"><b>YouTube</b><span>No messages yet</span></div>
-    <div class="lamp" id="lamp-twitch"><b>Twitch</b><span>No messages yet</span></div>
-    <div class="lamp" id="lamp-tiktok"><b>TikTok</b><span>No messages yet</span></div>
-    <div class="lamp" id="lamp-facebook"><b>Facebook</b><span>No messages yet</span></div>
+    <div class="lamp" id="lamp-youtube" title="YouTube"><b><i class="ptag youtube">YT</i></b><span>No chat yet</span></div>
+    <div class="lamp" id="lamp-twitch" title="Twitch"><b><i class="ptag twitch">TW</i></b><span>No chat yet</span></div>
+    <div class="lamp" id="lamp-tiktok" title="TikTok"><b><i class="ptag tiktok">TT</i></b><span>No chat yet</span></div>
+    <div class="lamp" id="lamp-facebook" title="Facebook"><b><i class="ptag facebook">FB</i></b><span>No chat yet</span></div>
     <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
   </div>
   <div class="ticker" id="ticker" aria-label="Live counts"></div>
@@ -283,7 +286,7 @@ button{font:inherit;color:inherit}
       var el = $("lamp-"+p), t = lastByPlat[p];
       el.classList.remove("fresh","aging","stale");
       var vc = counters[p + ".viewers"], vtxt = vc ? "\ud83d\udc41 " + fmtNum(vc.v) + " \u00b7 " : "";
-      if (!t){ el.querySelector("span").textContent = vtxt + "No messages yet"; return; }
+      if (!t){ el.querySelector("span").textContent = vtxt + "No chat yet"; return; }
       var s = Math.max(0, Math.round((now - t)/1000));
       el.querySelector("span").textContent = vtxt + "Last " + fmtAge(s);
       el.classList.add(s <= FRESH_S ? "fresh" : s <= AGING_S ? "aging" : "stale");
