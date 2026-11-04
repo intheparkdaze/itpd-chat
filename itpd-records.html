@@ -51,7 +51,14 @@
   When the goal is reached it moves on to the next thousand by itself. YouTube rounds
   public counts above 1,000 to three significant figures, so the bar moves in steps of
   10, unless the exact count from YouTube Studio is available (itpd-studio-subs.user.js
-  on the home PC, read every 30 s). &subpos=topleft|topright|bottomleft|bottomright|top|bottom places it (default bottomleft).
+  on the home PC, read every 30 s). &subpos=topleft|topright|bottomleft|bottomright|top|bottom places it on its own.
+  Default (Broadcast UI/UX, 2026-11-04): docked under the like counter in the top-right
+  ("stack"), same width, shown as a slim one-line bar. "RACE TO 2K!" moment: when the
+  Upstash key itpd_subs_hype_2026 changes (phone chat button, Stream Engineering), a big
+  centre card plays for 9 s, then the full sub ticket shows under the likes for
+  &subhold=25 seconds, then shrinks back to the slim bar. &hype plays it once on load (testing).
+  The counter sizes itself to its text again (330 to 520 px) and its lines wrap instead
+  of cutting off.
 
   Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
   itpd_records_live_2026 (this stream: video, likes, celebrated).
@@ -65,13 +72,13 @@
   html,body{margin:0;background:transparent;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink);overflow:hidden}
 
   /* ---------- the counter chip ---------- */
-  #chip{position:fixed;top:16px;right:16px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:330px;
+  #chip{position:fixed;top:16px;right:16px;transform:scale(var(--scale,1));transform-origin:top right;display:flex;width:max-content;min-width:330px;max-width:520px;
     background:var(--paper);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.38);overflow:hidden;opacity:0;transition:opacity .6s,box-shadow .6s}
   body.topleft #chip{right:auto;left:16px;transform-origin:top left}
   body.bottomright #chip{top:auto;bottom:140px;transform-origin:bottom right}
   body.bottomleft #chip{top:auto;bottom:140px;right:auto;left:16px;transform-origin:bottom left}
-  body.right #chip{top:50%;margin-top:-55px;transform-origin:right center}
-  body.left #chip{top:50%;margin-top:-55px;right:auto;left:16px;transform-origin:left center}
+  body.right #chip{top:50%;transform:translateY(-50%) scale(var(--scale,1));transform-origin:right center}
+  body.left #chip{top:50%;transform:translateY(-50%) scale(var(--scale,1));right:auto;left:16px;transform-origin:left center}
   #chip.on{opacity:1}
   #chip .stub{width:40px;flex-shrink:0;background:var(--park);border-right:3px dashed rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;transition:background .6s}
   #chip .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 11px/1 "DM Mono",monospace;letter-spacing:2px;color:#fff;white-space:nowrap}
@@ -81,7 +88,7 @@
   #chip .row1{display:flex;align-items:baseline;gap:10px;margin-top:4px}
   #chip .now{font-weight:800;font-size:40px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
   #chip .lbl{font-weight:700;font-size:18px;color:var(--muted)}
-  #chip .rec{font:500 12px/1.2 "DM Mono",monospace;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #chip .rec{font:500 14px/1.3 "DM Mono",monospace;color:var(--muted);margin-top:3px}
   #chip .bar{height:9px;border-radius:5px;background:#EDE5D6;overflow:hidden;margin-top:6px}
   #chip .fill{height:100%;width:0;background:var(--park);border-radius:6px;transition:width .8s ease}
   /* record beaten: gold stub that reads NEW RECORD, gold ring, gold bar */
@@ -92,27 +99,81 @@
   #chip.beaten .fill{background:linear-gradient(90deg,var(--gold),#F7931E)}
 
   /* like goal streak line (Stream Engineering, 2026-10-24; restyle freely, keep id="streak" and class "hit") */
-  #chip .streak{font-weight:700;font-size:15px;line-height:1.2;color:var(--park);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #chip .streak{font-weight:700;font-size:17px;line-height:1.25;color:var(--park);margin-top:6px}
+  #chip .streak:empty{display:none}
   #chip .streak.hit{color:var(--goldDeep)}
   /* viewers line (Stream Engineering, 2026-10-25; restyle freely, keep id="viewers" and class "hit") */
-  #chip .viewers{font-weight:700;font-size:15px;line-height:1.2;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
+  #chip .viewers{font-weight:700;font-size:16px;line-height:1.25;margin-top:4px;color:var(--navy);opacity:.9}
   #chip .viewers:empty{display:none}
   #chip .viewers.hit{color:var(--goldDeep)}
-  /* subscriber goal bar (Stream Engineering, 2026-11-04; Broadcast UI/UX to restyle; keep the ids) */
-  #subbar{position:fixed;left:16px;bottom:140px;width:420px;background:var(--paper);border-radius:14px;padding:10px 14px 12px;
-    box-shadow:0 6px 22px rgba(0,0,0,.3);opacity:0;transition:opacity .6s;transform:scale(var(--scale,1));transform-origin:bottom left}
+  /* subscriber goal bar: ITPD ticket (Broadcast UI/UX, 2026-11-04; built on Stream
+     Engineering's bar; keep the ids subbar, sbNow, sbGoal, sbGoal2, sbFill, sbGo).
+     Default: docked right under the like counter (top-right), the two read as one
+     "goals" stack and nothing sits on the bottom-left park ticket. &subpos= still
+     places it on its own. */
+  #subbar{position:fixed;left:16px;bottom:140px;width:420px;display:flex;background:var(--paper);border-radius:14px;overflow:hidden;
+    box-shadow:0 10px 28px rgba(0,0,0,.38);opacity:0;transition:opacity .6s,box-shadow .6s;transform:scale(var(--scale,1));transform-origin:bottom left}
   #subbar.on{opacity:1}
   body.sub-topleft #subbar{bottom:auto;top:16px;transform-origin:top left}
   body.sub-topright #subbar{bottom:auto;top:16px;left:auto;right:16px;transform-origin:top right}
   body.sub-bottomright #subbar{left:auto;right:16px;transform-origin:bottom right}
   body.sub-top #subbar{bottom:auto;top:16px;left:50%;margin-left:-210px;transform-origin:top center}
   body.sub-bottom #subbar{left:50%;margin-left:-210px;transform-origin:bottom center}
-  #subbar .k{font-weight:700;font-size:13px;letter-spacing:1px;color:var(--red)}
-  #subbar .t{font-weight:800;font-size:22px;line-height:1.15;font-variant-numeric:tabular-nums}
-  #subbar .bar{height:12px;border-radius:6px;background:rgba(34,48,107,.15);overflow:hidden;margin-top:6px}
-  #subbar .fill{height:100%;width:0;background:var(--red);border-radius:6px;transition:width 1.2s ease}
-  #subbar .go{font-weight:700;font-size:15px;color:var(--park);margin-top:4px}
-  #subbar.done .fill{background:var(--goldDeep)} #subbar.done .go{color:var(--goldDeep)}
+  body.sub-stack #subbar{bottom:auto;left:auto;right:16px;top:16px;transform:none;min-width:330px;transition:opacity .6s,top .4s,box-shadow .6s}
+  #subbar .sstub{width:40px;flex-shrink:0;background:var(--red);border-right:3px dashed rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center}
+  #subbar .sstub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 11px/1 "DM Mono",monospace;letter-spacing:2px;color:#fff;white-space:nowrap}
+  #subbar .sbody{flex:1;min-width:0;padding:8px 14px 10px 13px}
+  #subbar .k{font-weight:700;font-size:14px;letter-spacing:1px;color:var(--red);line-height:1}
+  #subbar .t{font-weight:800;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--ink);margin-top:4px;white-space:nowrap}
+  #subbar .t small{font-weight:700;font-size:16px;color:var(--muted);margin-left:4px}
+  #subbar .bar{position:relative;height:14px;border-radius:7px;background:#EDE5D6;overflow:hidden;margin-top:7px}
+  #subbar .fill{position:relative;height:100%;width:0;border-radius:7px;transition:width 1.2s ease;
+    background:repeating-linear-gradient(135deg,var(--red) 0 10px,#C81E2A 10px 20px)}   /* candy-stripe, still: no motion */
+  #subbar .fill::after{content:"";position:absolute;right:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#FFFBF3;box-shadow:0 0 6px rgba(255,255,255,.8)}
+  #subbar .go{font-weight:700;font-size:16px;line-height:1.25;color:var(--navy);margin-top:6px}
+  #subbar.done{box-shadow:0 0 0 3px var(--gold),0 10px 28px rgba(0,0,0,.38)}
+  #subbar.done .sstub{background:var(--goldDeep)} #subbar.done .k{color:var(--goldDeep)}
+  #subbar.done .fill{background:linear-gradient(90deg,var(--gold),#F7931E)} #subbar.done .go{color:var(--goldDeep)}
+
+  /* compact sub bar (stack mode): one slim line under the like counter */
+  #subbar .sstub, #subbar .sbody, #subbar .k, #subbar .t, #subbar .t small, #subbar .bar, #subbar .go{transition:all .7s cubic-bezier(.4,0,.2,1)}
+  #subbar.mini .sstub{width:12px} #subbar.mini .sstub span{opacity:0;font-size:0;letter-spacing:0}
+  #subbar.mini .sbody{padding:6px 12px 7px 10px;display:flex;align-items:center;gap:10px}
+  #subbar.mini .k{font-size:0;letter-spacing:0;opacity:0;width:0}
+  #subbar.mini .t{font-size:17px;margin-top:0;flex-shrink:0}
+  #subbar.mini .t small{font-size:0;margin:0}
+  #subbar.mini .t::after{content:" subs";font-size:13px;font-weight:700;color:var(--muted)}
+  #subbar.mini .bar{flex:1;height:8px;margin-top:0}
+  #subbar.mini .fill::after{width:6px;height:6px;top:1px}
+  #subbar.mini .go{font-size:0;margin:0;opacity:0;max-height:0}
+  #subbar.hidden{opacity:0 !important}
+
+  /* "RACE TO 2K!" moment, triggered from the phone (Broadcast UI/UX, 2026-11-04) */
+  #hype{position:fixed;left:50%;top:46%;transform:translate(-50%,-50%) scale(.7);opacity:0;pointer-events:none;display:flex;z-index:6;
+    background:var(--paper);border-radius:34px;box-shadow:0 0 0 7px var(--red),0 26px 70px rgba(0,0,0,.55);
+    transition:opacity .55s, transform .65s cubic-bezier(.2,1.35,.4,1)}
+  #hype.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  #hype.leave{opacity:0;transform:translate(-50%,-60%) scale(.92);transition:opacity .6s, transform .6s ease-in}
+  #hype .flag{width:110px;flex-shrink:0;border-radius:34px 0 0 34px;border-right:6px dashed rgba(255,255,255,.6);
+    background:conic-gradient(#17152A 25%, #FFFBF3 0 50%, #17152A 0 75%, #FFFBF3 0) 0 0/36px 36px}   /* checkered flag */
+  #hype .hb{padding:40px 70px 44px 56px;min-width:900px}
+  #hype .hk{font-weight:800;font-size:34px;letter-spacing:4px;color:var(--red)}
+  #hype .ht{font-weight:800;font-size:150px;line-height:.92;color:var(--ink);margin-top:6px;letter-spacing:-2px}
+  #hype .ht b{color:var(--red)}
+  #hype .hnum{font-weight:800;font-size:58px;color:var(--navy);margin-top:18px;font-variant-numeric:tabular-nums}
+  #hype .hnum small{font-size:30px;color:var(--muted);margin-left:8px}
+  #hype .hbar{position:relative;height:30px;border-radius:15px;background:#EDE5D6;overflow:hidden;margin-top:12px}
+  #hype .hfill{height:100%;width:0;border-radius:15px;background:repeating-linear-gradient(135deg,var(--red) 0 16px,#C81E2A 16px 32px);transition:width 1.6s cubic-bezier(.2,.8,.2,1) .5s}
+  #hype .hgo{font-weight:700;font-size:36px;color:var(--navy);margin-top:16px}
+  #hype .hstamp{position:absolute;right:-44px;top:-60px;width:200px;height:200px;border-radius:50%;border:9px double var(--red);color:var(--red);background:rgba(255,251,243,.95);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:70px;line-height:.9;
+    transform:rotate(12deg) scale(1.9);opacity:0;transition:transform .35s cubic-bezier(.3,1.6,.5,1) .7s,opacity .2s .7s}
+  #hype .hstamp small{font-size:22px;letter-spacing:2px}
+  #hype.show .hstamp{transform:rotate(12deg) scale(1);opacity:1}
+  .hstar{position:fixed;left:50%;top:46%;width:30px;height:30px;pointer-events:none;z-index:5;opacity:0}
+  .hstar.go{animation:hpop 1.6s ease-out forwards}
+  @keyframes hpop{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}15%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1) rotate(200deg)}}
+  @media (prefers-reduced-motion:reduce){#hype,#hype.leave{transition:opacity .3s}.hstar{display:none}#subbar *{transition:none}}
 
   /* ---------- the celebration (once per stream) ---------- */
   #party{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;display:flex;
@@ -152,9 +213,25 @@
     <div class="viewers" id="viewers"></div>
   </div>
 </div>
-<div id="subbar" aria-hidden="true"><div class="k">ROAD TO <span id="sbGoal">2,000</span></div>
-  <div class="t"><span id="sbNow">0</span> / <span id="sbGoal2">2,000</span> subscribers</div>
-  <div class="bar"><div class="fill" id="sbFill"></div></div><div class="go" id="sbGo"></div></div>
+<div id="subbar" aria-hidden="true">
+  <div class="sstub"><span>SUB GOAL</span></div>
+  <div class="sbody">
+    <div class="k">ROAD TO <span id="sbGoal">2,000</span></div>
+    <div class="t"><span id="sbNow">0</span> / <span id="sbGoal2">2,000</span><small>subscribers</small></div>
+    <div class="bar"><div class="fill" id="sbFill"></div></div><div class="go" id="sbGo"></div>
+  </div>
+</div>
+<div id="hype" aria-hidden="true">
+  <div class="flag"></div>
+  <div class="hb">
+    <div class="hk">THE RACE IS ON</div>
+    <div class="ht">Race to <b id="hGoalShort">2K</b>!</div>
+    <div class="hnum"><span id="hNow">0</span> / <span id="hGoal">2,000</span><small>subscribers</small></div>
+    <div class="hbar"><div class="hfill" id="hFill"></div></div>
+    <div class="hgo" id="hGo"></div>
+  </div>
+  <div class="hstamp"><small>ONLY</small><span id="hLeft">0</span><small>TO GO</small></div>
+</div>
 <div id="party" aria-hidden="true">
   <div class="stub"><span id="pStub">ITPD RECORD</span></div>
   <div class="body">
@@ -384,11 +461,20 @@
   }
   // 11/04: an exact count from YouTube Studio (itpd-studio-subs.user.js on the home PC
   // saves it to Upstash) is used while it's fresh; otherwise YouTube's rounded public count.
-  var lastApiSubs = 0;
+  var lastApiSubs = 0, publicSubs = null;
+  // Sanity check (11/04): the Studio number is only trusted if it's close to YouTube's
+  // public count (which is rounded to 3 significant figures), so a misread like "1"
+  // can never reach the screen.
+  function plausible(n){
+    if (!(n >= 0)) return false;
+    if (publicSubs == null) return false;
+    return Math.abs(n - publicSubs) <= Math.max(25, publicSubs * 0.02);
+  }
   function pollSubs(){
     if (H.has("nosubs")) return;
+    if (publicSubs == null && Date.now() - lastApiSubs >= 120000){ lastApiSubs = Date.now(); pollSubsApi(); return; }
     getJSON("itpd_subs_live_2026").then(function(live){
-      if (live && live.count >= 0 && Date.now() - live.at < 300000){ onSubs(Number(live.count)); return; }
+      if (live && live.count >= 0 && Date.now() - live.at < 300000 && plausible(Number(live.count))){ onSubs(Number(live.count)); return; }
       if (Date.now() - lastApiSubs < 120000) return;           // public count: at most every 2 minutes
       lastApiSubs = Date.now(); pollSubsApi();
     }).catch(function(){ if (Date.now() - lastApiSubs >= 120000){ lastApiSubs = Date.now(); pollSubsApi(); } });
@@ -401,6 +487,7 @@
       return yt("channels", { part:"statistics", id:ch, fields:"items(statistics(subscriberCount,hiddenSubscriberCount))" }).then(function(j){
         var st = j.items && j.items[0] && j.items[0].statistics;
         if (!st || st.hiddenSubscriberCount) return;
+        publicSubs = Number(st.subscriberCount);
         onSubs(Number(st.subscriberCount));
       });
     }).catch(function(e){ console.warn("subs:", e.message); });
@@ -550,6 +637,93 @@
   start();
   followPark(); setInterval(followPark, 30000);
   window.__records = { onLikes:onLikes, onViewers:onViewers, onSubs:onSubs, pollSubs:pollSubs, subs:function(){ return subs; }, poll:poll, state:function(){ return { record:record, vrecord:vrecord, live:live, goal:goal, status:status }; } };
+})();
+</script>
+<script>
+/* Broadcast UI/UX, 2026-11-04: dock the subscriber bar under the like counter.
+   Default when no &subpos is given (or &subpos=stack). Matches the counter's width
+   and follows it as it grows; if the counter is hidden, the bar takes its place. */
+(function(){
+  var H = new URLSearchParams(location.hash.slice(1));
+  var sp = H.get("subpos");
+  if (sp && sp !== "stack") return;
+  document.body.classList.add("sub-stack");
+  var chip = document.getElementById("chip"), bar = document.getElementById("subbar");
+  function dock(){
+    var on = chip.classList.contains("on") && getComputedStyle(chip).display !== "none";
+    var r = chip.getBoundingClientRect();
+    if (on && r.height > 0){
+      bar.style.top = Math.round(r.bottom + 10) + "px";
+      bar.style.right = Math.round(innerWidth - r.right) + "px";
+      bar.style.width = Math.round(r.width) + "px";
+    } else { bar.style.top = "16px"; bar.style.right = "16px"; bar.style.width = ""; }
+  }
+  dock(); setInterval(dock, 500); addEventListener("resize", dock);
+
+  // ---- compact by default; the phone's "Race to 2K" button plays the big moment ----
+  // Sequence: big centre card (9 s) -> full sub ticket under the likes (HOLD_FULL s)
+  // -> shrinks to the slim one-line bar. Trigger: any change to Upstash key
+  // itpd_subs_hype_2026 (e.g. {"seq": n}) written by the phone chat page
+  // (Stream Engineering). &hype in the link plays it once on load, for testing.
+  var HOLD_FULL = (parseInt(H.get("subhold"), 10) || 25) * 1000;
+  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
+  bar.classList.add("mini");
+  var busy = false;
+  function num(id){ var t = (document.getElementById(id) || {}).textContent || ""; return parseInt(t.replace(/[^0-9]/g, ""), 10); }
+  function short(n){ return n >= 1000 && n % 1000 === 0 ? (n / 1000) + "K" : n.toLocaleString(); }
+  function stars(){
+    var cols = ["#E0322B", "#FFD34E", "#22306B", "#D82A83"];
+    for (var i = 0; i < 18; i++){
+      var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "hstar");
+      s.innerHTML = '<path d="M12 1l2.6 8.4L23 12l-8.4 2.6L12 23l-2.6-8.4L1 12l8.4-2.6z" fill="' + cols[i % 4] + '"/>';
+      var a = Math.PI * 2 * i / 18, r = 520 + (i % 3) * 90;
+      s.style.setProperty("--dx", Math.round(Math.cos(a) * r) + "px"); s.style.setProperty("--dy", Math.round(Math.sin(a) * r * 0.6) + "px");
+      document.body.appendChild(s);
+      (function(el){ requestAnimationFrame(function(){ el.classList.add("go"); }); setTimeout(function(){ el.remove(); }, 1800); })(s);
+    }
+  }
+  function playHype(){
+    if (busy) return;
+    var party = document.getElementById("party");
+    if (party && party.classList.contains("show")){ setTimeout(playHype, 1000); return; }   // wait for a celebration to finish
+    busy = true;
+    var now = num("sbNow"), goal = num("sbGoal") || 2000, left = Math.max(0, goal - (now || 0));
+    document.getElementById("hNow").textContent = (now || 0).toLocaleString();
+    document.getElementById("hGoal").textContent = goal.toLocaleString();
+    document.getElementById("hGoalShort").textContent = short(goal);
+    var st = document.querySelector("#hype .hstamp");
+    st.innerHTML = left > 0 ? '<small>ONLY</small><span id="hLeft">' + left.toLocaleString() + '</span><small>TO GO</small>'
+                            : '<small>WE</small><span id="hLeft">DID</span><small>IT!</small>';
+    document.querySelector("#hype .hk").textContent = left > 0 ? "THE RACE IS ON" : "FINISH LINE";
+    document.getElementById("hGo").textContent = left > 0 ? "Hit subscribe and help us cross the finish line!" : "We crossed the finish line! Thank you, Daze crew!";
+    var fill = document.getElementById("hFill"); fill.style.width = "0";
+    var hype = document.getElementById("hype");
+    bar.classList.add("hidden");
+    hype.classList.remove("leave"); void hype.offsetWidth; hype.classList.add("show");
+    stars();
+    setTimeout(function(){ fill.style.width = Math.min(100, Math.round((now || 0) * 100 / goal)) + "%"; }, 50);
+    setTimeout(function(){ hype.classList.add("leave"); }, 9000);
+    setTimeout(function(){
+      hype.classList.remove("show", "leave");
+      bar.classList.remove("mini"); bar.classList.remove("hidden");          // full ticket under the likes
+      setTimeout(function(){ bar.classList.add("mini"); busy = false; }, HOLD_FULL);   // then shrink
+    }, 9700);
+  }
+  window.ITPDSubHype = playHype;   // handy for testing from the console
+  var lastSeen = null;
+  function pollHype(){
+    if (!URL_ || !TOK) return;
+    fetch(URL_ + "/get/itpd_subs_hype_2026", { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var v = d && d.result ? String(d.result) : "";
+        if (lastSeen !== null && v && v !== lastSeen) playHype();
+        lastSeen = v;
+      }).catch(function(){});
+  }
+  pollHype(); setInterval(pollHype, 3000);
+  if (H.has("hype")) setTimeout(playHype, 3000);
 })();
 </script>
 </body>
