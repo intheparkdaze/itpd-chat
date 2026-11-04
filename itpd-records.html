@@ -46,6 +46,12 @@
   running plays at the start of the next stream ("While we were away..."). YouTube
   rounds public counts above 1,000, so milestones should stay round numbers.
   &nosubs turns this part off without touching likes or viewers.
+  SUBSCRIBER GOAL BAR (2026-11-04): &subgoal=2000 shows a progress bar toward that
+  subscriber goal ("1,950 / 2,000 subscribers · 50 to go!"), checked every 2 minutes.
+  When the goal is reached it moves on to the next thousand by itself. YouTube rounds
+  public counts above 1,000 to three significant figures, so the bar moves in steps of
+  10, unless the exact count from YouTube Studio is available (itpd-studio-subs.user.js
+  on the home PC, read every 30 s). &subpos=topleft|topright|bottomleft|bottomright|top|bottom places it (default bottomleft).
 
   Run ONE copy. Upstash keys: itpd_records_2026 (all-time records),
   itpd_records_live_2026 (this stream: video, likes, celebrated).
@@ -92,6 +98,21 @@
   #chip .viewers{font-weight:700;font-size:15px;line-height:1.2;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
   #chip .viewers:empty{display:none}
   #chip .viewers.hit{color:var(--goldDeep)}
+  /* subscriber goal bar (Stream Engineering, 2026-11-04; Broadcast UI/UX to restyle; keep the ids) */
+  #subbar{position:fixed;left:16px;bottom:140px;width:420px;background:var(--paper);border-radius:14px;padding:10px 14px 12px;
+    box-shadow:0 6px 22px rgba(0,0,0,.3);opacity:0;transition:opacity .6s;transform:scale(var(--scale,1));transform-origin:bottom left}
+  #subbar.on{opacity:1}
+  body.sub-topleft #subbar{bottom:auto;top:16px;transform-origin:top left}
+  body.sub-topright #subbar{bottom:auto;top:16px;left:auto;right:16px;transform-origin:top right}
+  body.sub-bottomright #subbar{left:auto;right:16px;transform-origin:bottom right}
+  body.sub-top #subbar{bottom:auto;top:16px;left:50%;margin-left:-210px;transform-origin:top center}
+  body.sub-bottom #subbar{left:50%;margin-left:-210px;transform-origin:bottom center}
+  #subbar .k{font-weight:700;font-size:13px;letter-spacing:1px;color:var(--red)}
+  #subbar .t{font-weight:800;font-size:22px;line-height:1.15;font-variant-numeric:tabular-nums}
+  #subbar .bar{height:12px;border-radius:6px;background:rgba(34,48,107,.15);overflow:hidden;margin-top:6px}
+  #subbar .fill{height:100%;width:0;background:var(--red);border-radius:6px;transition:width 1.2s ease}
+  #subbar .go{font-weight:700;font-size:15px;color:var(--park);margin-top:4px}
+  #subbar.done .fill{background:var(--goldDeep)} #subbar.done .go{color:var(--goldDeep)}
 
   /* ---------- the celebration (once per stream) ---------- */
   #party{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;display:flex;
@@ -131,6 +152,9 @@
     <div class="viewers" id="viewers"></div>
   </div>
 </div>
+<div id="subbar" aria-hidden="true"><div class="k">ROAD TO <span id="sbGoal">2,000</span></div>
+  <div class="t"><span id="sbNow">0</span> / <span id="sbGoal2">2,000</span> subscribers</div>
+  <div class="bar"><div class="fill" id="sbFill"></div></div><div class="go" id="sbGo"></div></div>
 <div id="party" aria-hidden="true">
   <div class="stub"><span id="pStub">ITPD RECORD</span></div>
   <div class="body">
@@ -319,8 +343,25 @@
   var SUBBIG = parseInt(H.get("subbig"), 10) > 0 ? parseInt(H.get("subbig"), 10) : 1000;
   var subs = null, subsFirstCheck = true;    // subs = { last (milestone already celebrated), count, at }
   function fmtN(n){ return Number(n).toLocaleString("en-US"); }
+  var SUBGOAL = parseInt(H.get("subgoal"), 10) > 0 ? parseInt(H.get("subgoal"), 10) : 0;
+  if (SUBGOAL){ var sp = H.get("subpos"); if (sp) document.body.classList.add("sub-" + sp); }
+  function paintSubBar(count){
+    if (!SUBGOAL || !(count >= 0)) return;
+    var goal = SUBGOAL, just = false;
+    while (count >= goal){ just = goal; goal = (Math.floor(goal / 1000) + 1) * 1000; }   // goal reached: next thousand
+    var showGoal = just && count - just < 50 ? just : goal;                                // stay on the reached goal briefly
+    var pct = Math.min(100, Math.round(count * 100 / showGoal));
+    $("sbNow").textContent = fmtN(count);
+    $("sbGoal").textContent = $("sbGoal2").textContent = fmtN(showGoal);
+    $("sbFill").style.width = pct + "%";
+    var left = showGoal - count;
+    $("sbGo").textContent = left > 0 ? fmtN(left) + " to go! Hit subscribe and help us get there \ud83d\udc9b" : "We did it! Thank you, Daze crew! \ud83c\udf89";
+    $("subbar").classList.toggle("done", left <= 0);
+    $("subbar").classList.add("on");
+  }
   function onSubs(count){
     if (!(count >= 0)) return;
+    paintSubBar(count);
     var m = Math.floor(count / SUBSTEP) * SUBSTEP;
     if (!subs || !(subs.last >= 0)){
       subs = { last:m, count:count, at:Date.now() };          // first ever check: just note where we are
@@ -341,8 +382,18 @@
     subsFirstCheck = false;
     saveRecords().catch(function(){});
   }
+  // 11/04: an exact count from YouTube Studio (itpd-studio-subs.user.js on the home PC
+  // saves it to Upstash) is used while it's fresh; otherwise YouTube's rounded public count.
+  var lastApiSubs = 0;
   function pollSubs(){
     if (H.has("nosubs")) return;
+    getJSON("itpd_subs_live_2026").then(function(live){
+      if (live && live.count >= 0 && Date.now() - live.at < 300000){ onSubs(Number(live.count)); return; }
+      if (Date.now() - lastApiSubs < 120000) return;           // public count: at most every 2 minutes
+      lastApiSubs = Date.now(); pollSubsApi();
+    }).catch(function(){ if (Date.now() - lastApiSubs >= 120000){ lastApiSubs = Date.now(); pollSubsApi(); } });
+  }
+  function pollSubsApi(){
     var getChan = /^UC[\w-]{20,}$/.test(CHAN) ? Promise.resolve(CHAN) : chanId ? Promise.resolve(chanId)
       : yt("channels", { part:"id", forHandle:CHAN.replace(/^@/, "") }).then(function(j){ chanId = j.items && j.items[0] && j.items[0].id || ""; return chanId; });
     getChan.then(function(ch){
@@ -480,6 +531,7 @@
           subs = { last:1800, count:1858 }; subsFirstCheck = false;
           setTimeout(function(){ onSubs(1902); }, 4000);
           setTimeout(function(){ onSubs(2001); }, 8000);
+          if (SUBGOAL) paintSubBar(1858);
         }
         var recStart = record.value, end = Math.max(recStart, 2 * goal.step) + 3;   // fixed: the record rises as it's beaten
         var t = setInterval(function(){
@@ -491,7 +543,7 @@
         return;
       }
       poll(); setInterval(poll, 60000);
-      pollSubs(); setInterval(pollSubs, 300000);
+      pollSubs(); setInterval(pollSubs, SUBGOAL ? 30000 : 300000);
     }).catch(function(e){ console.warn("records start:", e.message); setTimeout(start, 15000); });
   }
   if (!URL_ || !TOK || (!KEY && !TEST)){ document.body.textContent = "Missing url / tok / key after the # in the link."; return; }
