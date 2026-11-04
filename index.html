@@ -385,7 +385,17 @@ button{font:inherit;color:inherit}
   // ---------- YouTube new subscribers ----------
   // YouTube doesn't put new subscribers in chat or (for private subscriptions,
   // the default) in the API, so viewers saying so is the best live signal.
-  var SUB_RX = /\b(?:just\s+)?(?:subscribed|subbed|new\s+sub(?:scriber)?|hit\s+(?:the\s+)?sub(?:scribe)?(?:\s+button)?)\b/i;
+  // 11/04: "hit subscribe" removed (that's an invitation, e.g. the bot's !sub line, not
+  // someone saying they did it), and the bot's / channel's own messages and commands are
+  // never flagged.
+  var SUB_RX = /\b(?:just\s+)?(?:subscribed|subbed|new\s+sub(?:scriber)?)\b/i;
+  var NOT_SUBBERS = ["itpd.dazebot", "itpd_dazebot", "intheparkdaze", "in the park daze"];
+  function couldBeSubber(m){
+    var n = String(m.chatname || "").trim().replace(/^@/, "").toLowerCase();
+    if (NOT_SUBBERS.indexOf(n) >= 0) return false;
+    if (/^\s*!/.test(plainText(m))) return false;          // a command, not a statement
+    return true;
+  }
   function askSubAlert(name, confirmed){
     if (!cfg("wtok") || !cfg("rurl")){ tell("To send alerts from here, add the Upstash URL and the alerts token in \u2699."); return; }
     if (!confirmed){ compose("Show a NEW SUBSCRIBER alert on stream for " + name + "?", null, "Show alert", function(){ askSubAlert(name, true); }); return; }
@@ -666,6 +676,8 @@ button{font:inherit;color:inherit}
          : b === "thx_support" ? "Posted by the Daze Bot for YouTube Super Chats, Super Stickers, Jewels and gifted memberships. {name} = their handle, {what} = what they sent. No amounts. Empty = off."
          : b === "thx_member" ? "Posted by the Daze Bot when someone becomes a member. {name} = their handle. Empty = off."
          : b === "thx_milestone" ? "Posted by the Daze Bot for a membership milestone. {name} = their handle. Empty = off."
+         : b === "thx_twsub" ? "Posted by the Daze Bot in Twitch chat for a new Twitch sub. {name} = their name. Empty = off."
+         : b === "thx_twresub" ? "Posted by the Daze Bot in Twitch chat for a Twitch resub. {name} = their name. Empty = off."
          : "";
   }
   function useQuick(it){
@@ -832,7 +844,7 @@ button{font:inherit;color:inherit}
     pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : plat === "facebook" ? "FB" : String(m.type || "?").slice(0,3).toUpperCase();
     who.appendChild(pl);
     var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = m.chatname || ""; who.appendChild(nm);
-    var maybeSub = plat === "youtube" && cls.kind === "chat" && SUB_RX.test(plainText(m));
+    var maybeSub = plat === "youtube" && cls.kind === "chat" && couldBeSubber(m) && SUB_RX.test(plainText(m));
     if (plat === "youtube" && m.chatname){
       nm.classList.add("tap");
       nm.addEventListener("click", function(){ openActs(m, cls); });
