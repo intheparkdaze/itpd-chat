@@ -96,6 +96,15 @@ button{font:inherit;color:inherit}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
 #quickBtn{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--gold);color:#1b1830;font-size:1.6rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#boss{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#boss.open{display:flex}
+#boss .card h2{font-size:1.05rem;margin:0 0 6px}
+#bossStatus{font-weight:800;font-size:1.05rem;margin:4px 0}
+#bossHp{height:14px;border-radius:7px;background:var(--line);overflow:hidden;margin:4px 0 8px}
+#bossHp i{display:block;height:100%;width:0;background:var(--bad);transition:width .6s}
+#boss .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+#boss .grid2 .btn{width:100%}
+#bossKo{font-weight:800;color:var(--gold);margin-top:6px}
 #quick{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #quick.open{display:flex}
 #quick .card h2{font-size:1.05rem;margin:0 0 6px}
@@ -141,10 +150,42 @@ button{font:inherit;color:inherit}
 <button id="jump">Jump to newest</button>
 <button id="quickBtn" aria-label="Quick messages">&#x26A1;</button>
 
+<div id="boss" role="dialog" aria-modal="true" aria-labelledby="bossTitle">
+  <div class="card">
+    <h2 id="bossTitle">&#x2694;&#xFE0F; Boss Battle</h2>
+    <div id="bossStatus">Loading&hellip;</div>
+    <div id="bossHp"><i id="bossHpFill"></i></div>
+    <div class="small" id="bossInfo"></div>
+    <div id="bossKo"></div>
+    <div class="grid2">
+      <button class="btn primary" id="bbStart">Start fight</button>
+      <button class="btn" id="bbPause">Pause</button>
+      <button class="btn" id="bbHide">Hide (ride/show)</button>
+      <button class="btn" id="bbEnd">End fight</button>
+      <button class="btn" id="bbHit">+50 bonus hit</button>
+      <button class="btn" id="bbUndo">Undo bonus</button>
+      <button class="btn" id="bbEasier">Easier (&minus;5%)</button>
+      <button class="btn" id="bbHarder">Harder (+5%)</button>
+    </div>
+    <div class="small" style="margin-top:10px">Level 1 health <input type="number" id="bbBase" style="width:90px" min="10"> <button class="btn" id="bbBaseSet">Set</button>
+      &nbsp; KO countdown <input type="number" id="bbDelay" style="width:60px" min="0" max="30"> s</div>
+    <div class="grid2">
+      <button class="btn" id="bbResetBoss">Reset boss</button>
+      <button class="btn" id="bbResetCamp">Reset campaign</button>
+    </div>
+    <div class="row"><button class="btn" id="bossClose">Close</button></div>
+  </div>
+</div>
+
 <div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
   <div class="card">
     <button class="btn primary" id="hypeBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
+    <button class="btn" id="bossBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x2694;&#xFE0F; Boss Battle controls</button>
     <h2 id="quickTitle">Quick messages</h2>
+    <div class="small" style="margin:4px 0 2px">Post to:
+      <label style="margin-left:6px"><input type="radio" name="qdest" value="youtube"> YouTube</label>
+      <label style="margin-left:8px"><input type="radio" name="qdest" value="twitch"> Twitch</label>
+      <label style="margin-left:8px"><input type="radio" name="qdest" value="both"> Both</label></div>
     <div class="small" id="quickNote">Tap one to check it, then post it in YouTube chat. Mods can post the same messages by typing the command in chat. &#x21C4; = two wordings that take turns.</div>
     <div id="quickList"></div>
     <div class="row">
@@ -444,29 +485,48 @@ button{font:inherit;color:inherit}
     membermilestone:"Thank you for sticking with us, {name}! \ud83d\udc9b",
     other:"Thank you so much, {name}! \ud83d\udc9b"
   };
+  var TW_THANKS = {
+    bits:"Thank you so much for the bits, {name}! \ud83d\udc9c",
+    sub:"Thank you so much for the sub, {name}! Welcome to the Daze crew \ud83d\udc9c",
+    resub:"Thanks for resubscribing, {name}! So glad you're still with us \ud83d\udc9c",
+    gift:"Thank you for gifting subs, {name}! You're amazing! \ud83c\udf81",
+    other:"Thank you so much, {name}! \ud83d\udc9c"
+  };
+  function twKind(m){
+    var ev = String(m.event || "").toLowerCase();
+    return (ev === "giftpurchase" || ev === "subscription_gift") ? "gift" : ev === "resub" ? "resub"
+         : (ev === "new_subscriber" || ev === "subscription" || ev === "sub") ? "sub"
+         : (/bit/i.test(String(m.hasDonation || "")) || ev === "cheer") ? "bits" : "";
+  }
   function thanksFor(m){
+    if (platOf(m) === "twitch") return (TW_THANKS[twKind(m)] || TW_THANKS.other).replace("{name}", handleOf(m.chatname));
     var ev = String(m.event || "");
     var t = THANKS[ev] || (m.hasDonation ? THANKS.superchat : THANKS.other);
     return t.replace("{name}", handleOf(m.chatname));
   }
   function whatFor(m){
+    if (platOf(m) === "twitch"){ var k = twKind(m); return k === "gift" ? "the gifted subs" : k === "resub" ? "the resub" : k === "sub" ? "the sub" : k === "bits" ? "the bits" : ""; }
     var ev = String(m.event || "");
     return ev === "giftpurchase" ? "the gifted memberships" : ev === "sponsorship" ? "becoming a member" : ev === "membermilestone" ? "the membership milestone"
          : ev === "jeweldonation" ? "the Jewels" : ev === "supersticker" ? "the Super Sticker" : m.hasDonation ? "the Super Chat" : "";
   }
 
-  function postToChat(text, tries){
-    tries = tries || 0;
+  // 11/04: plat "twitch" posts in Twitch chat through the same Chat Poster's Twitch
+  // connection (as the channel, once set up); anything else posts in YouTube chat.
+  function postToChat(text, tries, plat){
+    tries = tries || 0; plat = plat === "twitch" ? "twitch" : "youtube";
+    var where = plat === "twitch" ? "Twitch chat" : "YouTube chat";
     var url = cfg("purl"), key = cfg("pkey");
-    if (!url || !key){ tell("To post in YouTube chat from here, add the Chat Poster URL and bot key in \u2699."); return; }
-    if (!tries) note("Posting in YouTube chat: " + text, "", Date.now());
-    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, text:text, source:"manual" }), redirect:"follow", cache:"no-store" })
+    if (!url || !key){ tell("To post in " + where + " from here, add the Chat Poster URL and bot key in \u2699."); return; }
+    if (!tries) note("Posting in " + where + ": " + text, "", Date.now());
+    var body = plat === "twitch" ? { key:key, action:"twitch", text:text } : { key:key, text:text, source:"manual" };
+    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(body), redirect:"follow", cache:"no-store" })
       .then(function(r){ return r.json(); })
       .then(function(j){
-        if (j && j.ok){ note("Posted in YouTube chat.", "", Date.now()); return; }
+        if (j && j.ok){ note("Posted in " + where + ".", "", Date.now()); return; }
         var why = (j && j.reason) || "unknown answer";
-        if (j && j.retry && tries < 12){ diag("Chat post waiting (" + why + ")"); setTimeout(function(){ postToChat(text, tries + 1); }, 5000); return; }
-        note("Couldn\u2019t post in YouTube chat: " + why, "gap", Date.now());
+        if (j && j.retry && tries < 12){ diag("Chat post waiting (" + why + ")"); setTimeout(function(){ postToChat(text, tries + 1, plat); }, 5000); return; }
+        note("Couldn\u2019t post in " + where + ": " + why, "gap", Date.now());
       })
       .catch(function(e){ note("Couldn\u2019t reach the Chat Poster: " + e.message, "gap", Date.now()); });
   }
@@ -526,20 +586,21 @@ button{font:inherit;color:inherit}
   function openActs(m, cls){
     var name = String(m.chatname || ""), h = handleOf(name);
     var canPost = !!(cfg("purl") && cfg("pkey")), canAlert = !!(cfg("wtok") && cfg("rurl"));
-    $("actsTitle").textContent = name;
+    var pf = platOf(m) === "twitch" ? "twitch" : "youtube", where = pf === "twitch" ? "Twitch chat" : "YouTube chat";
+    $("actsTitle").textContent = name + (pf === "twitch" ? " (Twitch)" : "");
     $("actsList").textContent = "";
-    addAct("\ud83d\udc4b Wave in YouTube chat", "Posts: \ud83d\udc4b " + h + (canPost ? "" : " (add the Chat Poster in \u2699)"), canPost,
-      function(){ postToChat("\ud83d\udc4b " + h); });
+    addAct("\ud83d\udc4b Wave in " + where, "Posts: \ud83d\udc4b " + h + (canPost ? "" : " (add the Chat Poster in \u2699)"), canPost,
+      function(){ postToChat("\ud83d\udc4b " + h, 0, pf); });
     var what = whatFor(m);
     if (cls.kind === "paid" && what){
       addAct("\ud83d\udc9b Thank in chat for " + what, canPost ? "You can edit the message first" : "Add the Chat Poster in \u2699", canPost, function(){
-        compose("Thank " + h + " in YouTube chat", thanksFor(m), "Post", function(t){ if (t && t.trim()) postToChat(t.trim()); });
+        compose("Thank " + h + " in " + where, thanksFor(m), "Post", function(t){ if (t && t.trim()) postToChat(t.trim(), 0, pf); });
       });
     }
     addAct("\ud83d\udcac Say something to them in chat", canPost ? "Starts with " + h : "Add the Chat Poster in \u2699", canPost, function(){
-      compose("Message " + h + " in YouTube chat", h + " ", "Post", function(t){ if (t && t.trim() && t.trim() !== h) postToChat(t.trim()); });
+      compose("Message " + h + " in " + where, h + " ", "Post", function(t){ if (t && t.trim() && t.trim() !== h) postToChat(t.trim(), 0, pf); });
     });
-    addAct("\u2b50 NEW SUBSCRIBER alert on stream", canAlert ? "Shows the on-screen alert with their name" : "Add the alerts token in \u2699", canAlert,
+    if (pf === "youtube") addAct("\u2b50 NEW SUBSCRIBER alert on stream", canAlert ? "Shows the on-screen alert with their name" : "Add the alerts token in \u2699", canAlert,
       function(){ askSubAlert(name, true); });
     // 11/03: moderation (YouTube only), through this phone's Chat Poster (as the channel)
     if (platOf(m) === "youtube"){
@@ -665,6 +726,17 @@ button{font:inherit;color:inherit}
     }).catch(function(){});
   }
   var confirmDel = {};
+  // 11/04: where ⚡ quick messages go (remembered on this phone)
+  function quickDest(){ var v = store.get("itpd_phonechat_qdest") || "youtube"; return /^(youtube|twitch|both)$/.test(v) ? v : "youtube"; }
+  function postQuick(text){
+    var d = quickDest();
+    if (d !== "twitch") postToChat(text, 0, "youtube");
+    if (d !== "youtube") postToChat(text, 0, "twitch");
+  }
+  [].forEach.call(document.querySelectorAll('input[name="qdest"]'), function(r){
+    r.checked = r.value === quickDest();
+    r.addEventListener("change", function(){ if (r.checked) store.set("itpd_phonechat_qdest", r.value); });
+  });
   function accessOf(it){ return it.access || (it.mods === false ? "host" : "mods"); }
   function builtinHint(b){
     return b === "park" ? "Built in: {place} = where you are, from the park overlay."
@@ -685,7 +757,7 @@ button{font:inherit;color:inherit}
     if (it.lines && it.lines.length){
       var line = it.lines[Math.floor(Math.random() * it.lines.length)];
       closeQuick();
-      compose(it.label, (it.text || "{line}").replace(/\{line\}/g, line).replace(/\{name\}\s*/g, ""), "Post", function(txt){ if (txt && txt.trim()) postToChat(txt.trim()); });
+      compose(it.label, (it.text || "{line}").replace(/\{line\}/g, line).replace(/\{name\}\s*/g, ""), "Post", function(txt){ if (txt && txt.trim()) postQuick(txt.trim()); });
       return;
     }
     pickWording(it).then(function(pw){ return fillQuick(pw.text).then(function(t){ return { t:t, idx:pw.idx }; }); }).then(function(res){
@@ -698,7 +770,7 @@ button{font:inherit;color:inherit}
         if (/\{(likes|nextgoal)\}/.test(txt)){ tell("The likes numbers aren't available yet (is the records overlay running?). Edit them in before posting."); return; }
         quickPosted[it.id] = Date.now(); store.set("itpd_phonechat_quickposted", JSON.stringify(quickPosted));
         rememberWording(it, res.idx);
-        postToChat(txt.trim());
+        postQuick(txt.trim());
       });
     });
   }
@@ -753,6 +825,60 @@ button{font:inherit;color:inherit}
       .then(function(j){ if (j.error) throw new Error(j.error); note("Race to 2K sent \ud83c\udfc1", "", Date.now()); })
       .catch(function(e){ hypeAt = 0; $("hypeBtn").disabled = false; tell("Race to 2K not sent: " + e.message); });
   });
+
+  // ---------- 11/06: Boss Battle controls (the engine runs in the Daze Bot) ----------
+  var BOSS_FIGHT = "itpd_boss_fight_2026", BOSS_CMD = "itpd_boss_cmd_2026", bossTimer = null, bossLast = null, bossKoShown = 0;
+  function bossCmd(cmd, arg){
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
+    if (!url || !tok){ tell("To control the Boss Battle, add the Upstash URL and the alerts token in \u2699."); return; }
+    fetch(url + "/set/" + BOSS_CMD, { method:"POST", headers:{ Authorization:"Bearer " + tok }, cache:"no-store",
+      body:JSON.stringify({ seq: Date.now(), cmd: cmd, arg: arg == null ? "" : arg, at: Date.now() }) })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); $("bossInfo").textContent = "Sent\u2026 (the Daze Bot acts within a second or two)"; })
+      .catch(function(e){ tell("Boss command not sent: " + e.message); });
+  }
+  function bossPaint(f){
+    if (!f){ $("bossStatus").textContent = "No boss data yet (is the Daze Bot open on the home PC?)"; return; }
+    bossLast = f;
+    var phaseName = { idle:"Waiting", intro:"Intro", fight:"FIGHTING", paused:"Paused", hidden:"Hidden (ride/show)", ko:"DEFEATED!", retreat:"Retreating" }[f.phase] || f.phase;
+    $("bossStatus").textContent = "Level " + f.level + " \u00b7 " + (f.boss && f.boss.name) + " \u00b7 " + phaseName;
+    var pct = f.maxHp ? Math.round(f.hp * 100 / f.maxHp) : 0;
+    $("bossHpFill").style.width = pct + "%";
+    var left = f.fightStart && f.phase === "fight" ? Math.max(0, Math.round((600000 - (Date.now() - f.fightStart)) / 1000)) : null;
+    $("bossInfo").textContent = f.hp + " / " + f.maxHp + " health (" + pct + "%)" + (left != null ? " \u00b7 " + Math.floor(left / 60) + ":" + ("0" + left % 60).slice(-2) + " left" : "") +
+      (f.banked ? " \u00b7 " + f.banked + " banked" : "") + " \u00b7 difficulty " + ((f.difficulty || 0) > 0 ? "+" : "") + (f.difficulty || 0) + "%" +
+      " \u00b7 defeated this season: " + (f.defeated || 0) + (f.lastCmd && Date.now() - f.lastCmd.t < 15000 ? " \u00b7 " + f.lastCmd.msg : "");
+    $("bbPause").textContent = (f.phase === "paused" || f.phase === "hidden") ? "Resume" : "Pause";
+    if (!$("bbBase").value && f.baseHp) $("bbBase").value = f.baseHp;
+    // the stream is seconds behind: count down before celebrating so it lines up with viewers
+    if (f.phase === "ko" && f.koAt && f.koAt !== bossKoShown){
+      bossKoShown = f.koAt;
+      var n = parseInt(store.get("itpd_phonechat_kodelay") || "10", 10);
+      (function tick(){ $("bossKo").textContent = n > 0 ? "Viewers see the KO in " + n + "\u2026" : "\ud83c\udfc6 NOW! Celebrate!"; if (n-- > 0) setTimeout(tick, 1000); else setTimeout(function(){ $("bossKo").textContent = ""; }, 6000); })();
+    }
+  }
+  function bossPoll(){
+    upstash("/get/" + BOSS_FIGHT).then(function(r){ var f = null; try { f = r ? JSON.parse(r) : null; } catch(e){} bossPaint(f); }).catch(function(){});
+  }
+  $("bossBtn").addEventListener("click", function(){
+    closeQuick(); $("boss").classList.add("open");
+    $("bbDelay").value = store.get("itpd_phonechat_kodelay") || "10";
+    bossPoll(); clearInterval(bossTimer); bossTimer = setInterval(bossPoll, 1000);
+  });
+  function closeBoss(){ $("boss").classList.remove("open"); clearInterval(bossTimer); }
+  $("bossClose").addEventListener("click", closeBoss);
+  $("bbStart").addEventListener("click", function(){ bossCmd("start"); });
+  $("bbPause").addEventListener("click", function(){ var f = bossLast || {}; bossCmd(f.phase === "paused" || f.phase === "hidden" ? "resume" : "pause"); });
+  $("bbHide").addEventListener("click", function(){ bossCmd("hide"); });
+  $("bbEnd").addEventListener("click", function(){ compose("End the fight? The boss retreats and keeps its health.", null, "End fight", function(){ bossCmd("end"); }); });
+  $("bbHit").addEventListener("click", function(){ bossCmd("manual", "bonus"); });
+  $("bbUndo").addEventListener("click", function(){ bossCmd("undo"); });
+  $("bbEasier").addEventListener("click", function(){ bossCmd("difficulty", Math.max(-20, ((bossLast && bossLast.difficulty) || 0) - 5)); });
+  $("bbHarder").addEventListener("click", function(){ bossCmd("difficulty", Math.min(20, ((bossLast && bossLast.difficulty) || 0) + 5)); });
+  $("bbBaseSet").addEventListener("click", function(){ var v = parseInt($("bbBase").value, 10); if (v >= 10) bossCmd("basehp", v); });
+  $("bbDelay").addEventListener("change", function(){ store.set("itpd_phonechat_kodelay", String(Math.max(0, Math.min(30, parseInt($("bbDelay").value, 10) || 0)))); });
+  $("bbResetBoss").addEventListener("click", function(){ compose("Reset this boss to full health?", null, "Reset boss", function(){ bossCmd("resetboss"); }); });
+  $("bbResetCamp").addEventListener("click", function(){ compose("Reset the whole campaign to Level 1?", null, "Yes, reset", function(){
+    setTimeout(function(){ compose("Are you sure? Bosses defeated this season go back to 0.", null, "Reset campaign", function(){ bossCmd("resetcampaign"); }); }, 250); }); });
 
   // ---------- what counts as a chat row ----------
   // Returns null to hide, or {kind:"chat"|"follow"|"paid"}
@@ -845,7 +971,7 @@ button{font:inherit;color:inherit}
     who.appendChild(pl);
     var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = m.chatname || ""; who.appendChild(nm);
     var maybeSub = plat === "youtube" && cls.kind === "chat" && couldBeSubber(m) && SUB_RX.test(plainText(m));
-    if (plat === "youtube" && m.chatname){
+    if ((plat === "youtube" || plat === "twitch") && m.chatname){
       nm.classList.add("tap");
       nm.addEventListener("click", function(){ openActs(m, cls); });
     }
