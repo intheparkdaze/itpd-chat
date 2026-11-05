@@ -487,8 +487,10 @@
       return yt("channels", { part:"statistics", id:ch, fields:"items(statistics(subscriberCount,hiddenSubscriberCount))" }).then(function(j){
         var st = j.items && j.items[0] && j.items[0].statistics;
         if (!st || st.hiddenSubscriberCount) return;
+        var firstPublic = publicSubs == null;
         publicSubs = Number(st.subscriberCount);
         onSubs(Number(st.subscriberCount));
+        if (firstPublic) setTimeout(pollSubs, 500);   // 11/05: switch to the exact Studio count right away, not 30 s later
       });
     }).catch(function(e){ console.warn("subs:", e.message); });
   }

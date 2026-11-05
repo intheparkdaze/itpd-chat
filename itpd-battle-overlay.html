@@ -953,6 +953,10 @@ body {
 
 	  var state = { on:false, seq:-1 }, counts = { seq:-1, a:0, b:0, other:0, recent:[] };
 	  var dirty = false, lastWrite = 0, diag = { received:0, lastData:0 };
+	  // 11/05: when the home PC's reaction counter (Tampermonkey, YouTube popout) is running,
+	  // it keeps the one official score and every overlay copy just shows it, so all scenes
+	  // and the controller agree. If it stops checking in, this copy counts on its own again.
+	  var homeMode = false;
 
 	  function haystack(p){
 	    var parts = [String(p.chatmessage || ""), String(p.contentimg || "")];
@@ -992,6 +996,7 @@ body {
 	    diag.received++; diag.lastData = Date.now();
 	    var counted = plat.indexOf("tiktok") !== 0;          // a YouTube battle: TikTok likes don't count
 	    var side = state.on && counted ? sideOf(p) : "";
+	    if (homeMode){ if (side) pop(side === "a" ? "itpd-emoA" : "itpd-emoB"); return; }   // score comes from the home counter
 	    if (side === "a"){ counts.a++; pop("itpd-emoA"); } else if (side === "b"){ counts.b++; pop("itpd-emoB"); } else counts.other++;
 	    var sample = (String(p.chatmessage || "") || String(p.contentimg || "")).replace(/\s+/g, " ").slice(0, 160);
 	    counts.recent.push({ t:Date.now(), side: !counted ? "ignored (" + plat + ")" : state.on ? (side || "none") : "off",
@@ -1017,7 +1022,18 @@ body {
 	      paint();
 	    }).catch(function(){});
 	  }
+	  function pullHome(){
+	    if (!state.on && homeMode === false) return;
+	    getJSON(COUNT_KEY).then(function(c){
+	      var fresh = c && c.src === "home" && c.seq === state.seq && Date.now() - (c.at || 0) < 15000;
+	      if (fresh){
+	        homeMode = true;
+	        if (c.a !== counts.a || c.b !== counts.b){ counts.seq = c.seq; counts.a = c.a || 0; counts.b = c.b || 0; counts.other = c.other || 0; paint(); }
+	      } else if (homeMode){ homeMode = false; dirty = true; }          // home counter went quiet: carry on counting here
+	    }).catch(function(){});
+	  }
 	  function pushCounts(){
+	    if (homeMode) return;                 // the home counter owns the score
 	    var now = Date.now();
 	    if (!dirty && now - lastWrite < 30000) return;
 	    var snap = { seq:counts.seq, a:counts.a, b:counts.b, other:counts.other, recent:counts.recent, at:now, ver:VERSION,
@@ -1025,7 +1041,8 @@ body {
 	                 where:(navigator.userAgent.match(/Chrome\/[\d]+/) || ["a browser"])[0] + " (" + (innerWidth + "x" + innerHeight) + ")" };
 	    setJSON(COUNT_KEY, snap).then(function(){ dirty = false; lastWrite = now; }).catch(function(){});
 	  }
-	  pullState(); setInterval(pullState, 5000); setInterval(pushCounts, 10000);
+	  pullState(); setInterval(pullState, 2000); setInterval(pushCounts, 10000);
+	  setInterval(pullHome, 1000);
 	})();
 	</script>
 
