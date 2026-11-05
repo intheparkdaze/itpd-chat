@@ -22,6 +22,8 @@
   silhouette. retreat -> "I'll be back" card.
 
   ART: original ITPD villains (spec art brief: no Disney characters or look-alikes).
+  Your own pictures can replace any boss: list them in BOSS_IMAGES in the script, or add
+  &img_longline=URL (any boss id) to the link. Only use pictures you have the rights to.
   Levels 1-3 drawn: longline, downpour, swelter. Other ids show a mystery silhouette
   until their art is added to BOSS_ART.
 
@@ -40,6 +42,10 @@
   html,body{margin:0;background:transparent;overflow:hidden;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink)}
   #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
   .art svg{width:100%;height:100%;display:block}
+  .art img{width:100%;height:100%;display:block;object-fit:contain;object-position:center bottom}
+  .sil img{filter:brightness(0)}
+  #bb-ko.show #bb-ko-art img{animation:poof 1.2s ease-in .9s forwards}
+  #bb-retreat.show #bb-retreat-art img{animation:slink 2.6s ease-in .6s forwards}
   .sil svg *{fill:#17152A !important;stroke:#17152A !important}
 
   /* ---------- fight panel (compact, bottom centre) ---------- */
@@ -197,12 +203,38 @@
 
   // ---------- original ITPD villain art (viewBox + SVG body) ----------
   var BOSS_ART = {"longline": {"vb": "0 -8 200 228", "svg": "<path d=\"M30 220 C34 170 60 150 100 148 C140 150 166 170 170 220Z\" fill=\"#1F5C5A\"/> <path d=\"M58 220 C60 180 76 162 100 160 C124 162 140 180 142 220Z\" fill=\"#22306B\"/> <path d=\"M100 160 L88 220 L112 220Z\" fill=\"#FFFBF3\"/> <path d=\"M100 168 l-7 6 7 6 7 -6z\" fill=\"#B3202D\"/> <circle cx=\"100\" cy=\"196\" r=\"3.2\" fill=\"#FFD34E\"/><circle cx=\"100\" cy=\"210\" r=\"3.2\" fill=\"#FFD34E\"/> <circle cx=\"100\" cy=\"116\" r=\"36\" fill=\"#F2C9A0\"/> <ellipse cx=\"72\" cy=\"120\" rx=\"6\" ry=\"9\" fill=\"#E9B98C\"/><ellipse cx=\"128\" cy=\"120\" rx=\"6\" ry=\"9\" fill=\"#E9B98C\"/> <g class=\"brow\"><path d=\"M78 102 L96 108\" stroke=\"#3B2A1E\" stroke-width=\"5\" stroke-linecap=\"round\"/><path d=\"M122 102 L104 108\" stroke=\"#3B2A1E\" stroke-width=\"5\" stroke-linecap=\"round\"/></g> <path d=\"M82 114 q7 -5 14 0\" stroke=\"#17152A\" stroke-width=\"3.5\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M104 114 q7 -5 14 0\" stroke=\"#17152A\" stroke-width=\"3.5\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M100 124 q-4 6 0 8\" stroke=\"#D49A6E\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M100 135 C93 132 84 133 76 128 C80 136 90 139 100 138 C110 139 120 136 124 128 C116 133 107 132 100 135Z\" fill=\"#3B2A1E\"/> <path d=\"M96 150 l4 8 4 -8z\" fill=\"#3B2A1E\"/> <path d=\"M90 146 q10 6 20 0\" stroke=\"#8A3B2E\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\"/> <rect x=\"58\" y=\"76\" width=\"84\" height=\"10\" rx=\"5\" fill=\"#17152A\"/> <rect x=\"66\" y=\"20\" width=\"68\" height=\"58\" rx=\"4\" fill=\"#22306B\"/> <rect x=\"66\" y=\"64\" width=\"68\" height=\"8\" fill=\"#B3202D\"/> <g fill=\"#C9CED6\" stroke=\"#8D95A3\" stroke-width=\"1.2\"> <rect x=\"68\" y=\"10\" width=\"10\" height=\"56\" rx=\"3\"/><rect x=\"95\" y=\"6\" width=\"10\" height=\"60\" rx=\"3\"/><rect x=\"122\" y=\"10\" width=\"10\" height=\"56\" rx=\"3\"/> <circle cx=\"73\" cy=\"9\" r=\"5.5\"/><circle cx=\"100\" cy=\"5\" r=\"5.5\"/><circle cx=\"127\" cy=\"9\" r=\"5.5\"/> </g> <path d=\"M75 22 Q87 40 99 20\" stroke=\"#B3202D\" stroke-width=\"5\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M101 20 Q113 40 125 22\" stroke=\"#B3202D\" stroke-width=\"5\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M40 196 Q100 230 160 196\" stroke=\"#B3202D\" stroke-width=\"7\" fill=\"none\" stroke-linecap=\"round\"/> <circle cx=\"40\" cy=\"196\" r=\"7\" fill=\"#FFD34E\"/><circle cx=\"160\" cy=\"196\" r=\"7\" fill=\"#FFD34E\"/> <circle cx=\"40\" cy=\"196\" r=\"9\" fill=\"#F2C9A0\" opacity=\".95\"/><circle cx=\"160\" cy=\"196\" r=\"9\" fill=\"#F2C9A0\" opacity=\".95\"/>"}, "downpour": {"vb": "0 0 200 220", "svg": "<g stroke=\"#4FA3D9\" stroke-width=\"3\" stroke-linecap=\"round\" opacity=\".8\"><path d=\"M30 70 l-3 10\"/><path d=\"M168 64 l-3 10\"/><path d=\"M22 110 l-3 10\"/><path d=\"M178 104 l-3 10\"/><path d=\"M40 140 l-3 10\"/></g> <path d=\"M40 220 C44 172 70 152 100 150 C130 152 156 172 160 220Z\" fill=\"#F2C230\"/> <path d=\"M100 152 L80 176 L100 220 L120 176Z\" fill=\"#E0A100\" opacity=\".55\"/> <path d=\"M70 160 L100 176 L130 160 L126 152 L100 164 L74 152Z\" fill=\"#E0A100\"/> <circle cx=\"100\" cy=\"118\" r=\"35\" fill=\"#E8C4A0\"/> <g class=\"brow\"><path d=\"M80 104 L95 109\" stroke=\"#33415C\" stroke-width=\"5\" stroke-linecap=\"round\"/><path d=\"M120 104 L105 109\" stroke=\"#33415C\" stroke-width=\"5\" stroke-linecap=\"round\"/></g> <circle cx=\"88\" cy=\"116\" r=\"4.2\" fill=\"#17152A\"/> <path d=\"M100 126 q-4 5 0 7\" stroke=\"#C99A72\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M70 128 C72 150 86 162 100 162 C114 162 128 150 130 128 C122 138 110 140 100 140 C90 140 78 138 70 128Z\" fill=\"#5C6F8C\"/> <g stroke=\"#4FA3D9\" stroke-width=\"3\" stroke-linecap=\"round\"><path d=\"M82 152 l-1 8\"/><path d=\"M92 158 l-1 9\"/><path d=\"M104 158 l-1 9\"/><path d=\"M116 152 l-1 8\"/></g> <path d=\"M88 146 q12 -6 24 0\" stroke=\"#17152A\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M64 90 Q100 98 136 90 L140 98 Q100 108 60 98Z\" fill=\"#22306B\"/> <g fill=\"#7A8BA6\"><circle cx=\"72\" cy=\"72\" r=\"18\"/><circle cx=\"96\" cy=\"58\" r=\"24\"/><circle cx=\"124\" cy=\"68\" r=\"20\"/><circle cx=\"140\" cy=\"82\" r=\"12\"/><circle cx=\"60\" cy=\"86\" r=\"11\"/></g> <g fill=\"#5C6F8C\"><circle cx=\"84\" cy=\"80\" r=\"14\"/><circle cx=\"112\" cy=\"80\" r=\"15\"/></g> <path d=\"M100 66 l-5 9 h6 l-5 10\" stroke=\"#FFD34E\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/> <g transform=\"rotate(-18 130 116)\"> <rect x=\"112\" y=\"108\" width=\"54\" height=\"15\" rx=\"4\" fill=\"#B07A00\"/><rect x=\"112\" y=\"106\" width=\"9\" height=\"19\" rx=\"2\" fill=\"#FFD34E\"/> <rect x=\"160\" y=\"105\" width=\"12\" height=\"21\" rx=\"3\" fill=\"#FFD34E\"/> </g> <path d=\"M176 92 l-10 14 h9 l-9 16\" stroke=\"#FFD34E\" stroke-width=\"4\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/> <circle cx=\"122\" cy=\"160\" r=\"10\" fill=\"#E8C4A0\"/>"}, "swelter": {"vb": "0 0 200 220", "svg": "<g fill=\"#FFB627\"><path d=\"M100 22 l8 30 -16 0z\"/><path d=\"M146 40 l-10 28 -12 -12z\"/><path d=\"M54 40 l22 16 -12 12z\"/><path d=\"M168 84 l-28 6 2 -16z\"/><path d=\"M32 84 l26 -10 2 16z\"/></g> <circle cx=\"100\" cy=\"92\" r=\"44\" fill=\"#FFD34E\"/> <path d=\"M38 220 C42 176 66 156 100 154 C134 156 158 176 162 220Z\" fill=\"#E8622C\"/> <path d=\"M60 168 Q80 156 100 166 Q120 156 140 168 Q136 180 120 176 Q110 186 100 178 Q90 186 80 176 Q64 180 60 168Z\" fill=\"#FFF4D6\"/> <circle cx=\"100\" cy=\"196\" r=\"7\" fill=\"#FFD34E\" stroke=\"#B07A00\" stroke-width=\"2\"/> <circle cx=\"100\" cy=\"112\" r=\"34\" fill=\"#F0B98F\"/> <path d=\"M68 102 C70 76 92 66 104 68 C122 70 134 84 132 104 C126 90 112 84 100 86 C88 84 74 92 68 102Z\" fill=\"#C2502A\"/> <path d=\"M120 74 q14 2 16 14\" stroke=\"#C2502A\" stroke-width=\"8\" fill=\"none\" stroke-linecap=\"round\"/> <g fill=\"#17152A\"><path d=\"M78 108 c-6 -8 4 -14 9 -8 c5 -6 15 0 9 8 l-9 9z\"/><path d=\"M104 108 c-6 -8 4 -14 9 -8 c5 -6 15 0 9 8 l-9 9z\"/></g> <path d=\"M96 106 h8\" stroke=\"#17152A\" stroke-width=\"3\"/> <g class=\"brow\"><path d=\"M78 96 q8 -5 16 0\" stroke=\"#8A3B1E\" stroke-width=\"3.5\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M106 96 q8 -5 16 0\" stroke=\"#8A3B1E\" stroke-width=\"3.5\" fill=\"none\" stroke-linecap=\"round\"/></g> <ellipse cx=\"80\" cy=\"126\" rx=\"7\" ry=\"4\" fill=\"#E8836A\" opacity=\".7\"/><ellipse cx=\"120\" cy=\"126\" rx=\"7\" ry=\"4\" fill=\"#E8836A\" opacity=\".7\"/> <path d=\"M90 132 q10 8 20 0\" stroke=\"#A3312A\" stroke-width=\"3.5\" fill=\"none\" stroke-linecap=\"round\"/> <line x1=\"150\" y1=\"210\" x2=\"150\" y2=\"150\" stroke=\"#B07A00\" stroke-width=\"5\" stroke-linecap=\"round\"/> <path d=\"M150 150 L118 128 A40 40 0 0 1 182 128 Z\" fill=\"#F47A32\"/> <g stroke=\"#FFD34E\" stroke-width=\"2\"><line x1=\"150\" y1=\"150\" x2=\"126\" y2=\"124\"/><line x1=\"150\" y1=\"150\" x2=\"140\" y2=\"115\"/><line x1=\"150\" y1=\"150\" x2=\"160\" y2=\"115\"/><line x1=\"150\" y1=\"150\" x2=\"174\" y2=\"124\"/></g> <circle cx=\"150\" cy=\"150\" r=\"5\" fill=\"#FFD34E\"/> <g stroke=\"#F47A32\" stroke-width=\"2.5\" fill=\"none\" opacity=\".55\" stroke-linecap=\"round\"><path d=\"M22 150 q5 -6 0 -12 q-5 -6 0 -12\"/><path d=\"M36 176 q5 -6 0 -12 q-5 -6 0 -12\"/><path d=\"M180 176 q5 -6 0 -12 q-5 -6 0 -12\"/></g>"}};
+  // ---------- your own pictures (optional) ----------
+  // Put a picture file next to this page (e.g. in a "bosses" folder in the same GitHub
+  // repo) and list it here; it replaces the drawn art for that boss everywhere
+  // (portrait, intro, KO, retreat, and the black next-boss silhouette).
+  // Best: a PNG with a see-through background, square-ish, about 600x660 px.
+  // A picture can also be set from the link: &img_longline=https://.../longline.png
+  var BOSS_IMAGES = {
+    // longline:    "bosses/longline.png",
+    // downpour:    "bosses/downpour.png",
+    // swelter:     "bosses/swelter.png",
+    // churro:      "bosses/churro.png",
+    // lowbattery:  "bosses/lowbattery.png",
+    // closingtime: "bosses/closingtime.png",
+    // tangle:      "bosses/tangle.png"
+  };
+  ["longline","downpour","swelter","churro","lowbattery","closingtime","tangle"].forEach(function(id){ var u = H.get("img_" + id); if (u) BOSS_IMAGES[id] = u; });
+
   var MYSTERY = { vb:"0 0 200 220", svg:'<path d="M40 220 C44 160 66 120 100 118 C134 120 156 160 160 220Z" fill="#17152A"/><circle cx="100" cy="88" r="40" fill="#17152A"/><path d="M60 70 Q100 10 140 70 Q100 50 60 70Z" fill="#17152A"/><text x="100" y="104" font-size="52" font-weight="800" text-anchor="middle" fill="#FFFBF3" font-family="Baloo 2, sans-serif">?</text>' };
   function artFor(id){ return BOSS_ART[id] || MYSTERY; }
   function drawArt(el, id){
-    var a = artFor(id);
     if (el.dataset.boss === id) return;
     el.dataset.boss = id;
+    var img = BOSS_IMAGES[id];
+    if (img){
+      el.innerHTML = "";
+      var im = document.createElement("img");
+      im.src = img; im.alt = "";
+      im.onerror = function(){ el.dataset.boss = ""; delete BOSS_IMAGES[id]; drawArt(el, id); };   // bad link: fall back to the drawn art
+      el.appendChild(im);
+      return;
+    }
+    var a = artFor(id);
     el.innerHTML = '<svg viewBox="' + a.vb + '" preserveAspectRatio="xMidYMax meet">' + a.svg + '</svg>';
   }
 
