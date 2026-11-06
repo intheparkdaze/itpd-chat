@@ -96,6 +96,15 @@ button{font:inherit;color:inherit}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
 #quickBtn{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--gold);color:#1b1830;font-size:1.6rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#venue{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#venue.open{display:flex}
+#venue .card{max-height:85vh;overflow:auto}
+#venue h2{font-size:1.05rem;margin:0 0 6px}
+#venueNow{font-weight:800;margin:2px 0 8px}
+#venueList .vg{font-size:.78rem;font-weight:800;color:var(--muted);margin:12px 0 4px;letter-spacing:.04em;text-transform:uppercase}
+#venueList .vb{display:block;width:100%;text-align:left;margin-top:6px;padding:11px 12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem}
+#venueList .vb.cur{border-color:var(--ok)}
+#venueList .vb small{font-weight:400;color:var(--muted);margin-left:6px}
 #boss{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #boss.open{display:flex}
 #boss .card h2{font-size:1.05rem;margin:0 0 6px}
@@ -150,6 +159,15 @@ button{font:inherit;color:inherit}
 <button id="jump">Jump to newest</button>
 <button id="quickBtn" aria-label="Quick messages">&#x26A1;</button>
 
+<div id="venue" role="dialog" aria-modal="true" aria-labelledby="venueTitle">
+  <div class="card">
+    <h2 id="venueTitle">&#x1F4CD; Where we are</h2>
+    <div id="venueNow">Loading&hellip;</div>
+    <div id="venueList"></div>
+    <div class="row"><button class="btn" id="venueBack" style="display:none">Back</button><button class="btn" id="venueClose">Close</button></div>
+  </div>
+</div>
+
 <div id="boss" role="dialog" aria-modal="true" aria-labelledby="bossTitle">
   <div class="card">
     <h2 id="bossTitle">&#x2694;&#xFE0F; Boss Battle</h2>
@@ -180,6 +198,7 @@ button{font:inherit;color:inherit}
 <div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
   <div class="card">
     <button class="btn primary" id="hypeBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
+    <button class="btn" id="venueBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F4CD; Where we are (park, place, ride over)</button>
     <button class="btn" id="bossBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x2694;&#xFE0F; Boss Battle controls</button>
     <h2 id="quickTitle">Quick messages</h2>
     <div class="small" style="margin:4px 0 2px">Post to:
@@ -825,6 +844,92 @@ button{font:inherit;color:inherit}
       .then(function(j){ if (j.error) throw new Error(j.error); note("Race to 2K sent \ud83c\udfc1", "", Date.now()); })
       .catch(function(e){ hypeAt = 0; $("hypeBtn").disabled = false; tell("Race to 2K not sent: " + e.message); });
   });
+
+  // ---------- 11/06: Where we are (the park overlay's venue, land, transport) ----------
+  // Uses the catalog the park overlay publishes (same venues, lines and colours, same order),
+  // writes the overlay's state like its own editor does, and the "where we are" record the
+  // Daze Bot reads for !park, !weather and !wait.
+  var PO_STATE = "itpd_parkoverlay_state_2026", PO_CAT = "itpd_parkoverlay_catalog_2026", PO_NOW = "itpd_parkoverlay_now_2026";
+  var poCat = null, poState = null;
+  function poLoad(){
+    return Promise.all([upstash("/get/" + PO_CAT), upstash("/get/" + PO_STATE)]).then(function(r){
+      try { poCat = r[0] ? JSON.parse(r[0]) : null; } catch(e){ poCat = null; }
+      try { poState = r[1] ? JSON.parse(r[1]) : {}; } catch(e){ poState = {}; }
+    });
+  }
+  function poDescribe(st){
+    if (!poCat || !st) return "";
+    var v = poCat.venues[st.venue || 0] || poCat.venues[0], extra = "";
+    if (v.id === "mk" && st.land > 0 && st.land < poCat.lands.length - 1) extra = " \u00b7 " + poCat.lands[st.land];
+    if (v.kind === "transit"){ var sl = poCat.sublines[st.sub || 0]; if (sl && sl.dest) extra = " \u00b7 " + sl.label; }
+    if (v.id === "monorail" && st.mono > 0 && poCat.monorails[st.mono]) extra += " \u00b7 " + poCat.monorails[st.mono].name + " monorail";
+    return v.name + extra;
+  }
+  function poApply(patch){
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
+    if (!url || !tok){ tell("To change where we are, add the Upstash URL and the alerts token in \u2699."); return; }
+    var H = { Authorization:"Bearer " + tok };
+    fetch(url + "/get/" + PO_STATE, { headers:H, cache:"no-store" }).then(function(r){ return r.json(); }).then(function(j){
+      var st = {}; try { st = j.result ? JSON.parse(j.result) : {}; } catch(e){}
+      Object.keys(patch).forEach(function(k){ st[k] = patch[k]; });
+      st.ver = Math.floor(Date.now() / 1000);
+      var v = poCat.venues[st.venue || 0], park = v.waitPark || "";
+      var pv = park ? poCat.venues.filter(function(x){ return x.waitPark === park && x.kind === "park"; })[0] : null;
+      var land = v.id === "mk" && st.land > 0 && st.land < poCat.lands.length - 1 ? poCat.lands[st.land] : "";
+      var now = { id:v.id, name:v.name, kind:v.kind, company:v.company, park:park, parkName: pv ? pv.name : "", land:land, at:Date.now() };
+      return fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
+        body:JSON.stringify([["SET", PO_STATE, JSON.stringify(st)], ["SET", PO_NOW, JSON.stringify(now)]]) })
+        .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); poState = st; note("\ud83d\udccd Now showing: " + poDescribe(st), "", Date.now()); closeVenue(); });
+    }).catch(function(e){ tell("Couldn\u2019t change where we are: " + e.message); });
+  }
+  function poButton(label, sub, cur, fn){
+    var b = document.createElement("button"); b.className = "vb" + (cur ? " cur" : "");
+    b.textContent = label; if (sub){ var sm = document.createElement("small"); sm.textContent = sub; b.appendChild(sm); }
+    b.addEventListener("click", fn); $("venueList").appendChild(b);
+  }
+  function poHeader(t){ var h = document.createElement("div"); h.className = "vg"; h.textContent = t; $("venueList").appendChild(h); }
+  function poMain(){
+    $("venueBack").style.display = "none"; $("venueList").textContent = "";
+    $("venueNow").textContent = poState ? "Now: " + poDescribe(poState) : "";
+    var curV = poState ? (poState.venue || 0) : -1, lastGroup = "";
+    poCat.venues.forEach(function(v){
+      if (v.group !== lastGroup){ poHeader(v.group); lastGroup = v.group; }
+      poButton(v.name, v.code, v.i === curV, function(){ poPick(v); });
+    });
+  }
+  function poPick(v){
+    if (v.id === "mk") return poLands(v);
+    if (v.kind === "transit") return poDests(v);
+    poApply({ venue: v.i });
+  }
+  function poLands(v){
+    $("venueBack").style.display = ""; $("venueList").textContent = ""; poHeader("Magic Kingdom: which land?");
+    poCat.lands.forEach(function(l, i){
+      poButton(i === 0 ? "No land" : l, "", false, function(){ poApply({ venue: v.i, land: i, landSeq: ((poState && poState.landSeq) || 0) + 1 }); });
+    });
+  }
+  function poDests(v){
+    $("venueBack").style.display = ""; $("venueList").textContent = ""; poHeader(v.name + ": headed where?");
+    var pickDest = function(subI){ if (v.id === "monorail") poColors(v, subI); else poApply({ venue: v.i, sub: subI }); };
+    poButton("No destination", "", false, function(){ pickDest(0); });
+    poCat.sublines.forEach(function(sl){
+      if (sl.dest && (sl.kinds || []).indexOf("transit") >= 0 && (v.dests || []).indexOf(sl.dest) >= 0) poButton(sl.label, "", false, function(){ pickDest(sl.i); });
+    });
+  }
+  function poColors(v, subI){
+    $("venueList").textContent = ""; poHeader("Which monorail?");
+    poCat.monorails.forEach(function(m){ poButton(m.name, "", false, function(){ poApply({ venue: v.i, sub: subI, mono: m.i }); }); });
+  }
+  function closeVenue(){ $("venue").classList.remove("open"); }
+  $("venueBtn").addEventListener("click", function(){
+    closeQuick(); $("venue").classList.add("open"); $("venueNow").textContent = "Loading\u2026"; $("venueList").textContent = "";
+    poLoad().then(function(){
+      if (!poCat){ $("venueNow").textContent = "The park overlay hasn\u2019t published its venue list yet. Open the park overlay (or its editor) once, then try again."; return; }
+      poMain();
+    }).catch(function(e){ $("venueNow").textContent = "Couldn\u2019t load: " + e.message; });
+  });
+  $("venueBack").addEventListener("click", poMain);
+  $("venueClose").addEventListener("click", closeVenue);
 
   // ---------- 11/06: Boss Battle controls (the engine runs in the Daze Bot) ----------
   var BOSS_FIGHT = "itpd_boss_fight_2026", BOSS_CMD = "itpd_boss_cmd_2026", bossTimer = null, bossLast = null, bossKoShown = 0;
