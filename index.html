@@ -96,6 +96,7 @@ button{font:inherit;color:inherit}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
 #quickBtn{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--gold);color:#1b1830;font-size:1.6rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#venueFab{position:fixed;right:82px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--ok);color:#fff;font-size:1.5rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
 #venue{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #venue.open{display:flex}
 #venue .card{max-height:85vh;overflow:auto}
@@ -158,6 +159,7 @@ button{font:inherit;color:inherit}
 <div id="log" aria-live="off"></div>
 <button id="jump">Jump to newest</button>
 <button id="quickBtn" aria-label="Quick messages">&#x26A1;</button>
+<button id="venueFab" aria-label="Where we are">&#x1F4CD;</button>
 
 <div id="venue" role="dialog" aria-modal="true" aria-labelledby="venueTitle">
   <div class="card">
@@ -198,7 +200,6 @@ button{font:inherit;color:inherit}
 <div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
   <div class="card">
     <button class="btn primary" id="hypeBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
-    <button class="btn" id="venueBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F4CD; Where we are (park, place, ride over)</button>
     <button class="btn" id="bossBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x2694;&#xFE0F; Boss Battle controls</button>
     <h2 id="quickTitle">Quick messages</h2>
     <div class="small" style="margin:4px 0 2px">Post to:
@@ -921,10 +922,10 @@ button{font:inherit;color:inherit}
     poCat.monorails.forEach(function(m){ poButton(m.name, "", false, function(){ poApply({ venue: v.i, sub: subI, mono: m.i }); }); });
   }
   function closeVenue(){ $("venue").classList.remove("open"); }
-  $("venueBtn").addEventListener("click", function(){
-    closeQuick(); $("venue").classList.add("open"); $("venueNow").textContent = "Loading\u2026"; $("venueList").textContent = "";
+  $("venueFab").addEventListener("click", function(){
+    $("venue").classList.add("open"); $("venueNow").textContent = "Loading\u2026"; $("venueList").textContent = "";
     poLoad().then(function(){
-      if (!poCat){ $("venueNow").textContent = "The park overlay hasn\u2019t published its venue list yet. Open the park overlay (or its editor) once, then try again."; return; }
+      if (!poCat){ $("venueNow").textContent = "The park overlay hasn\u2019t published its venue list yet. That happens a few seconds after the UPDATED park overlay loads: replace the overlay file (11/06 version), refresh its source in IRLToolkit (or open its editor once), then try again."; return; }
       poMain();
     }).catch(function(e){ $("venueNow").textContent = "Couldn\u2019t load: " + e.message; });
   });
