@@ -21,6 +21,9 @@
     Scene:  itpd-starting-soon.html#url=https://charming-worm-109173.upstash.io&tok=TOKEN
     Phone:  itpd-starting-soon.html#edit&url=https://charming-worm-109173.upstash.io&tok=TOKEN
   Optional: &preview (status line, for a normal browser tab), &clear (no background).
+  TEST without any settings: itpd-starting-soon.html#test  (sample park, quotes changing
+  every 8 s, sample welcome names, a small "TEST PREVIEW" label). Works in a browser tab
+  or IRLToolkit's preview.
   Upstash key: itpd_starting_state_2026 { quotes:[{q,by}], pin:-1|index, welcome }.
   Reads itpd_parkoverlay_state_2026 and itpd_bot_cards_2026.
 -->
@@ -50,8 +53,9 @@
   #head .b{padding:30px 60px 32px 44px}
   #head .k{font-weight:800;font-size:28px;letter-spacing:4px;color:var(--park);transition:color .6s}
   #head .t{font-weight:800;font-size:110px;line-height:.95;color:var(--ink);margin-top:6px}
-  #head .t span{display:inline-block;animation:dots 1.6s steps(4,end) infinite;width:1.1em;overflow:hidden;vertical-align:bottom}
-  @keyframes dots{0%{width:0}100%{width:1.1em}}
+  #head .t i{font-style:normal;display:inline-block;opacity:.15;animation:dot 6s ease-in-out infinite}
+  #head .t i:nth-child(2){animation-delay:1s} #head .t i:nth-child(3){animation-delay:2s}
+  @keyframes dot{0%,10%{opacity:.15}30%,75%{opacity:1}95%,100%{opacity:.15}}
   #head .w{display:flex;align-items:center;gap:14px;margin-top:16px}
   #code{background:var(--park);color:#fff;border-radius:9px;padding:3px 11px 1px;font-weight:800;font-size:26px;transition:background .6s}
   #park{font-weight:800;font-size:34px;color:var(--navy)}
@@ -82,7 +86,7 @@
   #pWel{right:300px} #pWel .ps{background:#2F8F5B} #pWel .k{color:#2F8F5B}
   #wNames{font-size:28px}
   #foot{position:absolute;left:0;right:0;bottom:18px;text-align:center;font:500 18px/1 "DM Mono",monospace;letter-spacing:3px;color:rgba(255,255,255,.75)}
-  @media (prefers-reduced-motion:reduce){.spark,.flo,#glow,#head .t span{animation:none}}
+  @media (prefers-reduced-motion:reduce){.spark,.flo,#glow{animation:none}#head .t i{animation:none;opacity:1}}
 
   /* phone page */
   body.ctl{background:#15142a;color:#fff;overflow:auto;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -104,7 +108,7 @@
     <div class="stub"><span>ITPD LIVE</span></div>
     <div class="b">
       <div class="k" id="hk">THE GATES OPEN SOON</div>
-      <div class="t">Starting soon<span>...</span></div>
+      <div class="t">Starting soon<i>.</i><i>.</i><i>.</i></div>
       <div class="w"><span id="code">ITPD</span><span id="park">Today's park day</span><span id="date"></span></div>
     </div>
     <div class="tear"><span>ADMIT ONE</span></div>
@@ -135,6 +139,8 @@
   var H = new URLSearchParams(location.hash.slice(1)), Q = new URLSearchParams(location.search);
   var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
   var EDIT = H.has("edit") || Q.has("edit"), KEY = "itpd_starting_state_2026";
+  // &test: a preview with no Upstash needed (sample park, quotes every 8 s, sample welcomes)
+  var TEST = H.has("test") || Q.has("test");
   var $ = function(id){ return document.getElementById(id); };
 
   // Famous quotes with well-documented sources, plus a few of our own.
@@ -158,7 +164,7 @@
   function set(k, v){ return fetch(URL_ + "/set/" + k, { method:"POST", cache:"no-store", headers:{ Authorization:"Bearer " + TOK }, body:JSON.stringify(v) }).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); }); }
   function parseLines(t){ return String(t || "").split("\n").map(function(l){ l = l.trim(); if (!l) return null; var m = l.match(/^(.*?)\s+[\u2014\u2013-]{1,2}\s+([^\u2014\u2013]+)$/); return m ? { q:m[1].replace(/^["\u201C]|["\u201D]$/g, "").trim(), by:m[2].trim() } : { q:l.replace(/^["\u201C]|["\u201D]$/g, ""), by:"" }; }).filter(Boolean); }
 
-  if (!URL_ || !TOK){ document.body.innerHTML = "<div style='margin:20px;padding:18px 22px;max-width:760px;background:#15142a;color:#ffb3b3;border-radius:12px;font:18px/1.5 system-ui,sans-serif'><b>Starting soon: missing settings.</b><br>The link needs <code>#url=https://charming-worm-109173.upstash.io&amp;tok=YOUR_TOKEN</code>.</div>"; return; }
+  if (!TEST && (!URL_ || !TOK)){ document.body.innerHTML = "<div style='margin:20px;padding:18px 22px;max-width:760px;background:#15142a;color:#ffb3b3;border-radius:12px;font:18px/1.5 system-ui,sans-serif'><b>Starting soon: missing settings.</b><br>The link needs <code>#url=https://charming-worm-109173.upstash.io&amp;tok=YOUR_TOKEN</code>.</div>"; return; }
 
   // ================= PHONE PAGE =================
   if (EDIT){
@@ -215,7 +221,7 @@
     if (state.pin >= 0 && state.pin < qs.length) return showQuote(qs[state.pin]);
     showQuote(qs[qi % qs.length]);
   }
-  setInterval(function(){ if (!(state.pin >= 0)) { qi++; pickQuote(); } }, 60000);
+  setInterval(function(){ if (!(state.pin >= 0)) { qi++; pickQuote(); } }, TEST ? 8000 : 60000);
 
   var ci = 0;
   setInterval(function(){ var x = $("cText"); x.classList.add("fade"); setTimeout(function(){ x.textContent = CHAT[++ci % CHAT.length]; x.classList.remove("fade"); }, 500); }, 15000);
@@ -253,6 +259,23 @@
         setTimeout(function(){ x.textContent = last.join(", ") + (welcomed.length > 4 ? " +" + (welcomed.length - 4) : ""); x.classList.remove("fade"); }, 500);
       }
     }).catch(function(){});
+  }
+  if (TEST){
+    $("code").textContent = "MK"; $("park").textContent = "Today: Magic Kingdom";
+    document.documentElement.style.setProperty("--park", "#4A63A3");
+    var tqi = 0; pickQuote();
+    var sample = [["@MainStreetMom"], ["@EpcotEric", "@TeacupTina"], ["@Figgyfangirl"], ["@ParkHopperPat"]], si = 0;
+    setTimeout(function addOne(){
+      if (si >= sample.length) return;
+      sample[si++].forEach(function(n){ welcomed.push(n); });
+      $("wK").textContent = "WELCOME IN!";
+      var x = $("wNames"); x.classList.add("fade");
+      setTimeout(function(){ x.textContent = welcomed.slice(-4).join(", ") + (welcomed.length > 4 ? " +" + (welcomed.length - 4) : ""); x.classList.remove("fade"); }, 500);
+      setTimeout(addOne, 6000);
+    }, 5000);
+    var badge = document.createElement("div"); badge.style.cssText = "position:fixed;right:12px;top:10px;z-index:9;color:#fff;font:14px/1.4 system-ui,sans-serif;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:8px";
+    badge.textContent = "TEST PREVIEW (sample park, quotes and names)"; document.body.appendChild(badge);
+    return;
   }
   if (H.has("preview")){ var pv = document.createElement("div"); pv.id = "pv"; pv.style.cssText = "position:fixed;left:12px;top:10px;z-index:9;color:#fff;font:15px/1.4 system-ui,sans-serif;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:8px"; pv.textContent = "Preview: connecting..."; document.body.appendChild(pv); }
   loadState(); loadPark(); loadWelcomes();
