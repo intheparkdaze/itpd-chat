@@ -11,7 +11,7 @@
 <style>
 :root{
   --bg:#f3f1f8; --panel:#ffffff; --ink:#1b1830; --muted:#625c7a; --line:#dcd7ea;
-  --yt:#d61f1f; --tw:#7a3ff0; --tt:#0e9e9a; --fb:#1877f2; --gold:#a26a00; --ok:#1d8a47; --warn:#b26b00; --bad:#c42b2b;
+  --yt:#d61f1f; --tw:#7a3ff0; --tt:#0e9e9a; --fb:#1877f2; --ig:#d62976; --gold:#a26a00; --ok:#1d8a47; --warn:#b26b00; --bad:#c42b2b;
   --gift:#fff3d6; --follow:#e3f6ec;
   color-scheme: light;
   box-sizing:border-box;
@@ -21,7 +21,7 @@
 @media (prefers-color-scheme: dark){
   :root{
     --bg:#1b1830; --panel:#252140; --ink:#efeaff; --muted:#a59fc2; --line:#3a345c;
-    --yt:#ff5a5a; --tw:#b28bff; --tt:#3fd6cf; --fb:#5b9dff; --gold:#ffc94d; --ok:#4fd27f; --warn:#ffb340; --bad:#ff6b6b;
+    --yt:#ff5a5a; --tw:#b28bff; --tt:#3fd6cf; --fb:#5b9dff; --ig:#ff5fa2; --gold:#ffc94d; --ok:#4fd27f; --warn:#ffb340; --bad:#ff6b6b;
     --gift:#3a3020; --follow:#1f3a2c;
     color-scheme: dark;
   }
@@ -47,7 +47,7 @@ button{font:inherit;color:inherit}
 .lamp.link.up{border-color:var(--ok)}
 /* 11/03: platform lights use the same coloured tags as chat rows, to save space */
 .ptag{font-style:normal;font-weight:800;font-size:.72rem;padding:1px 5px;border-radius:4px;color:#fff;letter-spacing:.02em}
-.ptag.youtube{background:var(--yt)} .ptag.twitch{background:var(--tw)} .ptag.tiktok{background:var(--tt)} .ptag.facebook{background:var(--fb)}
+.ptag.youtube{background:var(--yt)} .ptag.twitch{background:var(--tw)} .ptag.tiktok{background:var(--tt)} .ptag.facebook{background:var(--fb)} .ptag.instagram{background:var(--ig)}
 .menu{flex:none;width:44px;border-radius:10px;border:2px solid var(--line);background:transparent;font-size:1.3rem}
 
 /* Ticker: live counts, scrolls sideways if it overflows */
@@ -55,7 +55,7 @@ button{font:inherit;color:inherit}
 .ticker::-webkit-scrollbar{display:none}
 .chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);font-variant-numeric:tabular-nums}
 .chip i{font-style:normal;font-weight:800;font-size:.7rem;padding:1px 5px;border-radius:4px;color:#fff}
-.chip.youtube i{background:var(--yt)} .chip.twitch i{background:var(--tw)} .chip.tiktok i{background:var(--tt)} .chip.facebook i{background:var(--fb)}
+.chip.youtube i{background:var(--yt)} .chip.twitch i{background:var(--tw)} .chip.tiktok i{background:var(--tt)} .chip.facebook i{background:var(--fb)} .chip.instagram i{background:var(--ig)}
 .chip.rec i{background:var(--muted)}
 .chip.rec.bad{border-color:var(--bad);color:var(--bad)}
 .chip.old{opacity:.55}
@@ -68,7 +68,7 @@ button{font:inherit;color:inherit}
 .msg .who{font-weight:700;font-size:.9rem;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
 .msg .who .t{font-weight:400;color:var(--muted);font-size:.75rem;margin-left:auto}
 .plat{font-size:.68rem;font-weight:800;padding:1px 5px;border-radius:4px;color:#fff;letter-spacing:.02em}
-.plat.youtube{background:var(--yt)} .plat.twitch{background:var(--tw)} .plat.tiktok{background:var(--tt)} .plat.facebook{background:var(--fb)} .plat.other{background:var(--muted)}
+.plat.youtube{background:var(--yt)} .plat.twitch{background:var(--tw)} .plat.tiktok{background:var(--tt)} .plat.facebook{background:var(--fb)} .plat.instagram{background:var(--ig)} .plat.other{background:var(--muted)}
 .mod{font-size:.7rem;font-weight:700;color:var(--tw)}
 .text{font-size:1rem}
 .text img{height:1.35em;vertical-align:-.3em}
@@ -151,6 +151,7 @@ button{font:inherit;color:inherit}
     <div class="lamp" id="lamp-twitch" title="Twitch"><b><i class="ptag twitch">TW</i></b><span>No chat yet</span></div>
     <div class="lamp" id="lamp-tiktok" title="TikTok"><b><i class="ptag tiktok">TT</i></b><span>No chat yet</span></div>
     <div class="lamp" id="lamp-facebook" title="Facebook"><b><i class="ptag facebook">FB</i></b><span>No chat yet</span></div>
+    <div class="lamp" id="lamp-instagram" title="Instagram"><b><i class="ptag instagram">IG</i></b><span>No chat yet</span></div>
     <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
   </div>
   <div class="ticker" id="ticker" aria-label="Live counts"></div>
@@ -315,7 +316,7 @@ button{font:inherit;color:inherit}
 
   var ws = null, retry = 0, retryTimer = null, wantOpen = false;
   var downSince = null, lastPacket = 0, connectedOnce = false, hiddenAt = 0;
-  var lastByPlat = { youtube:0, twitch:0, tiktok:0, facebook:0 };
+  var lastByPlat = { youtube:0, twitch:0, tiktok:0, facebook:0, instagram:0 };
   var counters = {};                // "youtube.viewers" -> {v, ts}
   var recorderSeen = 0;
   var seenKeys = new Set(), seenOrder = [];
@@ -344,10 +345,10 @@ button{font:inherit;color:inherit}
   // ---------- status strip + ticker ----------
   function paintLamps(){
     var now = Date.now();
-    ["youtube","twitch","tiktok","facebook"].forEach(function(p){
+    ["youtube","twitch","tiktok","facebook","instagram"].forEach(function(p){
       var el = $("lamp-"+p), t = lastByPlat[p];
       el.classList.remove("fresh","aging","stale");
-      var vc = counters[p + ".viewers"], vtxt = vc ? "\ud83d\udc41 " + fmtNum(vc.v) + " \u00b7 " : "";
+      var vtxt = "";   // 11/07: viewer counts only in the counts row below, not repeated here
       if (!t){ el.querySelector("span").textContent = vtxt + "No chat yet"; return; }
       var s = Math.max(0, Math.round((now - t)/1000));
       el.querySelector("span").textContent = vtxt + "Last " + fmtAge(s);
@@ -363,7 +364,7 @@ button{font:inherit;color:inherit}
   function paintTicker(){
     var t = $("ticker"), now = Date.now(), html = [];
     t.textContent = "";
-    var defs = [["youtube","YT"],["twitch","TW"],["tiktok","TT"],["facebook","FB"]];
+    var defs = [["youtube","YT"],["twitch","TW"],["tiktok","TT"],["facebook","FB"],["instagram","IG"]];
     var labels = { viewers:"👁", likes:"👍", subs:"subs", followers:"followers" };
     var anyCount = false;
     defs.forEach(function(d){
@@ -440,6 +441,7 @@ button{font:inherit;color:inherit}
     if (t.indexOf("twitch") === 0) return "twitch";
     if (t.indexOf("tiktok") === 0) return "tiktok";
     if (t.indexOf("facebook") === 0 || t.indexOf("fb") === 0) return "facebook";
+    if (t.indexOf("instagram") === 0) return "instagram";
     return "other";
   }
 
@@ -1073,7 +1075,7 @@ button{font:inherit;color:inherit}
     var body = document.createElement("div"); body.className = "body";
     var who = document.createElement("div"); who.className = "who";
     var pl = document.createElement("span"); pl.className = "plat " + plat;
-    pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : plat === "facebook" ? "FB" : String(m.type || "?").slice(0,3).toUpperCase();
+    pl.textContent = plat === "youtube" ? "YT" : plat === "twitch" ? "TW" : plat === "tiktok" ? "TT" : plat === "facebook" ? "FB" : plat === "instagram" ? "IG" : String(m.type || "?").slice(0,3).toUpperCase();
     who.appendChild(pl);
     var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = m.chatname || ""; who.appendChild(nm);
     var maybeSub = plat === "youtube" && cls.kind === "chat" && couldBeSubber(m) && SUB_RX.test(plainText(m));
