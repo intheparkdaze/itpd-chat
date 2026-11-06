@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ITPD Starting Soon</title>
+<!--
+  ITPD STARTING SOON (Broadcast UI/UX, 2026-11-06)
+  Full-screen scene for the first few minutes after the stream goes live, before the
+  intro video. Switch to it when you start streaming; cut to the intro when ready.
+
+    - "Starting soon" ticket with today's park (from the park overlay), no timer
+    - Quote card (Mrs. Daze's idea): famous quotes and our own, crossfading every 60 s,
+      or one pinned from the phone
+    - "While you wait" chat prompts, and "Welcome in!" names from the Daze Bot
+      (so DON'T also put itpd-dazebot-overlay.html in this scene)
+    - Slow park-sky background; silent (add music in IRLToolkit if you want it)
+
+  LINK (settings after the #, never in this file):
+    Scene:  itpd-starting-soon.html#url=https://charming-worm-109173.upstash.io&tok=TOKEN
+    Phone:  itpd-starting-soon.html#edit&url=https://charming-worm-109173.upstash.io&tok=TOKEN
+  Optional: &preview (status line, for a normal browser tab), &clear (no background).
+  Upstash key: itpd_starting_state_2026 { quotes:[{q,by}], pin:-1|index, welcome }.
+  Reads itpd_parkoverlay_state_2026 and itpd_bot_cards_2026.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{--park:#22306B;--paper:#FFFBF3;--ink:#17152A;--navy:#22306B;--muted:#6B6780;--gold:#FFD34E;--goldDeep:#B07A00;--mag:#D82A83}
+  *{box-sizing:border-box}
+  html,body{margin:0;overflow:hidden;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink);background:#141436}
+  body.clear{background:transparent}
+  #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden}
+
+  /* slow park-sky background */
+  #sky{position:absolute;inset:0;background:radial-gradient(1200px 700px at 18% 8%,#3D52B0 0%,transparent 60%),radial-gradient(1100px 800px at 86% 92%,#6A3A9E 0%,transparent 60%),linear-gradient(160deg,#1b1f55,#141436 55%,#2a1646)}
+  #glow{position:absolute;inset:-120px;background:radial-gradient(800px 520px at 55% 45%,rgba(216,42,131,.20),transparent 70%);animation:drift 40s ease-in-out infinite alternate}
+  @keyframes drift{to{transform:translate(90px,50px)}}
+  body.clear #sky, body.clear #glow, body.clear #fx{display:none}
+  .spark{position:absolute;width:6px;height:6px;border-radius:50%;background:#FFFBF3;opacity:.2;animation:tw var(--d,6s) ease-in-out infinite}
+  @keyframes tw{50%{opacity:.75;transform:scale(1.4)}}
+  .flo{position:absolute;bottom:-60px;opacity:0;animation:rise linear infinite}
+  @keyframes rise{0%{transform:translateY(0) rotate(var(--r0));opacity:0}10%{opacity:var(--op)}90%{opacity:var(--op)}100%{transform:translateY(-1200px) rotate(var(--r1));opacity:0}}
+
+  /* starting-soon ticket */
+  #head{position:absolute;left:50%;top:70px;transform:translateX(-50%);display:flex;background:var(--paper);border-radius:30px;box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden;width:max-content}
+  #head .stub{width:92px;background:var(--park);border-right:5px dashed rgba(255,255,255,.55);display:flex;align-items:center;justify-content:center;transition:background .6s}
+  #head .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 18px/1 "DM Mono",monospace;letter-spacing:4px;color:#fff}
+  #head .b{padding:30px 60px 32px 44px}
+  #head .k{font-weight:800;font-size:28px;letter-spacing:4px;color:var(--park);transition:color .6s}
+  #head .t{font-weight:800;font-size:110px;line-height:.95;color:var(--ink);margin-top:6px}
+  #head .t span{display:inline-block;animation:dots 1.6s steps(4,end) infinite;width:1.1em;overflow:hidden;vertical-align:bottom}
+  @keyframes dots{0%{width:0}100%{width:1.1em}}
+  #head .w{display:flex;align-items:center;gap:14px;margin-top:16px}
+  #code{background:var(--park);color:#fff;border-radius:9px;padding:3px 11px 1px;font-weight:800;font-size:26px;transition:background .6s}
+  #park{font-weight:800;font-size:34px;color:var(--navy)}
+  #date{font:500 22px/1 "DM Mono",monospace;color:var(--muted);margin-left:8px}
+  #head .tear{width:120px;border-left:5px dashed #C9C2B2;background:#FFF4D6;display:flex;align-items:center;justify-content:center}
+  #head .tear span{writing-mode:vertical-rl;font-weight:800;font-size:24px;letter-spacing:5px;color:var(--goldDeep)}
+
+  /* quote card */
+  #quote{position:absolute;left:50%;top:470px;transform:translateX(-50%);width:1320px;min-height:250px;background:rgba(255,251,243,.97);border-radius:28px;
+    box-shadow:0 0 0 6px var(--gold),0 18px 50px rgba(0,0,0,.45);padding:40px 80px 38px 120px}
+  #quote::before{content:"\201C";position:absolute;left:34px;top:-6px;font-weight:800;font-size:200px;line-height:1;color:var(--gold)}
+  #qk{font:500 18px/1 "DM Mono",monospace;letter-spacing:3px;color:var(--goldDeep)}
+  #qBody{transition:opacity .9s}
+  #qBody.fade{opacity:0}
+  #qText{font-weight:800;font-size:54px;line-height:1.2;color:var(--ink);margin-top:12px}
+  #qBy{font-weight:700;font-size:30px;color:var(--mag);margin-top:14px}
+  #qBy:empty{display:none}
+
+  /* bottom panels */
+  .panel{position:absolute;bottom:56px;width:640px;height:150px;display:flex;background:var(--paper);border-radius:22px;box-shadow:0 12px 32px rgba(0,0,0,.4);overflow:hidden}
+  .panel .ps{width:60px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-right:4px dashed rgba(255,255,255,.5)}
+  .panel .ps span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 14px/1 "DM Mono",monospace;letter-spacing:3px;color:#fff;white-space:nowrap}
+  .panel .pb{flex:1;min-width:0;padding:18px 26px;display:flex;flex-direction:column;justify-content:center}
+  .panel .k{font-weight:800;font-size:22px;letter-spacing:2px}
+  .panel .x{font-weight:800;font-size:32px;line-height:1.15;color:var(--ink);margin-top:6px;transition:opacity .5s}
+  .panel .x.fade{opacity:0}
+  #pChat{left:300px} #pChat .ps{background:var(--mag)} #pChat .k{color:var(--mag)}
+  #pWel{right:300px} #pWel .ps{background:#2F8F5B} #pWel .k{color:#2F8F5B}
+  #wNames{font-size:28px}
+  #foot{position:absolute;left:0;right:0;bottom:18px;text-align:center;font:500 18px/1 "DM Mono",monospace;letter-spacing:3px;color:rgba(255,255,255,.75)}
+  @media (prefers-reduced-motion:reduce){.spark,.flo,#glow,#head .t span{animation:none}}
+
+  /* phone page */
+  body.ctl{background:#15142a;color:#fff;overflow:auto;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  body.ctl #stage{display:none}
+  #ctl{display:none;max-width:560px;margin:0 auto;padding:16px 16px 60px}
+  body.ctl #ctl{display:block}
+  #ctl h1{font-size:22px;margin:0 0 4px} #ctl h2{font-size:16px;color:#FFD866;margin:20px 0 6px}
+  #ctl .hint{color:#a9a6c4;font-size:14px;line-height:1.4}
+  #ctl textarea,#ctl input,#ctl select{width:100%;padding:11px;border-radius:9px;border:1px solid #444;background:#101024;color:#fff;font-size:16px}
+  #ctl textarea{min-height:260px;font-size:15px;line-height:1.4}
+  #ctl button{width:100%;padding:14px;border-radius:12px;border:2px solid #2F8F5B;background:#2F8F5B;color:#fff;font-weight:800;font-size:16px;margin-top:10px}
+  #cStatus{margin-top:10px;color:#9fe2b5;min-height:20px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="sky"></div><div id="glow"></div><div id="fx"></div>
+  <div id="head">
+    <div class="stub"><span>ITPD LIVE</span></div>
+    <div class="b">
+      <div class="k" id="hk">THE GATES OPEN SOON</div>
+      <div class="t">Starting soon<span>...</span></div>
+      <div class="w"><span id="code">ITPD</span><span id="park">Today's park day</span><span id="date"></span></div>
+    </div>
+    <div class="tear"><span>ADMIT ONE</span></div>
+  </div>
+  <div id="quote"><div id="qk">A LITTLE INSPIRATION</div><div id="qBody"><div id="qText"></div><div id="qBy"></div></div></div>
+  <div class="panel" id="pChat"><div class="ps"><span>CHAT</span></div><div class="pb"><div class="k">TELL US IN CHAT</div><div class="x" id="cText">Where are you watching from?</div></div></div>
+  <div class="panel" id="pWel"><div class="ps"><span>HELLO</span></div><div class="pb"><div class="k" id="wK">YOU'RE EARLY!</div><div class="x" id="wNames">Thanks for being here. The fun starts any minute.</div></div></div>
+  <div id="foot">IN THE PARK DAZE &middot; MICHAEL &amp; MRS. DAZE</div>
+</div>
+
+<div id="ctl">
+  <h1>Starting soon</h1>
+  <div class="hint">Changes reach the stream within a few seconds.</div>
+  <h2>Quotes (one per line: quote &mdash; who said it)</h2>
+  <textarea id="iQuotes"></textarea>
+  <div class="hint">Leave off the "&mdash; name" part for our own. Please double-check who really said a famous quote: many popular ones are misattributed.</div>
+  <h2>Show</h2>
+  <select id="iPin"></select>
+  <h2>Welcome line (optional)</h2>
+  <input id="iWelcome" placeholder="You're early! Thanks for being here.">
+  <button id="bSave">Save</button>
+  <div id="cStatus"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var H = new URLSearchParams(location.hash.slice(1)), Q = new URLSearchParams(location.search);
+  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
+  var EDIT = H.has("edit") || Q.has("edit"), KEY = "itpd_starting_state_2026";
+  var $ = function(id){ return document.getElementById(id); };
+
+  // Famous quotes with well-documented sources, plus a few of our own.
+  var DEFAULT_QUOTES = [
+    { q:"Life is either a daring adventure or nothing at all.", by:"Helen Keller" },
+    { q:"Write it on your heart that every day is the best day in the year.", by:"Ralph Waldo Emerson" },
+    { q:"The only way to have a friend is to be one.", by:"Ralph Waldo Emerson" },
+    { q:"Not all those who wander are lost.", by:"J.R.R. Tolkien" },
+    { q:"The best ride is the one you take together.", by:"In The Park Daze" },
+    { q:"Slow down. The magic is in the little details.", by:"In The Park Daze" },
+    { q:"Rain or shine, it\u2019s a good day to make memories.", by:"In The Park Daze" },
+    { q:"Wherever you\u2019re watching from, you\u2019re part of the crew.", by:"The Daze Crew" }
+  ];
+  var CHAT = ["Where are you watching from?", "What\u2019s your favorite ride here?", "First stream with us? Say hi!", "What should we do first today?"];
+  var VENUES = [["MK","Magic Kingdom","#4A63A3"],["EP","EPCOT","#1B9C9C"],["HS","Hollywood Studios","#E8622C"],["AK","Animal Kingdom","#2F6B3A"],
+    ["BOO","Not-So-Scary Halloween Party","#6A2C91"],["JOY","Very Merry Christmas Party","#B3202D"],["JWN","Jollywood Nights","#1B2A5C"],["DS","Disney Springs","#3F7C8A"],
+    ["TTC","Transportation & Ticket Center","#5A6C7D"],["USF","Universal Studios","#C8202F"],["IOA","Islands of Adventure","#146356"],["EU","Epic Universe","#4B2E83"],
+    ["HHN","Halloween Horror Nights","#B00020"],["CW","CityWalk","#E0197C"]];
+
+  function get(k){ return fetch(URL_ + "/get/" + k, { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } }).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(function(d){ try { return d.result ? JSON.parse(d.result) : null; } catch(e){ return null; } }); }
+  function set(k, v){ return fetch(URL_ + "/set/" + k, { method:"POST", cache:"no-store", headers:{ Authorization:"Bearer " + TOK }, body:JSON.stringify(v) }).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); }); }
+  function parseLines(t){ return String(t || "").split("\n").map(function(l){ l = l.trim(); if (!l) return null; var m = l.match(/^(.*?)\s+[\u2014\u2013-]{1,2}\s+([^\u2014\u2013]+)$/); return m ? { q:m[1].replace(/^["\u201C]|["\u201D]$/g, "").trim(), by:m[2].trim() } : { q:l.replace(/^["\u201C]|["\u201D]$/g, ""), by:"" }; }).filter(Boolean); }
+
+  if (!URL_ || !TOK){ document.body.innerHTML = "<div style='margin:20px;padding:18px 22px;max-width:760px;background:#15142a;color:#ffb3b3;border-radius:12px;font:18px/1.5 system-ui,sans-serif'><b>Starting soon: missing settings.</b><br>The link needs <code>#url=https://charming-worm-109173.upstash.io&amp;tok=YOUR_TOKEN</code>.</div>"; return; }
+
+  // ================= PHONE PAGE =================
+  if (EDIT){
+    document.body.classList.add("ctl");
+    var st = $("cStatus");
+    function fillPin(quotes, pin){
+      var sel = $("iPin"); sel.innerHTML = "";
+      var o = document.createElement("option"); o.value = "-1"; o.textContent = "Rotate through all quotes (every 60 seconds)"; sel.appendChild(o);
+      quotes.forEach(function(x, i){ var p = document.createElement("option"); p.value = String(i); p.textContent = "Only: " + x.q.slice(0, 60) + (x.q.length > 60 ? "\u2026" : ""); sel.appendChild(p); });
+      sel.value = String(pin >= 0 && pin < quotes.length ? pin : -1);
+    }
+    get(KEY).then(function(s){
+      s = s || {};
+      var qs = s.quotes && s.quotes.length ? s.quotes : DEFAULT_QUOTES;
+      $("iQuotes").value = qs.map(function(x){ return x.q + (x.by ? " \u2014 " + x.by : ""); }).join("\n");
+      $("iWelcome").value = s.welcome || "";
+      fillPin(qs, typeof s.pin === "number" ? s.pin : -1);
+    }).catch(function(){ st.textContent = "Couldn't load the saved settings."; });
+    $("iQuotes").addEventListener("change", function(){ fillPin(parseLines($("iQuotes").value), +$("iPin").value); });
+    $("bSave").onclick = function(){
+      var qs = parseLines($("iQuotes").value);
+      set(KEY, { quotes: qs.length ? qs : DEFAULT_QUOTES, pin: +$("iPin").value, welcome: $("iWelcome").value.trim() })
+        .then(function(){ st.textContent = "Saved."; }).catch(function(){ st.textContent = "Couldn't save. Check your connection."; });
+    };
+    return;
+  }
+
+  // ================= SCENE =================
+  if (H.has("clear")) document.body.classList.add("clear");
+  var stage = $("stage");
+  function fit(){ var k = Math.min(innerWidth / 1920, innerHeight / 1080) || 1; stage.style.transform = "scale(" + k + ")"; }
+  fit(); addEventListener("resize", fit);
+
+  // background sparkles and floating tickets
+  (function(){
+    var fx = $("fx"), cols = ["#FFFBF3","#FFD34E","#F7931E","#9FB4FF"];
+    for (var i = 0; i < 60; i++){ var d = document.createElement("div"); d.className = "spark"; d.style.left = Math.random() * 1920 + "px"; d.style.top = Math.random() * 1080 + "px"; d.style.setProperty("--d", (4 + Math.random() * 6).toFixed(1) + "s"); d.style.animationDelay = (-Math.random() * 8).toFixed(1) + "s"; fx.appendChild(d); }
+    for (var j = 0; j < 12; j++){ var f = document.createElement("div"); f.className = "flo"; var dur = 30 + Math.random() * 25;
+      f.innerHTML = '<svg width="64" height="38" viewBox="0 0 64 38"><path d="M4 2h56a2 2 0 0 1 2 2v9a6 6 0 0 0 0 12v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a6 6 0 0 0 0-12V4a2 2 0 0 1 2-2z" fill="' + cols[j % 4] + '"/></svg>';
+      f.style.left = Math.random() * 1880 + "px"; f.style.setProperty("--r0", (Math.random() * 40 - 20) + "deg"); f.style.setProperty("--r1", (Math.random() * 160 - 80) + "deg");
+      f.style.setProperty("--op", (.08 + Math.random() * .12).toFixed(2)); f.style.animationDuration = dur.toFixed(1) + "s"; f.style.animationDelay = (-Math.random() * dur).toFixed(1) + "s"; fx.appendChild(f); }
+  })();
+
+  $("date").textContent = new Date().toLocaleDateString([], { weekday:"long", month:"long", day:"numeric" });
+
+  var state = { quotes:DEFAULT_QUOTES, pin:-1, welcome:"" }, qi = Math.floor(Math.random() * DEFAULT_QUOTES.length), shownQuote = "";
+  function showQuote(x){
+    var key = x.q + "|" + x.by; if (key === shownQuote) return; shownQuote = key;
+    var b = $("qBody"); b.classList.add("fade");
+    setTimeout(function(){ $("qText").textContent = x.q; $("qBy").textContent = x.by ? "\u2014 " + x.by : ""; b.classList.remove("fade"); }, 900);
+  }
+  function pickQuote(){
+    var qs = state.quotes;
+    if (state.pin >= 0 && state.pin < qs.length) return showQuote(qs[state.pin]);
+    showQuote(qs[qi % qs.length]);
+  }
+  setInterval(function(){ if (!(state.pin >= 0)) { qi++; pickQuote(); } }, 60000);
+
+  var ci = 0;
+  setInterval(function(){ var x = $("cText"); x.classList.add("fade"); setTimeout(function(){ x.textContent = CHAT[++ci % CHAT.length]; x.classList.remove("fade"); }, 500); }, 15000);
+
+  function loadState(){
+    get(KEY).then(function(s){
+      var pv = $("pv"); if (pv) pv.textContent = "Preview: connected to Upstash. Remove &preview for IRLToolkit.";
+      if (s){ state.quotes = s.quotes && s.quotes.length ? s.quotes : DEFAULT_QUOTES; state.pin = typeof s.pin === "number" ? s.pin : -1; state.welcome = s.welcome || ""; }
+      if (!welcomed.length) $("wNames").textContent = state.welcome || "Thanks for being here. The fun starts any minute.";
+      pickQuote();
+    }).catch(function(e){ var pv = $("pv"); if (pv) pv.textContent = "Preview: can't reach Upstash (" + e.message + "). Check the token."; pickQuote(); });
+  }
+  function loadPark(){
+    get("itpd_parkoverlay_state_2026").then(function(s){
+      var v = s && typeof s.venue === "number" ? VENUES[s.venue] : null;
+      document.documentElement.style.setProperty("--park", v ? v[2] : "#22306B");
+      $("code").textContent = v ? v[0] : "ITPD"; $("park").textContent = v ? "Today: " + v[1] : "Today's park day";
+    }).catch(function(){});
+  }
+  // Daze Bot welcomes: names of people greeted since this scene loaded
+  var welcomed = [], seen = {}, loadedAt = Date.now();
+  function loadWelcomes(){
+    get("itpd_bot_cards_2026").then(function(d){
+      var added = false;
+      (d && d.items || []).forEach(function(c){
+        if (seen[c.id]) return; seen[c.id] = 1;
+        if (c.at < loadedAt - 5000) return;
+        var names = c.people ? c.people.map(function(p){ return p.name; }) : [c.name];
+        names.forEach(function(n){ if (n && welcomed.indexOf(n) < 0){ welcomed.push(n); added = true; } });
+      });
+      if (added){
+        var last = welcomed.slice(-4);
+        $("wK").textContent = "WELCOME IN!";
+        var x = $("wNames"); x.classList.add("fade");
+        setTimeout(function(){ x.textContent = last.join(", ") + (welcomed.length > 4 ? " +" + (welcomed.length - 4) : ""); x.classList.remove("fade"); }, 500);
+      }
+    }).catch(function(){});
+  }
+  if (H.has("preview")){ var pv = document.createElement("div"); pv.id = "pv"; pv.style.cssText = "position:fixed;left:12px;top:10px;z-index:9;color:#fff;font:15px/1.4 system-ui,sans-serif;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:8px"; pv.textContent = "Preview: connecting..."; document.body.appendChild(pv); }
+  loadState(); loadPark(); loadWelcomes();
+  setInterval(loadState, 5000); setInterval(loadPark, 30000); setInterval(loadWelcomes, 3000);
+})();
+</script>
+</body>
+</html>
