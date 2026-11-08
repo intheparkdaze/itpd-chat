@@ -154,9 +154,6 @@ button{font:inherit;color:inherit}
     <div class="lamp link down" id="lampLink"><b>Relay</b><span id="linkTxt">Not connected</span></div>
     <div class="lamp" id="lamp-youtube" title="YouTube"><b><i class="ptag youtube">YT</i></b><span>No chat yet</span></div>
     <div class="lamp" id="lamp-twitch" title="Twitch"><b><i class="ptag twitch">TW</i></b><span>No chat yet</span></div>
-    <div class="lamp" id="lamp-tiktok" title="TikTok"><b><i class="ptag tiktok">TT</i></b><span>No chat yet</span></div>
-    <div class="lamp" id="lamp-facebook" title="Facebook"><b><i class="ptag facebook">FB</i></b><span>No chat yet</span></div>
-    <div class="lamp" id="lamp-instagram" title="Instagram"><b><i class="ptag instagram">IG</i></b><span>No chat yet</span></div>
     <button class="menu" id="openSettings" aria-label="Settings">⚙</button>
   </div>
   <div class="ticker" id="ticker" aria-label="Live counts"></div>
@@ -268,7 +265,7 @@ button{font:inherit;color:inherit}
     <label for="ytvidmanual">Live video link (only if it doesn’t find the stream)</label>
     <input type="text" id="ytvidmanual" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Leave empty to find it automatically">
     <h3>What to show</h3>
-    <label class="check"><input type="checkbox" id="showGifts"> Show TikTok gifts</label>
+    <input type="checkbox" id="showGifts" hidden>
     <label class="check"><input type="checkbox" id="showGone" checked> Show deleted messages crossed out</label>
     <label class="check"><input type="checkbox" id="wake"> Keep the screen on while this page is open</label>
     <div class="row">
@@ -321,7 +318,7 @@ button{font:inherit;color:inherit}
 
   var ws = null, retry = 0, retryTimer = null, wantOpen = false;
   var downSince = null, lastPacket = 0, connectedOnce = false, hiddenAt = 0;
-  var lastByPlat = { youtube:0, twitch:0, tiktok:0, facebook:0, instagram:0 };
+  var lastByPlat = { youtube:0, twitch:0 };
   var counters = {};                // "youtube.viewers" -> {v, ts}
   var recorderSeen = 0;
   var seenKeys = new Set(), seenOrder = [];
@@ -350,7 +347,7 @@ button{font:inherit;color:inherit}
   // ---------- status strip + ticker ----------
   function paintLamps(){
     var now = Date.now();
-    ["youtube","twitch","tiktok","facebook","instagram"].forEach(function(p){
+    ["youtube","twitch"].forEach(function(p){
       var el = $("lamp-"+p), t = lastByPlat[p];
       el.classList.remove("fresh","aging","stale");
       var vtxt = "";   // 11/07: viewer counts only in the counts row below, not repeated here
@@ -369,7 +366,7 @@ button{font:inherit;color:inherit}
   function paintTicker(){
     var t = $("ticker"), now = Date.now(), html = [];
     t.textContent = "";
-    var defs = [["youtube","YT"],["twitch","TW"],["tiktok","TT"],["facebook","FB"],["instagram","IG"]];
+    var defs = [["youtube","YT"],["twitch","TW"]];
     var labels = { viewers:"👁", likes:"👍", subs:"subs", followers:"followers" };
     var anyCount = false;
     defs.forEach(function(d){
@@ -401,7 +398,11 @@ button{font:inherit;color:inherit}
   }
   setInterval(paintLamps, 5000);
 
+  // 11/08: TikTok, Facebook and Instagram are dropped (Michael's decision); anything that
+  // still arrives from them is ignored everywhere on this page.
+  var DROPPED = { tiktok:1, facebook:1, instagram:1 };
   function setCounter(plat, kind, v, ts){
+    if (DROPPED[plat]) return;
     if (typeof v !== "number" || !isFinite(v)) { v = parseInt(v, 10); if (!isFinite(v)) return; }
     var k = plat + "." + kind, old = counters[k];
     if (old && old.ts > ts) return;
@@ -528,14 +529,21 @@ button{font:inherit;color:inherit}
   function thanksFor(m){
     if (platOf(m) === "twitch") return (TW_THANKS[twKind(m)] || TW_THANKS.other).replace("{name}", handleOf(m.chatname));
     var ev = String(m.event || "");
+    if (ev === "jeweldonation") return "Thank you so much for the " + giftName(m) + ", " + handleOf(m.chatname) + "! \ud83d\udc9b";   // 11/08: the gift, not "the Jewels"
     var t = THANKS[ev] || (m.hasDonation ? THANKS.superchat : THANKS.other);
     return t.replace("{name}", handleOf(m.chatname));
+  }
+  // The gift's own name, e.g. "Star" from "Star for 2 Jewels" (same rule as the Daze Bot).
+  function giftName(m){
+    var sub = String(m.subtitle || m.chatmessage || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    var g = sub.replace(/\s*(?:for|x|\u00d7)?\s*[\d,]+\s*jewels?\b.*$/i, "").replace(/^(?:sent|gave)\s+(?:a|an)?\s*/i, "").trim();
+    return (g && !/jewel/i.test(g) && g.length <= 40) ? g : "gift";
   }
   function whatFor(m){
     if (platOf(m) === "twitch"){ var k = twKind(m); return k === "gift" ? "the gifted subs" : k === "resub" ? "the resub" : k === "sub" ? "the sub" : k === "bits" ? "the bits" : ""; }
     var ev = String(m.event || "");
     return ev === "giftpurchase" ? "the gifted memberships" : ev === "sponsorship" ? "becoming a member" : ev === "membermilestone" ? "the membership milestone"
-         : ev === "jeweldonation" ? "the Jewels" : ev === "supersticker" ? "the Super Sticker" : m.hasDonation ? "the Super Chat" : "";
+         : ev === "jeweldonation" ? "the " + giftName(m) : ev === "supersticker" ? "the Super Sticker" : m.hasDonation ? "the Super Chat" : "";
   }
 
   // 11/04: plat "twitch" posts in Twitch chat through the same Chat Poster's Twitch
@@ -546,10 +554,11 @@ button{font:inherit;color:inherit}
     var url = cfg("purl"), key = cfg("pkey");
     if (!url || !key){ tell("To post in " + where + " from here, add the Chat Poster URL and bot key in \u2699."); return; }
     if (!tries) note("Posting in " + where + ": " + text, "", Date.now());
-    var body = plat === "twitch" ? { key:key, action:"twitch", text:text } : { key:key, text:text, source:"manual" };
+    var body = plat === "twitch" ? { key:key, action:"twitch", text:text } : { key:key, action:"post", text:text, source:"manual" };
     fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(body), redirect:"follow", cache:"no-store" })
       .then(function(r){ return r.json(); })
       .then(function(j){
+        if (j && j.ok && plat === "twitch" && j.via !== "twitch"){ note("That went to YouTube, not Twitch: your Chat Poster is out of date. Deploy \u2192 Manage deployments \u2192 edit \u2192 New version.", "gap", Date.now()); return; }
         if (j && j.ok){ note("Posted in " + where + ".", "", Date.now()); return; }
         var why = (j && j.reason) || "unknown answer";
         if (j && j.retry && tries < 12){ diag("Chat post waiting (" + why + ")"); setTimeout(function(){ postToChat(text, tries + 1, plat); }, 5000); return; }
@@ -593,6 +602,7 @@ button{font:inherit;color:inherit}
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (!j || !j.ok){ tell("Couldn\u2019t " + (op === "delete" ? "remove the message" : op === "timeout" ? "time out " + name : "ban " + name) + ": " + ((j && j.reason) || "no answer")); return; }
+        if (!j.op){ tell("Your Chat Poster is out of date: it doesn\u2019t know how to remove messages and may have posted the text instead. In the Chat Poster project: Deploy \u2192 Manage deployments \u2192 edit \u2192 New version \u2192 Deploy."); return; }
         note(op === "delete" ? "Message from " + name + " removed." : op === "timeout" ? name + " timed out for 5 minutes." : name + " banned from chat.", "", Date.now());
         if (op === "delete") markDeleted({ type:m.type, id:m.id });
       })
@@ -684,11 +694,46 @@ button{font:inherit;color:inherit}
       return text.replace(/\{likes\}/g, String(live.likes)).replace(/\{nextgoal\}/g, String(best + g.step));
     }).catch(function(){ return text; });
   }
+  // 11/08: quick messages are grouped by topic. The panel shows topic buttons first; a
+  // topic opens its messages. Each message's topic is chosen in Edit list (saved as "cat");
+  // messages without one get a sensible topic from what they are.
+  var QCATS = ["Welcome & hosting", "Likes & subs", "Links & schedule", "Rules & safety", "Fun & commands", "Bot replies", "Other"];
+  var QCAT_EMOJI = { "Welcome & hosting":"\ud83d\udc4b", "Likes & subs":"\ud83d\udc4d", "Links & schedule":"\ud83d\udd17", "Rules & safety":"\ud83d\udcdc", "Fun & commands":"\ud83c\udfb2", "Bot replies":"\ud83e\udd16", "Other":"\ud83d\udcac" };
+  var quickCat = null;
+  function catOf(it){
+    if (it.cat && QCATS.indexOf(it.cat) >= 0) return it.cat;
+    var id = String(it.id || ""), cmd = String(it.cmd || ""), b = it.builtin || "";
+    if (b === "modsonly" || b === "subthanks" || /^thx_/.test(b)) return "Bot replies";
+    if (b || (it.lines && it.lines.length) || cmd === "help" || cmd === "mirror") return "Fun & commands";
+    if (/^(like|likes|sub|subs|subscribe|support|members?)$/.test(cmd) || /^(like|sub|support)/.test(id)) return "Likes & subs";
+    if (/^(discord|merch|links|schedule|socials?)$/.test(cmd) || /^(discord|merch|links|schedule)/.test(id)) return "Links & schedule";
+    if (/^(rules|family|safety)$/.test(cmd) || /^(rules|family)/.test(id)) return "Rules & safety";
+    if (/^(welcome|newhere|ride|night|hello|hi|bye)/.test(id) || /^(welcome|hi|bye)$/.test(cmd)) return "Welcome & hosting";
+    return "Other";
+  }
   function paintQuick(){
     var box = $("quickList"); box.textContent = "";
     $("quickEdit").textContent = quickEditing ? "Cancel editing" : "Edit list";
     $("quickAdd").style.display = $("quickSave").style.display = quickEditing ? "" : "none";
+    if (!quickEditing && quickCat === null){
+      QCATS.forEach(function(c){
+        var n = quick.items.filter(function(it){ return catOf(it) === c; }).length;
+        if (!n) return;
+        var b = document.createElement("button"); b.className = "qb";
+        b.textContent = QCAT_EMOJI[c] + "  " + c;
+        var sm = document.createElement("small"); sm.textContent = n + " message" + (n === 1 ? "" : "s"); b.appendChild(sm);
+        b.addEventListener("click", function(){ quickCat = c; paintQuick(); box.scrollTop = 0; });
+        box.appendChild(b);
+      });
+      return;
+    }
+    if (!quickEditing){
+      var back = document.createElement("button"); back.className = "qb";
+      back.textContent = "\u25c0  All topics"; back.addEventListener("click", function(){ quickCat = null; paintQuick(); });
+      box.appendChild(back);
+    }
     quick.items.forEach(function(it, i){
+      if (!quickEditing && catOf(it) !== quickCat) return;
       if (!quickEditing){
         var b = document.createElement("button"); b.className = "qb";
         var acc = accessOf(it);
@@ -706,12 +751,14 @@ button{font:inherit;color:inherit}
                       '<textarea data-f="text" maxlength="200" placeholder="Message"></textarea>' +
                       '<textarea data-f="alt" maxlength="200" placeholder="Alternative wording (optional: the two take turns)"></textarea>' +
                       '<textarea data-f="lines" placeholder="Random lines (optional, one per line): the command picks one each time; use {line} in the message"></textarea>' +
+                      '<label class="small" style="display:block;margin-top:6px">Topic <select data-f="cat">' + QCATS.map(function(c){ return '<option>' + c + '</option>'; }).join("") + '</select></label>' +
                       '<label class="small" style="display:block;margin-top:6px">Who can use the command <select data-f="access"><option value="everyone">Everyone</option><option value="mods">Mods</option><option value="host">Only us</option></select></label>' +
                       (it.builtin ? '<div class="small" style="margin-top:4px">' + builtinHint(it.builtin) + '</div>' : '') +
                       '<button class="btn" data-del style="margin-top:6px">Delete</button>';
         ["emoji","label","cmd","text","alt"].forEach(function(f){ d.querySelector('[data-f="' + f + '"]').value = it[f] || ""; });
         d.querySelector('[data-f="lines"]').value = (it.lines || []).join("\n");
         d.querySelector('[data-f="access"]').value = accessOf(it);
+        d.querySelector('[data-f="cat"]').value = catOf(it);
         if (it.builtin){ d.querySelector('[data-f="alt"]').style.display = "none"; d.querySelector('[data-f="lines"]').style.display = "none"; if (it.builtin === "wait") d.querySelector('[data-f="text"]').style.display = "none"; }
         d.querySelectorAll("[data-f]").forEach(function(inp){
           function upd(){ var f = inp.dataset.f;
@@ -802,7 +849,7 @@ button{font:inherit;color:inherit}
     });
   }
   function openQuick(){
-    quickEditing = false; paintQuick(); $("quick").classList.add("open");
+    quickEditing = false; quickCat = null; paintQuick(); $("quick").classList.add("open");
     loadQuick().then(function(){ if (!quickEditing) paintQuick(); });
   }
   function closeQuick(){ $("quick").classList.remove("open"); quickEditing = false; }
@@ -898,12 +945,23 @@ button{font:inherit;color:inherit}
     b.addEventListener("click", fn); $("venueList").appendChild(b);
   }
   function poHeader(t){ var h = document.createElement("div"); h.className = "vg"; h.textContent = t; $("venueList").appendChild(h); }
+  // 11/08: groups first (Disney Parks, Events, Springs, Universal, Resorts, Transit,
+  // Custom Ticket); a group opens its places. The group you're in is outlined.
   function poMain(){
     $("venueBack").style.display = "none"; $("venueList").textContent = "";
     $("venueNow").textContent = poState ? "Now: " + poDescribe(poState) : "";
-    var curV = poState ? (poState.venue || 0) : -1, lastGroup = "";
+    var curV = poState ? (poState.venue || 0) : -1, cur = poCat.venues[curV], groups = [];
+    poCat.venues.forEach(function(v){ if (groups.indexOf(v.group) < 0) groups.push(v.group); });
+    groups.forEach(function(g){
+      var n = poCat.venues.filter(function(v){ return v.group === g; }).length;
+      poButton(g, n + (n === 1 ? " place" : " places"), cur && cur.group === g, function(){ poGroup(g); });
+    });
+  }
+  function poGroup(g){
+    $("venueBack").style.display = ""; $("venueList").textContent = ""; poHeader(g);
+    var curV = poState ? (poState.venue || 0) : -1;
     poCat.venues.forEach(function(v){
-      if (v.group !== lastGroup){ poHeader(v.group); lastGroup = v.group; }
+      if (v.group !== g) return;
       var label = v.kind === "custom" && poState && poState.custom && poState.custom.name ? poState.custom.name : v.name;
       poButton(label, v.kind === "custom" ? "custom ticket" : v.code, v.i === curV, function(){ poPick(v); });
     });
@@ -1179,6 +1237,7 @@ button{font:inherit;color:inherit}
 
   // Returns true if a new chat row was added
   function handle(obj, ts, fromBackfill){
+    if (obj && DROPPED[platOf(obj)]) return false;
     if (!obj || typeof obj !== "object") return false;
     if (Array.isArray(obj)){ var n = false; obj.forEach(function(o){ if (handle(o, ts, fromBackfill)) n = true; }); return n; }
     if (obj.overlayNinja) return handle(obj.overlayNinja, ts, fromBackfill);

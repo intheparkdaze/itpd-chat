@@ -114,6 +114,19 @@
   #subbar{position:fixed;left:16px;bottom:140px;width:420px;display:flex;background:var(--paper);border-radius:14px;overflow:hidden;
     box-shadow:0 10px 28px rgba(0,0,0,.38);opacity:0;transition:opacity .6s,box-shadow .6s;transform:scale(var(--scale,1));transform-origin:bottom left}
   #subbar.on{opacity:1}
+  /* Twitch follower goal bar (Stream Engineering 11/08; Broadcast UI/UX to restyle, keep the ids):
+     slim like the docked subscriber bar, in Twitch purple, sits under it */
+  #twbar{position:fixed;right:16px;top:16px;min-width:330px;display:flex;background:var(--paper);border-radius:14px;overflow:hidden;
+    box-shadow:0 10px 28px rgba(0,0,0,.38);opacity:0;transition:opacity .6s,top .4s}
+  #twbar.on{opacity:1}
+  #twbar .tstub{width:12px;flex-shrink:0;background:#7A3FF0;border-right:3px dashed rgba(255,255,255,.45)}
+  #twbar .tbody{flex:1;min-width:0;padding:6px 12px 7px 10px;display:flex;align-items:center;gap:10px}
+  #twbar .t{font-weight:800;font-size:17px;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;flex-shrink:0}
+  #twbar .t small{font-size:13px;font-weight:700;color:var(--muted);margin-left:3px}
+  #twbar .bar{flex:1;height:8px;border-radius:5px;background:#EDE5D6;overflow:hidden}
+  #twbar .fill{height:100%;width:0;border-radius:5px;transition:width 1.2s ease;background:repeating-linear-gradient(135deg,#7A3FF0 0 10px,#5B2BC4 10px 20px)}
+  #twbar.done{box-shadow:0 0 0 3px var(--gold),0 10px 28px rgba(0,0,0,.38)}
+  #twbar.done .fill{background:linear-gradient(90deg,var(--gold),#F7931E)}
   body.sub-topleft #subbar{bottom:auto;top:16px;transform-origin:top left}
   body.sub-topright #subbar{bottom:auto;top:16px;left:auto;right:16px;transform-origin:top right}
   body.sub-bottomright #subbar{left:auto;right:16px;transform-origin:bottom right}
@@ -213,6 +226,9 @@
     <div class="viewers" id="viewers"></div>
   </div>
 </div>
+<div id="twbar" aria-hidden="true"><div class="tstub"></div><div class="tbody">
+  <div class="t"><span id="twNow">0</span> / <span id="twGoal">100</span><small>Twitch follows</small></div>
+  <div class="bar"><div class="fill" id="twFill"></div></div></div></div>
 <div id="subbar" aria-hidden="true">
   <div class="sstub"><span>SUB GOAL</span></div>
   <div class="sbody">
@@ -620,7 +636,7 @@
         }, 1500);
         return;
       }
-      poll(); setInterval(poll, 60000);
+      poll(); setInterval(poll, 20000);   // 11/08: likes checked every 20 s (was once a minute; mods saw the count lag)
       pollSubs(); setInterval(pollSubs, SUBGOAL ? 30000 : 300000);
     }).catch(function(e){ console.warn("records start:", e.message); setTimeout(start, 15000); });
   }
@@ -715,6 +731,45 @@
   }
   pollHype(); setInterval(pollHype, 3000);
   if (H.has("hype")) setTimeout(playHype, 3000);
+})();
+</script>
+<script>
+/* Stream Engineering, 2026-11-08: Twitch follower goal bar. &twgoal=200 turns it on
+   (&twstep=50: the next goal after one is reached). The Daze Bot reads the channel's
+   Twitch follower total through the bot's Chat Poster once a minute (while "Also answer
+   Twitch chat" is ticked) and saves it to itpd_twitch_followers_2026; this reads it every
+   30 s. It docks under the YouTube subscriber bar (or the like counter). */
+(function(){
+  var H = new URLSearchParams(location.hash.slice(1));
+  var GOAL = parseInt(H.get("twgoal"), 10) || 0, STEP = parseInt(H.get("twstep"), 10) || 50;
+  if (!GOAL) return;
+  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
+  var bar = document.getElementById("twbar"), sub = document.getElementById("subbar"), chip = document.getElementById("chip");
+  var fmt = function(n){ return Number(n).toLocaleString("en-US"); };
+  function paint(count){
+    var goal = GOAL, just = 0;
+    while (count >= goal){ just = goal; goal += STEP; }
+    var show = just && count - just < 5 ? just : goal;          // stay on a reached goal briefly
+    document.getElementById("twNow").textContent = fmt(count);
+    document.getElementById("twGoal").textContent = fmt(show);
+    document.getElementById("twFill").style.width = Math.min(100, Math.round(count * 100 / show)) + "%";
+    bar.classList.toggle("done", count >= show);
+    bar.classList.add("on");
+  }
+  function poll(){
+    if (H.has("test")) { paint(GOAL - 7); return; }
+    fetch(URL_ + "/get/itpd_twitch_followers_2026", { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ var v = j && j.result ? JSON.parse(j.result) : null; if (v && v.count >= 0 && Date.now() - v.at < 600000) paint(v.count); })
+      .catch(function(){});
+  }
+  function dock(){
+    var ref = sub && sub.classList.contains("on") ? sub : (chip && chip.classList.contains("on") ? chip : null);
+    var r = ref ? ref.getBoundingClientRect() : null;
+    if (r && r.height > 0){ bar.style.top = Math.round(r.bottom + 8) + "px"; bar.style.right = Math.round(innerWidth - r.right) + "px"; bar.style.width = Math.round(r.width) + "px"; }
+    else { bar.style.top = "16px"; bar.style.right = "16px"; bar.style.width = ""; }
+  }
+  poll(); setInterval(poll, 30000); dock(); setInterval(dock, 500);
 })();
 </script>
 </body>
