@@ -35,6 +35,28 @@
   var COUNTER_EVENTS = { viewer_update:"viewers", likes_update:"likes", subscriber_update:"subs", follower_update:"followers" };
   var SKIP = { joined:1, liked:1, reaction:1, shared:1, envelope:1, view_update:1, hype_train:1, ad_break:1, ad_request:1, ad_schedule:1 };
 
+  // 11/08: "In chat today" roster for the phone's welcome list. Everyone who chats on
+  // YouTube or Twitch is added once per stream day (Eastern time, with the day running
+  // until 4 AM so a late stream stays one list). Upstash hash itpd_chat_roster_2026_<day>,
+  // field "<platform>:<name>", value {n, p, t, img}; kept 3 days.
+  var ROSTER_PREFIX = "itpd_chat_roster_2026_", ROSTER_TTL = 259200;
+  var SELF = { "itpd.dazebot":1, "itpd_dazebot":1, "dazebot":1, "intheparkdaze":1, "in the park daze":1 };
+  function streamDay(){
+    var d = new Date(Date.now() - 4 * 3600000);
+    return new Intl.DateTimeFormat("en-CA", { timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit" }).format(d);
+  }
+  var rosterSeen = {}, rosterNew = [], rosterDay = "";
+  function noteChatter(obj){
+    var plat = platOf(obj.type);
+    if (plat !== "youtube" && plat !== "twitch") return;
+    var n = String(obj.chatname || "").trim(); if (!n) return;
+    var low = n.replace(/^@/, "").toLowerCase(); if (SELF[low]) return;
+    var day = streamDay(); if (day !== rosterDay){ rosterDay = day; rosterSeen = {}; }
+    var k = plat + ":" + low; if (rosterSeen[k]) return;
+    rosterSeen[k] = 1;
+    rosterNew.push({ day:day, k:k, v:JSON.stringify({ n:n, p:plat, t:Date.now(), img:obj.chatimg || "" }) });
+  }
+
   var queue = [], counters = {}, ws = null, retry = 0, lastWrite = 0, lastPacket = 0, flushes = 0, failing = false, busy = false;
   var s = document.getElementById("s");
   function status(t){ s.textContent = "Recorder: " + t; }
@@ -61,15 +83,18 @@
     }
     if (typeof ev === "string" && SKIP[ev]) return;
     if (!obj.chatname && !obj.chatmessage && !obj.hasDonation && !obj.contentimg) return;
+    if (obj.chatname && (obj.chatmessage || obj.hasDonation) && (!ev || ev === "superchat" || ev === "action")) noteChatter(obj);
     queue.push({ ts:now, m:obj });
     if (queue.length > 1000) queue.splice(0, queue.length - 1000);   // if Upstash is down, keep the newest
   }
 
   function flush(force){
     if (busy) return;
-    var cmds = [], batch = queue.slice(0, 100), cKeys = Object.keys(counters);
+    var cmds = [], batch = queue.slice(0, 100), cKeys = Object.keys(counters), roster = rosterNew.slice(0, 50);
+    roster.forEach(function(r){ cmds.push(["HSETNX", ROSTER_PREFIX + r.day, r.k, r.v]); });
+    if (roster.length) cmds.push(["EXPIRE", ROSTER_PREFIX + roster[0].day, String(ROSTER_TTL)]);
     var heartbeat = force || Date.now() - lastWrite >= HEARTBEAT_MS;
-    if (!batch.length && !cKeys.length && !heartbeat) return;
+    if (!batch.length && !cKeys.length && !roster.length && !heartbeat) return;
     if (batch.length){
       cmds.push(["LPUSH", BUFFER_KEY].concat(batch.map(function(e){ return JSON.stringify(e); })));
       cmds.push(["LTRIM", BUFFER_KEY, "0", String(KEEP - 1)]);
@@ -84,7 +109,7 @@
       .then(function(res){
         var err = Array.isArray(res) && res.filter(function(x){ return x && x.error; })[0];
         if (err) throw new Error(err.error);
-        queue.splice(0, batch.length);
+        queue.splice(0, batch.length); rosterNew.splice(0, roster.length);
         cKeys.forEach(function(k){ delete counters[k]; });
         flushes++; lastWrite = Date.now(); failing = false;
       })

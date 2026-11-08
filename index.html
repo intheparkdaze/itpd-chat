@@ -96,6 +96,22 @@ button{font:inherit;color:inherit}
 .note{text-align:center;font-size:.82rem;color:var(--muted);padding:10px 4px}
 .note.gap{color:var(--warn);font-weight:600}
 #quickBtn{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--gold);color:#1b1830;font-size:1.6rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#rosterFab{position:fixed;right:148px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:#e0902a;color:#fff;font-size:1.5rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#rosterFab b{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--bad);color:#fff;font-size:.8rem;line-height:22px;display:none}
+#rosterFab b.on{display:block}
+#roster{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#roster.open{display:flex}
+#roster .card{max-height:88vh;display:flex;flex-direction:column}
+#roster h2{font-size:1.05rem;margin:0 0 4px}
+#rosterSum{font-weight:700;margin-bottom:6px}
+#rosterList{overflow:auto;flex:1;margin:4px 0}
+#rosterList label{display:flex;align-items:center;gap:12px;padding:10px 6px;border-bottom:1px solid var(--line);font-size:1.1rem;font-weight:700}
+#rosterList input{width:28px;height:28px;flex-shrink:0}
+#rosterList label.done{opacity:.45;font-weight:400}
+#rosterList label.done .rn{text-decoration:line-through}
+#rosterList .rn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rosterList small{font-weight:400;color:var(--muted);font-size:.75rem;white-space:nowrap}
+#rosterList .sep{padding:10px 6px 4px;font-size:.78rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border:0}
 #venueFab{position:fixed;right:82px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:var(--ok);color:#fff;font-size:1.5rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
 #venue{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #venue.open{display:flex}
@@ -163,6 +179,15 @@ button{font:inherit;color:inherit}
 <button id="jump">Jump to newest</button>
 <button id="quickBtn" aria-label="Quick messages">&#x26A1;</button>
 <button id="venueFab" aria-label="Where we are">&#x1F4CD;</button>
+<button id="rosterFab" aria-label="In chat today">&#x1F44B;<b id="rosterBadge"></b></button>
+<div id="roster" role="dialog" aria-modal="true" aria-labelledby="rosterTitle">
+  <div class="card">
+    <h2 id="rosterTitle">&#x1F44B; In chat today</h2>
+    <div id="rosterSum">Loading&hellip;</div>
+    <div id="rosterList"></div>
+    <div class="row"><button class="btn" id="rosterClose">Close</button></div>
+  </div>
+</div>
 
 <div id="venue" role="dialog" aria-modal="true" aria-labelledby="venueTitle">
   <div class="card">
@@ -900,6 +925,77 @@ button{font:inherit;color:inherit}
       .catch(function(e){ hypeAt = 0; $("hypeBtn").disabled = false; tell("Race to 2K not sent: " + e.message); });
   });
 
+  // ---------- 11/08: "In chat today": everyone who has chatted this stream, once each ----------
+  // The recorder in IRLToolkit adds every new YouTube/Twitch chatter to Upstash (and this page
+  // does too for chats it sees, in case the recorder isn't running). Tick a name once you've
+  // welcomed them; ticks are shared (Laura's phone sees them too) and last the whole stream.
+  // Not-yet-welcomed people stay at the top, oldest first; the 👋 button shows how many.
+  var ROSTER_PREFIX = "itpd_chat_roster_2026_", WELCOMED_PREFIX = "itpd_chat_welcomed_2026_", rosterTimer = null, rosterSeenHere = {};
+  var ROSTER_SELF = { "itpd.dazebot":1, "itpd_dazebot":1, "dazebot":1, "intheparkdaze":1, "in the park daze":1 };
+  function streamDay(){
+    return new Intl.DateTimeFormat("en-CA", { timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(Date.now() - 4 * 3600000));
+  }
+  function hashToObj(arr){ var o = {}; for (var i = 0; arr && i < arr.length; i += 2) o[arr[i]] = arr[i + 1]; return o; }
+  function rosterLoad(){
+    var day = streamDay();
+    return Promise.all([upstash("/hgetall/" + ROSTER_PREFIX + day), upstash("/hgetall/" + WELCOMED_PREFIX + day)]).then(function(r){
+      var people = [], done = hashToObj(r[1]);
+      var raw = hashToObj(r[0]);
+      Object.keys(raw).forEach(function(k){ var v = null; try { v = JSON.parse(raw[k]); } catch(e){} if (v) people.push({ k:k, n:v.n, p:v.p, t:v.t || 0, done:!!done[k] }); });
+      return people;
+    });
+  }
+  function rosterBadge(people){
+    var left = people.filter(function(x){ return !x.done; }).length;
+    $("rosterBadge").textContent = left > 99 ? "99+" : String(left);
+    $("rosterBadge").classList.toggle("on", left > 0);
+  }
+  function rosterPaint(people){
+    rosterBadge(people);
+    var todo = people.filter(function(x){ return !x.done; }).sort(function(a, b){ return a.t - b.t; });
+    var done = people.filter(function(x){ return x.done; }).sort(function(a, b){ return a.n.toLowerCase() < b.n.toLowerCase() ? -1 : 1; });
+    $("rosterSum").textContent = people.length ? people.length + (people.length === 1 ? " person" : " people") + " have chatted \u00b7 " + todo.length + " still to welcome" : "Nobody has chatted yet today.";
+    var box = $("rosterList"), keep = box.scrollTop; box.textContent = "";
+    function row(x){
+      var l = document.createElement("label"); if (x.done) l.className = "done";
+      var c = document.createElement("input"); c.type = "checkbox"; c.checked = x.done;
+      var tag = document.createElement("i"); tag.className = "ptag " + x.p; tag.textContent = x.p === "twitch" ? "TW" : "YT";
+      var nm = document.createElement("span"); nm.className = "rn"; nm.textContent = x.n;
+      var when = document.createElement("small"); when.textContent = x.t ? new Date(x.t).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "";
+      c.addEventListener("change", function(){ x.done = c.checked; rosterTick(x.k, c.checked); rosterPaint(people); });
+      l.appendChild(c); l.appendChild(tag); l.appendChild(nm); l.appendChild(when); box.appendChild(l);
+    }
+    todo.forEach(row);
+    if (done.length){ var sp = document.createElement("div"); sp.className = "sep"; sp.textContent = "Welcomed (" + done.length + ")"; box.appendChild(sp); done.forEach(row); }
+    box.scrollTop = keep;
+  }
+  function rosterTick(k, on){
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
+    if (!url || !tok){ tell("To tick names, add the Upstash URL and the alerts token in \u2699."); return; }
+    var key = WELCOMED_PREFIX + streamDay();
+    fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
+      body: JSON.stringify(on ? [["HSET", key, k, "1"], ["EXPIRE", key, "259200"]] : [["HDEL", key, k]]) }).catch(function(){});
+  }
+  // chats this page sees are added too (only once each per day)
+  function rosterNote(m){
+    var plat = platOf(m); if (plat !== "youtube" && plat !== "twitch") return;
+    var n = String(m.chatname || "").trim(), low = n.replace(/^@/, "").toLowerCase();
+    if (!n || ROSTER_SELF[low]) return;
+    var day = streamDay(), k = plat + ":" + low;
+    if (rosterSeenHere[day + k]) return; rosterSeenHere[day + k] = 1;
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok"); if (!url || !tok) return;
+    fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
+      body: JSON.stringify([["HSETNX", ROSTER_PREFIX + day, k, JSON.stringify({ n:n, p:plat, t:Date.now() })], ["EXPIRE", ROSTER_PREFIX + day, "259200"]]) }).catch(function(){});
+  }
+  function rosterRefresh(){ return rosterLoad().then(function(p){ if ($("roster").classList.contains("open")) rosterPaint(p); else rosterBadge(p); }).catch(function(){}); }
+  $("rosterFab").addEventListener("click", function(){
+    $("roster").classList.add("open"); $("rosterSum").textContent = "Loading\u2026";
+    rosterRefresh(); clearInterval(rosterTimer); rosterTimer = setInterval(rosterRefresh, 8000);
+  });
+  $("rosterClose").addEventListener("click", function(){ $("roster").classList.remove("open"); clearInterval(rosterTimer); rosterRefresh(); });
+  setInterval(function(){ if (!$("roster").classList.contains("open")) rosterRefresh(); }, 20000);
+  setTimeout(rosterRefresh, 2500);
+
   // ---------- 11/06: Where we are (the park overlay's venue, land, transport) ----------
   // Uses the catalog the park overlay publishes (same venues, lines and colours, same order),
   // writes the overlay's state like its own editor does, and the "where we are" record the
@@ -1265,6 +1361,7 @@ button{font:inherit;color:inherit}
     var key = keyOf(obj);
     if (seenKeys.has(key)) return false;
     remember(key);
+    if (cls.kind === "chat" || cls.kind === "paid") rosterNote(obj);   // 11/08: "In chat today" list
     var plat = platOf(obj);
     if (lastByPlat[plat] !== undefined && ts > lastByPlat[plat]) lastByPlat[plat] = ts;
     render(obj, ts, cls);
