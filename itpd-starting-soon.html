@@ -136,9 +136,13 @@
 <script>
 (function(){
   "use strict";
-  var H = new URLSearchParams(location.hash.slice(1)), Q = new URLSearchParams(location.search);
-  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
-  var EDIT = H.has("edit") || Q.has("edit"), KEY = "itpd_starting_state_2026";
+  // Forgiving link reading: a second "#" (e.g. ...&tok=X#edit) or "edit" placed anywhere
+  // still works, and a stray "#..." never ends up inside the token.
+  var HREF = location.href;
+  var H = new URLSearchParams(location.hash.slice(1).replace(/#/g, "&")), Q = new URLSearchParams(location.search);
+  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = (H.get("tok") || "").trim();
+  var EDIT_ANY = /[?#&]edit(?=$|[&#=])/.test(HREF);
+  var EDIT = EDIT_ANY, KEY = "itpd_starting_state_2026";
   // &test: a preview with no Upstash needed (sample park, quotes every 8 s, sample welcomes)
   var TEST = H.has("test") || Q.has("test");
   var $ = function(id){ return document.getElementById(id); };
@@ -182,7 +186,8 @@
       $("iQuotes").value = qs.map(function(x){ return x.q + (x.by ? " \u2014 " + x.by : ""); }).join("\n");
       $("iWelcome").value = s.welcome || "";
       fillPin(qs, typeof s.pin === "number" ? s.pin : -1);
-    }).catch(function(){ st.textContent = "Couldn't load the saved settings."; });
+      st.textContent = "Connected. Edit and tap Save.";
+    }).catch(function(e){ st.style.color = "#ffb3b3"; st.textContent = "Can't reach Upstash (" + e.message + "). " + (/401|403/.test(e.message) ? "The token in the link is wrong or incomplete." : "Check your connection."); });
     $("iQuotes").addEventListener("change", function(){ fillPin(parseLines($("iQuotes").value), +$("iPin").value); });
     $("bSave").onclick = function(){
       var qs = parseLines($("iQuotes").value);
@@ -236,7 +241,8 @@
   }
   function loadPark(){
     get("itpd_parkoverlay_state_2026").then(function(s){
-      var v = s && typeof s.venue === "number" ? VENUES[s.venue] : null;
+      // custom ticket (park overlay, 11/07): use its code, name and colour
+      var v = s && typeof s.venue === "number" ? (s.custom && s.venue === s.custom.index ? [String(s.custom.code || "ITPD").toUpperCase().slice(0,5), s.custom.name || "Out & About", s.custom.color || "#22306B"] : VENUES[s.venue]) : null;
       document.documentElement.style.setProperty("--park", v ? v[2] : "#22306B");
       $("code").textContent = v ? v[0] : "ITPD"; $("park").textContent = v ? "Today: " + v[1] : "Today's park day";
     }).catch(function(){});

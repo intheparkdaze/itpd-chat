@@ -106,6 +106,11 @@ button{font:inherit;color:inherit}
 #venueList .vb{display:block;width:100%;text-align:left;margin-top:6px;padding:11px 12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem}
 #venueList .vb.cur{border-color:var(--ok)}
 #venueList .vb small{font-weight:400;color:var(--muted);margin-left:6px}
+#venueList .cf{display:grid;gap:6px;margin-top:8px}
+#venueList .cf label{display:grid;gap:3px;font-size:.85rem;color:var(--muted)}
+#venueList .cf input,#venueList .cf select{padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:1rem}
+#venueList .cf .row2{display:flex;gap:10px;align-items:end}
+#venueList .cf input[type=color]{width:64px;height:40px;padding:0;border:0;background:none}
 #boss{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #boss.open{display:flex}
 #boss .card h2{font-size:1.05rem;margin:0 0 6px}
@@ -863,6 +868,7 @@ button{font:inherit;color:inherit}
   function poDescribe(st){
     if (!poCat || !st) return "";
     var v = poCat.venues[st.venue || 0] || poCat.venues[0], extra = "";
+    if (v.kind === "custom") return (st.custom && st.custom.name) || v.name;
     if (v.id === "mk" && st.land > 0 && st.land < poCat.lands.length - 1) extra = " \u00b7 " + poCat.lands[st.land];
     if (v.kind === "transit"){ var sl = poCat.sublines[st.sub || 0]; if (sl && sl.dest) extra = " \u00b7 " + sl.label; }
     if (v.id === "monorail" && st.mono > 0 && poCat.monorails[st.mono]) extra += " \u00b7 " + poCat.monorails[st.mono].name + " monorail";
@@ -879,7 +885,8 @@ button{font:inherit;color:inherit}
       var v = poCat.venues[st.venue || 0], park = v.waitPark || "";
       var pv = park ? poCat.venues.filter(function(x){ return x.waitPark === park && x.kind === "park"; })[0] : null;
       var land = v.id === "mk" && st.land > 0 && st.land < poCat.lands.length - 1 ? poCat.lands[st.land] : "";
-      var now = { id:v.id, name:v.name, kind:v.kind, company:v.company, park:park, parkName: pv ? pv.name : "", land:land, at:Date.now() };
+      var nm = v.kind === "custom" ? ((st.custom && st.custom.name) || v.name) : v.name;
+      var now = { id:v.id, name:nm, kind:v.kind, company:v.company, park:park, parkName: pv ? pv.name : "", land:land, at:Date.now() };
       return fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
         body:JSON.stringify([["SET", PO_STATE, JSON.stringify(st)], ["SET", PO_NOW, JSON.stringify(now)]]) })
         .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); poState = st; note("\ud83d\udccd Now showing: " + poDescribe(st), "", Date.now()); closeVenue(); });
@@ -897,10 +904,12 @@ button{font:inherit;color:inherit}
     var curV = poState ? (poState.venue || 0) : -1, lastGroup = "";
     poCat.venues.forEach(function(v){
       if (v.group !== lastGroup){ poHeader(v.group); lastGroup = v.group; }
-      poButton(v.name, v.code, v.i === curV, function(){ poPick(v); });
+      var label = v.kind === "custom" && poState && poState.custom && poState.custom.name ? poState.custom.name : v.name;
+      poButton(label, v.kind === "custom" ? "custom ticket" : v.code, v.i === curV, function(){ poPick(v); });
     });
   }
   function poPick(v){
+    if (v.kind === "custom") return poCustom(v);
     if (v.id === "mk") return poLands(v);
     if (v.kind === "transit") return poDests(v);
     poApply({ venue: v.i });
@@ -922,6 +931,59 @@ button{font:inherit;color:inherit}
   function poColors(v, subI){
     $("venueList").textContent = ""; poHeader("Which monorail?");
     poCat.monorails.forEach(function(m){ poButton(m.name, "", false, function(){ poApply({ venue: v.i, sub: subI, mono: m.i }); }); });
+  }
+  // 11/07: Custom Ticket (Broadcast UI/UX's custom venue). Picking it keeps the saved
+  // details; the form saves the same "custom" object the overlay editor does.
+  function poCustom(v){
+    $("venueBack").style.display = ""; $("venueList").textContent = "";
+    var info = (poCat.custom || {}), d = info.defaults || {}, saved = poState && poState.custom;
+    var c = {}; ["name","code","eyebrow","sub","color","color2","motif"].forEach(function(k){ c[k] = saved && saved[k] != null ? saved[k] : d[k]; });
+    if (saved && saved.name){
+      poHeader("Saved custom ticket");
+      poButton("Show: " + saved.name, saved.code || "", false, function(){ poApply({ venue: v.i }); });   // keeps the saved details
+    }
+    poHeader(saved ? "Or change it" : "Custom ticket");
+    var f = document.createElement("div"); f.className = "cf";
+    var motifs = info.motifs || [];
+    f.innerHTML =
+      '<label>Place name<input id="cfName" maxlength="40"></label>' +
+      '<label>Short code on the stub (up to 5)<input id="cfCode" maxlength="5"></label>' +
+      '<label>Line above the name<input id="cfEye" maxlength="40"></label>' +
+      '<label>Line below the name<input id="cfSub" maxlength="50"></label>' +
+      '<label>ZIP code for the weather (optional)<input id="cfZip" inputmode="numeric" maxlength="5" placeholder="e.g. 32720"></label>' +
+      '<div class="row2"><label>Main colour<input id="cfColor" type="color"></label><label>Accent colour<input id="cfColor2" type="color"></label>' +
+      (motifs.length ? '<label style="flex:1">Picture<select id="cfMotif"></select></label>' : '') + '</div>' +
+      '<button class="btn primary" id="cfGo">Show custom ticket</button>';
+    $("venueList").appendChild(f);
+    $("cfZip").value = (saved && saved.zip) || "";
+    $("cfName").value = c.name || ""; $("cfCode").value = c.code || ""; $("cfEye").value = c.eyebrow || ""; $("cfSub").value = c.sub || "";
+    $("cfColor").value = /^#[0-9a-f]{6}$/i.test(c.color || "") ? c.color : "#22306b";
+    $("cfColor2").value = /^#[0-9a-f]{6}$/i.test(c.color2 || "") ? c.color2 : "#ffd34e";
+    if (motifs.length){
+      motifs.forEach(function(m){ var o = document.createElement("option"); o.value = m; o.textContent = m; $("cfMotif").appendChild(o); });
+      $("cfMotif").value = motifs.indexOf(c.motif) >= 0 ? c.motif : motifs[0];
+    }
+    $("cfGo").addEventListener("click", function(){
+      var n = { index: info.index != null ? info.index : v.i,
+        name: $("cfName").value.trim() || d.name || "Out & About", code: $("cfCode").value.trim() || "ITPD",
+        eyebrow: $("cfEye").value.trim(), sub: $("cfSub").value.trim(),
+        color: $("cfColor").value, color2: $("cfColor2").value, motif: motifs.length ? $("cfMotif").value : (c.motif || d.motif || "sunburst") };
+      // 11/07: a ZIP code gives the Daze Bot's !weather a place to check (free lookup, no key:
+      // Zippopotam.us turns the ZIP into a town and coordinates)
+      var zip = $("cfZip").value.replace(/\D/g, "");
+      if (!zip) return poApply({ venue: v.i, custom: n });
+      if (saved && saved.zip === zip && isFinite(saved.lat)){ n.zip = zip; n.lat = saved.lat; n.lon = saved.lon; n.wx = saved.wx; return poApply({ venue: v.i, custom: n }); }
+      if (zip.length !== 5){ tell("A US ZIP code has 5 digits."); return; }
+      $("cfGo").disabled = true; $("cfGo").textContent = "Looking up " + zip + "\u2026";
+      fetch("https://api.zippopotam.us/us/" + zip, { cache:"no-store" }).then(function(r){ if (!r.ok) throw new Error(r.status === 404 ? "ZIP not found" : "HTTP " + r.status); return r.json(); })
+        .then(function(j){
+          var pl = j.places && j.places[0]; if (!pl) throw new Error("ZIP not found");
+          n.zip = zip; n.lat = Number(pl.latitude); n.lon = Number(pl.longitude); n.wx = pl["place name"] + ", " + pl["state abbreviation"];
+          note("\u2600\ufe0f Weather for this ticket: " + n.wx, "", Date.now());
+          poApply({ venue: v.i, custom: n });
+        })
+        .catch(function(e){ note("Couldn\u2019t look up ZIP " + zip + " (" + e.message + "); saved without weather.", "gap", Date.now()); poApply({ venue: v.i, custom: n }); });
+    });
   }
   function closeVenue(){ $("venue").classList.remove("open"); }
   $("venueFab").addEventListener("click", function(){

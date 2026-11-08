@@ -264,7 +264,8 @@
   function followPark(){
     if (H.has("color")) return;                       // &color=... pins one colour
     getJSON(PARK_KEY).then(function(st){
-      var c = st && typeof st.venue === "number" ? PARK_COLORS[st.venue] : "";
+      // custom ticket (park overlay, 11/07): use its colour
+      var c = st && typeof st.venue === "number" ? (st.custom && st.venue === st.custom.index ? (st.custom.color || "") : PARK_COLORS[st.venue]) : "";
       document.documentElement.style.setProperty("--park", c || "#22306B");
     }).catch(function(){});
   }
@@ -461,20 +462,11 @@
   }
   // 11/04: an exact count from YouTube Studio (itpd-studio-subs.user.js on the home PC
   // saves it to Upstash) is used while it's fresh; otherwise YouTube's rounded public count.
-  var lastApiSubs = 0, publicSubs = null;
-  // Sanity check (11/04): the Studio number is only trusted if it's close to YouTube's
-  // public count (which is rounded to 3 significant figures), so a misread like "1"
-  // can never reach the screen.
-  function plausible(n){
-    if (!(n >= 0)) return false;
-    if (publicSubs == null) return false;
-    return Math.abs(n - publicSubs) <= Math.max(25, publicSubs * 0.02);
-  }
+  var lastApiSubs = 0;
   function pollSubs(){
     if (H.has("nosubs")) return;
-    if (publicSubs == null && Date.now() - lastApiSubs >= 120000){ lastApiSubs = Date.now(); pollSubsApi(); return; }
     getJSON("itpd_subs_live_2026").then(function(live){
-      if (live && live.count >= 0 && Date.now() - live.at < 300000 && plausible(Number(live.count))){ onSubs(Number(live.count)); return; }
+      if (live && live.count >= 0 && Date.now() - live.at < 300000){ onSubs(Number(live.count)); return; }
       if (Date.now() - lastApiSubs < 120000) return;           // public count: at most every 2 minutes
       lastApiSubs = Date.now(); pollSubsApi();
     }).catch(function(){ if (Date.now() - lastApiSubs >= 120000){ lastApiSubs = Date.now(); pollSubsApi(); } });
@@ -487,10 +479,7 @@
       return yt("channels", { part:"statistics", id:ch, fields:"items(statistics(subscriberCount,hiddenSubscriberCount))" }).then(function(j){
         var st = j.items && j.items[0] && j.items[0].statistics;
         if (!st || st.hiddenSubscriberCount) return;
-        var firstPublic = publicSubs == null;
-        publicSubs = Number(st.subscriberCount);
         onSubs(Number(st.subscriberCount));
-        if (firstPublic) setTimeout(pollSubs, 500);   // 11/05: switch to the exact Studio count right away, not 30 s later
       });
     }).catch(function(e){ console.warn("subs:", e.message); });
   }
