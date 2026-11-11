@@ -230,7 +230,7 @@ button{font:inherit;color:inherit}
 <div id="drive" role="dialog" aria-modal="true" aria-labelledby="driveTitle">
   <div class="card">
     <h2 id="driveTitle">&#x1F381; Holiday Gift Drive</h2>
-    <div id="driveTest">TEST MODE: changes go to the test copy only. The live overlay is untouched.</div>
+    <div id="driveTest">TEST MODE: changes go to the test copy only (overlay link needs &amp;testkey). The live overlay is untouched.</div>
     <div id="driveStatus">Loading&hellip;</div>
     <h3>Drive on stream</h3>
     <div class="grid2"><button class="btn" data-mode="off">Off</button><button class="btn" data-mode="awareness">Awareness</button>
@@ -370,6 +370,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-11b (gift drive test mode fix)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -1259,7 +1260,9 @@ button{font:inherit;color:inherit}
   // Every change reads the saved state, changes only what was tapped and saves it back.
   // The Super Chat count lives in its own key (itpd_drive_sc_2026), added to only by the Daze Bot,
   // so phone saves can never wipe it. Test mode edits the test copies (…_test_2026).
-  var DV = { test:false, st:null, sc:{}, timer:null };
+  // 11/11: Test mode is remembered on this phone (it used to switch itself off when the page
+  // reloaded, so taps went to the LIVE copy while the overlay was following the test copy)
+  var DV = { test: store.get("itpd_phonechat_drivetest") === "1", st:null, sc:{}, timer:null };
   var DV_T = [["startDelayMin","First card after (min)"],["awarenessSec","Awareness (s)"],["awarenessEveryMin","Awareness every (min)"],["thanksSec","Each thank-you (s)"],["thanksEveryMin","Thank-yous every (min)"],
               ["giveSec","How to help (s)"],["giveEveryMin","How to help every (min)"],["totalSec","Total (s)"],["totalEveryMin","Total every (min)"],["shoppingSec","Shopping (s)"],["shoppingEveryMin","Shopping every (min)"]];
   var DV_DEF = { startDelayMin:5, awarenessSec:12, awarenessEveryMin:20, thanksSec:8, thanksEveryMin:30, giveSec:15, giveEveryMin:30, totalSec:12, totalEveryMin:30, shoppingSec:15, shoppingEveryMin:20 };
@@ -1342,7 +1345,7 @@ button{font:inherit;color:inherit}
     DV_T.forEach(function(x){ var i = $("dvT_" + x[0]); if (document.activeElement !== i) i.value = s.timing[x[0]]; });
   }
   function dvCmd(card){ dvSave(function(s){ s.cmd = { seq:Date.now(), card:card, at:Date.now() }; if (card === "hide") s.paused = true; },
-    card === "hide" ? "Hide all sent (automatic cards paused)" : "Show now: " + card + " (the overlay checks every 30 s)"); }
+    (card === "hide" ? "Hide all sent (automatic cards paused)" : "Show now: " + card + " (the overlay checks every 30 s)") + (DV.test ? "" : " \u00b7 LIVE")); }
   $("driveBtn").addEventListener("click", function(){
     closeQuick(); $("drive").classList.add("open"); $("driveStatus").textContent = "Loading\u2026";
     dvLoad().catch(function(e){ $("driveStatus").textContent = "Couldn\u2019t load: " + e.message; });
@@ -1408,7 +1411,7 @@ button{font:inherit;color:inherit}
   $("dvGiftAnon").addEventListener("click", function(){ var anon = DV.st && DV.st.giftAnon === false; dvSave(function(s){ s.giftAnon = anon; }, anon ? "Gifts without a handle get an anonymous thank-you" : "Gifts without a handle get no thank-you"); });
   $("dvTimingSave").addEventListener("click", function(){ var t = {}; DV_T.forEach(function(x){ var v = Number($("dvT_" + x[0]).value); t[x[0]] = isFinite(v) && v >= 0 ? v : DV_DEF[x[0]]; });
     dvSave(function(s){ s.timing = t; }, "Timing saved"); });
-  $("dvTestToggle").addEventListener("click", function(){ DV.test = !DV.test; dvLoad().catch(function(e){ tell(e.message); }); });
+  $("dvTestToggle").addEventListener("click", function(){ DV.test = !DV.test; store.set("itpd_phonechat_drivetest", DV.test ? "1" : "0"); dvLoad().catch(function(e){ tell(e.message); }); });
 
   // ---------- 11/11: Gift Drive milestone wheel (spec: Interactive Engagement Designer, 11/11) ----------
   // Slice list: Upstash itpd_drive_wheel_slices_2026 (seeded from the spec's JSON on first use).
