@@ -277,6 +277,16 @@ button{font:inherit;color:inherit}
     <button class="btn wide" id="dvWheelBtn" style="margin-top:6px">&#x1F3A1; Open the milestone wheel</button>
     <h3>Practice</h3>
     <button class="btn wide" id="dvTestToggle">Test mode: off</button>
+    <div id="dvSim" style="display:none;margin-top:8px">
+      <div class="small">Simulate a PayPal/Venmo gift (Test mode only): adds to the TEST email total and goes through the same thank-you checks. The card says TEST; nothing is posted in chat.</div>
+      <div class="grid2" style="margin-top:6px">
+        <input type="number" id="dvSimAmt" min="1" step="0.01" placeholder="Amount, e.g. 25">
+        <select id="dvSimCur"><option>USD</option><option>GBP</option><option>EUR</option><option>CAD</option><option>AUD</option></select>
+        <select id="dvSimSrc"><option value="paypal">PayPal</option><option value="venmo">Venmo</option></select>
+        <input type="text" id="dvSimHandle" placeholder="@handle (optional)" maxlength="31">
+      </div>
+      <button class="btn wide" id="dvSimGo" style="margin-top:6px">Send a pretend gift</button>
+    </div>
     <div class="row"><button class="btn" id="driveClose">Close</button></div>
   </div>
 </div>
@@ -372,7 +382,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-11c (clearer gift drive buttons)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-11d (pretend gifts for testing)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -1302,6 +1312,7 @@ button{font:inherit;color:inherit}
     var s = DV.st; if (!s) return;
     $("driveTest").style.display = DV.test ? "" : "none";
     $("dvTestToggle").textContent = "Test mode: " + (DV.test ? "ON" : "off");
+    $("dvSim").style.display = DV.test ? "" : "none";
     var g = (s.giftsTotal && s.giftsTotal.amount) || 0, nm = nextMilestone(s, g);
     $("dvMilestoneLine").textContent = "Next milestone: " + money(nm) + " (" + money(nm - g) + " to go)" + (s.milestone ? " \u00b7 last reached: " + money(s.milestone.amount) : "");
     var modeName = { off:"Off", awareness:"Awareness", give:"Give" }[s.mode] || s.mode;
@@ -1413,6 +1424,25 @@ button{font:inherit;color:inherit}
   $("dvGiftAnon").addEventListener("click", function(){ var anon = DV.st && DV.st.giftAnon === false; dvSave(function(s){ s.giftAnon = anon; }, anon ? "Gifts without a handle get an anonymous thank-you" : "Gifts without a handle get no thank-you"); });
   $("dvTimingSave").addEventListener("click", function(){ var t = {}; DV_T.forEach(function(x){ var v = Number($("dvT_" + x[0]).value); t[x[0]] = isFinite(v) && v >= 0 ? v : DV_DEF[x[0]]; });
     dvSave(function(s){ s.timing = t; }, "Timing saved"); });
+  // 11/11: pretend PayPal/Venmo gift (test mode only)
+  var SIM_SYM = { USD:"$", GBP:"\u00a3", EUR:"\u20ac", CAD:"CA$", AUD:"A$" };
+  $("dvSimGo").addEventListener("click", function(){
+    if (!DV.test){ tell("Switch Test mode on first."); return; }
+    var amt = Number($("dvSimAmt").value), cur = $("dvSimCur").value, src = $("dvSimSrc").value, h = $("dvSimHandle").value.trim();
+    if (!(amt > 0)){ tell("Type an amount."); return; }
+    if (h && h.charAt(0) !== "@") h = "@" + h;
+    var text = SIM_SYM[cur] + amt.toFixed(2) + (cur === "USD" ? "" : " " + cur);
+    (cur === "USD" ? Promise.resolve(1) : fetch("https://api.frankfurter.dev/v1/latest?base=USD", { cache:"no-store" }).then(function(r){ return r.json(); }).then(function(j){ return j.rates[cur]; }))
+      .then(function(rate){
+        if (!(rate > 0)) throw new Error("no exchange rate for " + cur);
+        var cents = Math.round(amt / rate * 100);
+        return dvPipe([["HINCRBY", "itpd_drive_rcv_test_2026", "cents", String(cents)], ["HINCRBY", "itpd_drive_rcv_test_2026", "count", "1"],
+                       ["HINCRBY", "itpd_drive_rcv_test_2026", src, String(cents)], ["HSET", "itpd_drive_rcv_test_2026", "at", String(Date.now())],
+                       ["LPUSH", "itpd_drive_gifts_2026", JSON.stringify({ source:src, cents:cents, text:text, handle:h, at:Date.now(), test:true })]])
+          .then(function(){ note("\ud83e\uddea Pretend gift sent: " + text + (cur === "USD" ? "" : " (= " + money(cents / 100) + " USD)") + (h ? " from " + h : "") +
+                                  ". Watch the alerts within ~15 s; the email total updates here.", "", Date.now()); return dvLoad(); });
+      }).catch(function(e){ tell("Pretend gift not sent: " + e.message); });
+  });
   $("dvTestToggle").addEventListener("click", function(){ DV.test = !DV.test; store.set("itpd_phonechat_drivetest", DV.test ? "1" : "0"); dvLoad().catch(function(e){ tell(e.message); }); });
 
   // ---------- 11/11: Gift Drive milestone wheel (spec: Interactive Engagement Designer, 11/11) ----------
