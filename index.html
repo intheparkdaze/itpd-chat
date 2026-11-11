@@ -127,6 +127,35 @@ button{font:inherit;color:inherit}
 #venueList .cf input,#venueList .cf select{padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:1rem}
 #venueList .cf .row2{display:flex;gap:10px;align-items:end}
 #venueList .cf input[type=color]{width:64px;height:40px;padding:0;border:0;background:none}
+#drive{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#drive.open{display:flex}
+#drive .card{max-height:90vh;overflow:auto}
+#drive h2{font-size:1.05rem;margin:0 0 6px}
+#drive h3{font-size:.85rem;margin:14px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#drive .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#drive .grid2 .btn,#drive .wide{width:100%}
+#drive .btn.on{border-color:var(--ok);background:rgba(31,107,58,.12)}
+#drive .btn:disabled{opacity:.4}
+#drive input[type=text],#drive input[type=number]{padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:1rem;width:100%;box-sizing:border-box}
+#drive .lst label{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line)}
+#drive .lst span{flex:1}
+#driveStatus{font-weight:700}
+#driveTest{background:#fff3cd;color:#5a4300;border-radius:8px;padding:6px 8px;margin:6px 0;display:none}
+#wheel{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:30}
+#wheel.open{display:flex}
+#wheel .card{max-height:92vh;overflow:auto}
+#wheel h2{font-size:1.05rem;margin:0 0 6px}
+#wheel h3{font-size:.85rem;margin:14px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#wheel .parks{display:flex;flex-wrap:wrap;gap:6px}
+#wheel .parks .btn.on,#wheel .btn.on{border-color:var(--ok);background:rgba(31,107,58,.12)}
+#wheel .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#wheel .grid2 .btn,#wheel .wide{width:100%}
+#wheelSpin{font-size:1.3rem;padding:14px;width:100%;margin-top:8px}
+#wheelResult{font-size:1.15rem;font-weight:800;margin:10px 0 4px}
+#wheelResultDo{margin-bottom:6px}
+#wheel .lst label{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line)}
+#wheel .lst label span{flex:1}
+#wheel .lst label.done{opacity:.45;text-decoration:line-through}
 #boss{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #boss.open{display:flex}
 #boss .card h2{font-size:1.05rem;margin:0 0 6px}
@@ -198,6 +227,81 @@ button{font:inherit;color:inherit}
   </div>
 </div>
 
+<div id="drive" role="dialog" aria-modal="true" aria-labelledby="driveTitle">
+  <div class="card">
+    <h2 id="driveTitle">&#x1F381; Holiday Gift Drive</h2>
+    <div id="driveTest">TEST MODE: changes go to the test copy only. The live overlay is untouched.</div>
+    <div id="driveStatus">Loading&hellip;</div>
+    <h3>Drive on stream</h3>
+    <div class="grid2"><button class="btn" data-mode="off">Off</button><button class="btn" data-mode="awareness">Awareness</button>
+      <button class="btn" data-mode="give" id="dvGiveMode">Give (cleared only)</button><button class="btn" id="dvStart">Stream started</button></div>
+    <h3>Show now</h3>
+    <div class="grid2"><button class="btn" data-show="awareness">Awareness</button><button class="btn" data-show="thanks">Thank-yous</button>
+      <button class="btn" data-show="give" id="dvShowGive">How to help</button><button class="btn" data-show="total" id="dvShowTotal">Total</button>
+      <button class="btn" data-show="shopping">Shopping</button><button class="btn" id="dvHide">Hide all</button></div>
+    <button class="btn wide" id="dvPause" style="margin-top:8px">Pause automatic cards</button>
+    <h3>Super Chats (live count)</h3>
+    <div id="dvScLine" class="small"></div>
+    <div class="grid2" style="margin-top:6px"><button class="btn" id="dvCount">Counting: off</button><button class="btn" id="dvScReset">Reset count</button></div>
+    <div class="small" style="margin-top:6px">Correction in dollars (+ or &minus;), e.g. from Studio</div>
+    <div class="grid2"><input type="number" id="dvScCorr" step="1"><button class="btn" id="dvScCorrSave">Save correction</button></div>
+    <h3>Given for gifts (from your ledger, after fees)</h3>
+    <div class="grid2"><input type="number" id="dvGifts" step="1" min="0"><button class="btn" id="dvGiftsSave">Save total</button></div>
+    <div class="small" id="dvGiftsAt"></div>
+    <div class="small" id="dvRcvLine" style="margin-top:8px"></div>
+    <div class="grid2" style="margin-top:6px"><button class="btn" id="dvRcvUse">Use this</button><button class="btn" id="dvRcvReset">Reset email total</button></div>
+    <h3>Thank-you list (only OK'd names show)</h3>
+    <div class="lst" id="dvThanks"></div>
+    <div class="grid2" style="margin-top:6px"><input type="text" id="dvThanksNew" maxlength="60" placeholder="Business name"><button class="btn" id="dvThanksAdd">Add</button></div>
+    <h3>Shopping list (item names only)</h3>
+    <div class="lst" id="dvShop"></div>
+    <div class="grid2" style="margin-top:6px"><input type="text" id="dvShopNew" maxlength="40" placeholder="e.g. Board games"><button class="btn" id="dvShopAdd">Add</button></div>
+    <button class="btn wide" id="dvShopOn" style="margin-top:8px">Shopping card: off</button>
+    <h3>Give details and the ask gate</h3>
+    <div class="small">Filled in only after the professional check. Shown only once the ask is cleared.</div>
+    <input type="text" id="dvPaypal" placeholder="PayPal (e.g. paypal.me/…)" style="margin-top:6px">
+    <input type="text" id="dvVenmo" placeholder="Venmo (e.g. @…)" style="margin-top:6px">
+    <button class="btn wide" id="dvGiveSave" style="margin-top:6px">Save give details</button>
+    <button class="btn wide" id="dvClear" style="margin-top:8px">Ask cleared: NO</button>
+    <h3>PayPal / Venmo gift thank-yous</h3>
+    <div class="small">On screen and in chat, with the giver's @handle if they put it in their note and have chatted on this stream. Only once the ask is cleared.</div>
+    <div class="grid2" style="margin-top:6px"><button class="btn" id="dvGiftAlerts">Gift alerts: off</button><button class="btn" id="dvGiftAnon">No handle: thank anonymously</button></div>
+    <h3>Timing</h3>
+    <div class="small">Minutes before the first card, then seconds on screen / minutes between, per card.</div>
+    <div id="dvTiming" class="grid2" style="margin-top:6px"></div>
+    <button class="btn wide" id="dvTimingSave" style="margin-top:6px">Save timing</button>
+    <h3>Milestone wheel</h3>
+    <div class="small" id="dvMilestoneLine"></div>
+    <button class="btn wide" id="dvWheelBtn" style="margin-top:6px">&#x1F3A1; Open the milestone wheel</button>
+    <h3>Practice</h3>
+    <button class="btn wide" id="dvTestToggle">Test mode: off</button>
+    <div class="row"><button class="btn" id="driveClose">Close</button></div>
+  </div>
+</div>
+
+<div id="wheel" role="dialog" aria-modal="true" aria-labelledby="wheelTitle">
+  <div class="card">
+    <h2 id="wheelTitle">&#x1F3A1; Milestone wheel</h2>
+    <div id="wheelStatus" class="small">Loading&hellip;</div>
+    <h3>Today&rsquo;s park</h3>
+    <div class="parks" id="wheelParks"></div>
+    <button class="btn primary" id="wheelSpin">SPIN!</button>
+    <div id="wheelResult"></div>
+    <div id="wheelResultDo" class="small"></div>
+    <div class="grid2" id="wheelActs" style="display:none">
+      <button class="btn" id="wheelDone">&#x2705; Done</button><button class="btn" id="wheelDeck">On Deck (later)</button>
+      <button class="btn" id="wheelCant">Can&rsquo;t today &rarr; spin again</button><button class="btn" id="wheelVeto">Mrs. Daze veto &rarr; spin again</button>
+    </div>
+    <h3>On Deck</h3>
+    <div class="lst" id="wheelDeckList"></div>
+    <h3>Today&rsquo;s slices (untick to leave off the wheel)</h3>
+    <div class="lst" id="wheelSlices"></div>
+    <h3>Spins</h3>
+    <div class="grid2"><button class="btn" id="wheelAddSpin">Add a spin by hand</button><button class="btn" id="wheelClearQ">Clear waiting spins</button></div>
+    <div class="row"><button class="btn" id="wheelClose">Close</button></div>
+  </div>
+</div>
+
 <div id="boss" role="dialog" aria-modal="true" aria-labelledby="bossTitle">
   <div class="card">
     <h2 id="bossTitle">&#x2694;&#xFE0F; Boss Battle</h2>
@@ -228,6 +332,7 @@ button{font:inherit;color:inherit}
 <div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
   <div class="card">
     <button class="btn primary" id="hypeBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
+    <button class="btn" id="driveBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F381; Holiday Gift Drive controls</button>
     <button class="btn" id="bossBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x2694;&#xFE0F; Boss Battle controls</button>
     <h2 id="quickTitle">Quick messages</h2>
     <div class="small" style="margin:4px 0 2px">Post to:
@@ -1149,6 +1254,281 @@ button{font:inherit;color:inherit}
   });
   $("venueBack").addEventListener("click", poMain);
   $("venueClose").addEventListener("click", closeVenue);
+
+  // ---------- 11/10: Holiday Gift Drive controller (state in Upstash itpd_drive_2026) ----------
+  // Every change reads the saved state, changes only what was tapped and saves it back.
+  // The Super Chat count lives in its own key (itpd_drive_sc_2026), added to only by the Daze Bot,
+  // so phone saves can never wipe it. Test mode edits the test copies (…_test_2026).
+  var DV = { test:false, st:null, sc:{}, timer:null };
+  var DV_T = [["startDelayMin","First card after (min)"],["awarenessSec","Awareness (s)"],["awarenessEveryMin","Awareness every (min)"],["thanksSec","Each thank-you (s)"],["thanksEveryMin","Thank-yous every (min)"],
+              ["giveSec","How to help (s)"],["giveEveryMin","How to help every (min)"],["totalSec","Total (s)"],["totalEveryMin","Total every (min)"],["shoppingSec","Shopping (s)"],["shoppingEveryMin","Shopping every (min)"]];
+  var DV_DEF = { startDelayMin:5, awarenessSec:12, awarenessEveryMin:20, thanksSec:8, thanksEveryMin:30, giveSec:15, giveEveryMin:30, totalSec:12, totalEveryMin:30, shoppingSec:15, shoppingEveryMin:20 };
+  function dvKey(){ return DV.test ? "itpd_drive_test_2026" : "itpd_drive_2026"; }
+  function dvScKey(){ return DV.test ? "itpd_drive_sc_test_2026" : "itpd_drive_sc_2026"; }
+  // 11/10: PayPal + Venmo total read from payment emails (itpd-drive-email-reader.gs); amounts only
+  function dvRcvKey(){ return DV.test ? "itpd_drive_rcv_test_2026" : "itpd_drive_rcv_2026"; }
+  function dvHash(a){ var h = {}; a = a || []; for (var i = 0; i < a.length; i += 2) h[a[i]] = Number(a[i + 1]) || 0; return h; }
+  function dvBlank(){ return { v:1, mode:"off", giftAlertsOn:false, giftAnon:true, askCleared:false, askClearedAt:null, askNote:"", give:{ paypal:"", venmo:"" }, thanks:[], shopping:[], shoppingOn:false,
+                               timing:Object.assign({}, DV_DEF), giftsTotal:{ amount:0, at:0 }, scCorrection:0, countingOn:false, paused:false, startedAt:0, cmd:null }; }
+  function dvPipe(cmds){
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
+    if (!url || !tok) return Promise.reject(new Error("add the Upstash URL and the alerts token in \u2699"));
+    return fetch(url + "/pipeline", { method:"POST", cache:"no-store", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, body:JSON.stringify(cmds) })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+  function dvLoad(){
+    return dvPipe([["GET", dvKey()], ["HGETALL", dvScKey()], ["HGETALL", dvRcvKey()]]).then(function(j){
+      DV.rcv = dvHash(j[2] && j[2].result);
+      var s = null; try { s = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){}
+      DV.st = Object.assign(dvBlank(), s || {}); DV.st.timing = Object.assign({}, DV_DEF, DV.st.timing || {});
+      var a = j[1].result || [], h = {}; for (var i = 0; i < a.length; i += 2) h[a[i]] = Number(a[i + 1]) || 0; DV.sc = h;
+      dvPaint();
+    });
+  }
+  function dvSave(change, msg){
+    return dvPipe([["GET", dvKey()]]).then(function(j){
+      var s = null; try { s = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){}
+      s = Object.assign(dvBlank(), s || {}); change(s); s.at = Date.now();
+      return dvPipe([["SET", dvKey(), JSON.stringify(s)]]).then(function(){ DV.st = s; dvPaint(); if (msg) note("\ud83c\udf81 " + msg + (DV.test ? " (test copy)" : ""), "", Date.now()); });
+    }).catch(function(e){ tell("Gift drive change not saved: " + e.message); });
+  }
+  function money(n){ return "$" + Math.floor(Math.max(0, Number(n) || 0)).toLocaleString("en-US"); }
+  function dvPaint(){
+    var s = DV.st; if (!s) return;
+    $("driveTest").style.display = DV.test ? "" : "none";
+    $("dvTestToggle").textContent = "Test mode: " + (DV.test ? "ON" : "off");
+    var g = (s.giftsTotal && s.giftsTotal.amount) || 0, nm = nextMilestone(s, g);
+    $("dvMilestoneLine").textContent = "Next milestone: " + money(nm) + " (" + money(nm - g) + " to go)" + (s.milestone ? " \u00b7 last reached: " + money(s.milestone.amount) : "");
+    var modeName = { off:"Off", awareness:"Awareness", give:"Give" }[s.mode] || s.mode;
+    $("driveStatus").textContent = "Drive: " + modeName + (s.paused ? " \u00b7 automatic cards paused" : "") + " \u00b7 ask " + (s.askCleared ? "CLEARED" + (s.askClearedAt ? " " + new Date(s.askClearedAt).toLocaleDateString() : "") : "not cleared");
+    [].forEach.call(document.querySelectorAll("#drive [data-mode]"), function(b){ b.classList.toggle("on", b.getAttribute("data-mode") === s.mode); });
+    $("dvGiveMode").disabled = $("dvShowGive").disabled = $("dvShowTotal").disabled = !s.askCleared;
+    $("dvPause").textContent = s.paused ? "Resume automatic cards" : "Pause automatic cards";
+    $("dvCount").textContent = "Counting: " + (s.countingOn ? "ON" : "off"); $("dvCount").classList.toggle("on", !!s.countingOn);
+    var seen = (DV.sc.cents || 0) / 100, corr = Number(s.scCorrection) || 0;
+    $("dvScLine").textContent = "Seen on stream: " + money(seen) + " from " + (DV.sc.events || 0) + " Super Chat(s)" + (corr ? " \u00b7 correction " + (corr > 0 ? "+" : "\u2212") + money(Math.abs(corr)) : "") +
+      " \u00b7 on screen: " + money(seen + corr) + (DV.sc.nonusd ? " \u00b7 " + DV.sc.nonusd + " in other currencies left out (see Studio)" : "");
+    if (document.activeElement !== $("dvScCorr")) $("dvScCorr").value = corr || "";
+    if (document.activeElement !== $("dvGifts")) $("dvGifts").value = s.giftsTotal && s.giftsTotal.amount ? s.giftsTotal.amount : "";
+    var rc = DV.rcv || {};
+    $("dvRcvLine").textContent = rc.at ? "Received by PayPal/Venmo (from emails): " + money((rc.cents || 0) / 100) + " \u00b7 PayPal " + money((rc.paypal || 0) / 100) +
+      " \u00b7 Venmo " + money((rc.venmo || 0) / 100) + " \u00b7 " + (rc.count || 0) + " payment(s), last checked " + new Date(rc.at).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) +
+      (rc.unparsed ? " \u00b7 " + rc.unparsed + " email(s) couldn't be read: check by hand" : "") + ". Check it against your ledger, then tap Use this." : "Received by PayPal/Venmo (from emails): the email reader hasn't reported yet.";
+    $("dvRcvUse").disabled = !rc.at;
+    $("dvGiftsAt").textContent = s.giftsTotal && s.giftsTotal.at ? "Last updated " + new Date(s.giftsTotal.at).toLocaleString() + " \u00b7 on screen: " + money(s.giftsTotal.amount) : "Not set yet";
+    var tl = $("dvThanks"); tl.textContent = "";
+    (s.thanks || []).forEach(function(t, i){
+      var l = document.createElement("label"), c = document.createElement("input"), sp = document.createElement("span"), x = document.createElement("button");
+      c.type = "checkbox"; c.checked = t.ok === true; sp.textContent = t.name + (t.ok ? "" : "  (not OK'd yet: won't show)"); x.className = "btn"; x.textContent = "Remove";
+      c.addEventListener("change", function(){ var on = c.checked; dvSave(function(st){ if (st.thanks[i] && st.thanks[i].name === t.name) st.thanks[i].ok = on; }, t.name + (on ? " OK'd for the thank-you card" : " taken off the thank-you card")); });
+      x.addEventListener("click", function(e){ e.preventDefault(); dvSave(function(st){ st.thanks = st.thanks.filter(function(y){ return y.name !== t.name; }); }, "Removed " + t.name); });
+      l.appendChild(c); l.appendChild(sp); l.appendChild(x); tl.appendChild(l);
+    });
+    var sl = $("dvShop"); sl.textContent = "";
+    (s.shopping || []).forEach(function(it){
+      var l = document.createElement("label"), sp = document.createElement("span"), x = document.createElement("button");
+      sp.textContent = it; x.className = "btn"; x.textContent = "Remove";
+      x.addEventListener("click", function(e){ e.preventDefault(); dvSave(function(st){ st.shopping = st.shopping.filter(function(y){ return y !== it; }); }); });
+      l.appendChild(sp); l.appendChild(x); sl.appendChild(l);
+    });
+    $("dvShopOn").textContent = "Shopping card: " + (s.shoppingOn ? "ON" : "off");
+    $("dvGiftAlerts").textContent = "Gift alerts: " + (s.giftAlertsOn ? "ON" : "off"); $("dvGiftAlerts").classList.toggle("on", !!s.giftAlertsOn);
+    $("dvGiftAnon").textContent = "No handle: " + (s.giftAnon === false ? "no thank-you" : "thank anonymously");
+    if (document.activeElement !== $("dvPaypal")) $("dvPaypal").value = (s.give && s.give.paypal) || "";
+    if (document.activeElement !== $("dvVenmo")) $("dvVenmo").value = (s.give && s.give.venmo) || "";
+    $("dvClear").textContent = "Ask cleared: " + (s.askCleared ? "YES (tap to switch off)" : "NO");
+    $("dvClear").classList.toggle("on", !!s.askCleared);
+    var tg = $("dvTiming"); if (!tg.childNodes.length) DV_T.forEach(function(x){ var l = document.createElement("label"); l.className = "small"; l.textContent = x[1]; var i = document.createElement("input"); i.type = "number"; i.min = "0"; i.id = "dvT_" + x[0]; l.appendChild(i); tg.appendChild(l); });
+    DV_T.forEach(function(x){ var i = $("dvT_" + x[0]); if (document.activeElement !== i) i.value = s.timing[x[0]]; });
+  }
+  function dvCmd(card){ dvSave(function(s){ s.cmd = { seq:Date.now(), card:card, at:Date.now() }; if (card === "hide") s.paused = true; },
+    card === "hide" ? "Hide all sent (automatic cards paused)" : "Show now: " + card + " (the overlay checks every 30 s)"); }
+  $("driveBtn").addEventListener("click", function(){
+    closeQuick(); $("drive").classList.add("open"); $("driveStatus").textContent = "Loading\u2026";
+    dvLoad().catch(function(e){ $("driveStatus").textContent = "Couldn\u2019t load: " + e.message; });
+    clearInterval(DV.timer); DV.timer = setInterval(function(){ dvPipe([["HGETALL", dvScKey()], ["HGETALL", dvRcvKey()]]).then(function(j){ DV.sc = dvHash(j[0].result); DV.rcv = dvHash(j[1].result); dvPaint(); }).catch(function(){}); }, 15000);
+  });
+  $("driveClose").addEventListener("click", function(){ $("drive").classList.remove("open"); clearInterval(DV.timer); });
+  [].forEach.call(document.querySelectorAll("#drive [data-mode]"), function(b){ b.addEventListener("click", function(){
+    var m = b.getAttribute("data-mode");
+    if (m === "give" && !(DV.st && DV.st.askCleared)) return;
+    dvSave(function(s){ if (m === "give" && !s.askCleared) return; s.mode = m; if (m === "off") s.cmd = { seq:Date.now(), card:"hide", at:Date.now() }; }, "Drive: " + m);
+  }); });
+  $("dvStart").addEventListener("click", function(){ dvSave(function(s){ s.startedAt = Date.now(); s.paused = false; }, "Stream clock started: first card after " + ((DV.st && DV.st.timing.startDelayMin) || 5) + " min"); });
+  [].forEach.call(document.querySelectorAll("#drive [data-show]"), function(b){ b.addEventListener("click", function(){
+    var c = b.getAttribute("data-show"); if ((c === "give" || c === "total") && !(DV.st && DV.st.askCleared)) return; dvCmd(c); }); });
+  $("dvHide").addEventListener("click", function(){ dvCmd("hide"); });
+  $("dvPause").addEventListener("click", function(){ var p = !(DV.st && DV.st.paused); dvSave(function(s){ s.paused = p; }, p ? "Automatic cards paused" : "Automatic cards resumed"); });
+  $("dvCount").addEventListener("click", function(){ var on = !(DV.st && DV.st.countingOn); dvSave(function(s){ s.countingOn = on; }, "Super Chat counting " + (on ? "ON" : "off") + " (the Daze Bot picks it up within 30 s)"); });
+  $("dvScReset").addEventListener("click", function(){ compose("Reset the Super Chat live count to $0? (Do this once, at the start of the drive.)", null, "Reset count", function(){
+    dvPipe([["DEL", dvScKey()]]).then(function(){ DV.sc = {}; dvPaint(); note("\ud83c\udf81 Super Chat count reset" + (DV.test ? " (test copy)" : ""), "", Date.now()); }).catch(function(e){ tell("Not reset: " + e.message); }); }); });
+  $("dvScCorrSave").addEventListener("click", function(){ var v = Math.round(Number($("dvScCorr").value) || 0); dvSave(function(s){ s.scCorrection = v; }, "Super Chat correction saved"); });
+  $("dvRcvUse").addEventListener("click", function(){
+    var v = Math.floor(((DV.rcv && DV.rcv.cents) || 0) / 100);
+    compose("Put " + money(v) + " on screen as \u201cGiven for gifts\u201d? (From the PayPal and Venmo emails. Check it against your ledger first.)", null, "Use " + money(v), function(){
+      dvSetGifts(v, "emails"); });
+  });
+  // 11/11: milestone ladder ($250, $500, $1,000, $1,500, $2,000, then every $500; editable later
+  // as drive.milestones). Crossing one (when "Given for gifts" goes up) records a milestone event
+  // for the Total card's MILESTONE REACHED moment and queues one wheel spin per milestone.
+  function ladder(s){
+    var base = (s.milestones && s.milestones.length ? s.milestones : [250, 500, 1000, 1500, 2000]).slice().sort(function(a, b){ return a - b; });
+    return function(n){ var out = base.slice(), top = out[out.length - 1]; while (top < n){ top += 500; out.push(top); } return out; };
+  }
+  function crossed(s, from, to){ return ladder(s)(to).filter(function(m){ return m > from && m <= to; }); }
+  function nextMilestone(s, n){ return ladder(s)(n + 500).filter(function(m){ return m > n; })[0]; }
+  function dvSetGifts(v, from){
+    var hits = [];
+    dvSave(function(s){
+      var old = (s.giftsTotal && s.giftsTotal.amount) || 0;
+      s.giftsTotal = { amount:v, at:Date.now(), from:from || "typed" };
+      hits = v > old ? crossed(s, old, v) : [];
+      if (hits.length) s.milestone = { amount:hits[hits.length - 1], at:Date.now(), seq:Date.now() };
+    }, "Given for gifts saved: " + money(v)).then(function(){
+      if (!hits.length) return;
+      wheelChange(function(w){ hits.forEach(function(m){ w.queue.push({ reason:"milestone", amount:m, at:Date.now() }); }); },
+        "\ud83c\udf89 Milestone " + hits.map(money).join(", ") + " reached! " + hits.length + " spin" + (hits.length > 1 ? "s" : "") + " waiting for Mrs. Daze");
+    });
+  }
+  $("dvRcvReset").addEventListener("click", function(){ compose("Reset the PayPal/Venmo email total to $0? Emails already counted won't be counted again; only new payments add up from here.", null, "Reset", function(){
+    dvPipe([["DEL", dvRcvKey()]]).then(function(){ DV.rcv = {}; dvPaint(); note("\ud83c\udf81 Email total reset" + (DV.test ? " (test copy)" : ""), "", Date.now()); }).catch(function(e){ tell("Not reset: " + e.message); }); }); });
+  $("dvGiftsSave").addEventListener("click", function(){ dvSetGifts(Math.max(0, Number($("dvGifts").value) || 0), "typed"); });
+  $("dvThanksAdd").addEventListener("click", function(){ var n = $("dvThanksNew").value.trim(); if (!n) return; $("dvThanksNew").value = "";
+    dvSave(function(s){ if (!s.thanks.some(function(t){ return t.name.toLowerCase() === n.toLowerCase(); })) s.thanks.push({ name:n, ok:false }); }, "Added " + n + " (tick OK once they've agreed to be named)"); });
+  $("dvShopAdd").addEventListener("click", function(){ var n = $("dvShopNew").value.trim().replace(/\$[\d.,]+/g, "").trim(); if (!n) return; $("dvShopNew").value = "";
+    dvSave(function(s){ if (s.shopping.indexOf(n) < 0) s.shopping.push(n); }, "Added to the shopping list"); });
+  $("dvShopOn").addEventListener("click", function(){ var on = !(DV.st && DV.st.shoppingOn); dvSave(function(s){ s.shoppingOn = on; }, "Shopping card " + (on ? "on" : "off")); });
+  $("dvGiveSave").addEventListener("click", function(){ var p = $("dvPaypal").value.trim(), v = $("dvVenmo").value.trim(); dvSave(function(s){ s.give = { paypal:p, venmo:v }; }, "Give details saved"); });
+  $("dvClear").addEventListener("click", function(){
+    if (DV.st && DV.st.askCleared){ dvSave(function(s){ s.askCleared = false; if (s.mode === "give") s.mode = "awareness"; }, "Ask switched OFF: How to help and Total can't show"); return; }
+    compose("Has the professional check cleared ITPD to ask for money on stream? This lets the How to help and Total cards show. Note (who cleared it):", "", "Yes, it's cleared", function(t){
+      dvSave(function(s){ s.askCleared = true; s.askClearedAt = Date.now(); s.askNote = String(t || "").slice(0, 120); }, "Ask cleared (recorded with today's date)"); });
+  });
+  $("dvGiftAlerts").addEventListener("click", function(){ var on = !(DV.st && DV.st.giftAlertsOn); dvSave(function(s){ s.giftAlertsOn = on; }, "PayPal/Venmo gift thank-yous " + (on ? "ON" : "off") + (on && !(DV.st && DV.st.askCleared) ? " (they start once the ask is cleared)" : "")); });
+  $("dvGiftAnon").addEventListener("click", function(){ var anon = DV.st && DV.st.giftAnon === false; dvSave(function(s){ s.giftAnon = anon; }, anon ? "Gifts without a handle get an anonymous thank-you" : "Gifts without a handle get no thank-you"); });
+  $("dvTimingSave").addEventListener("click", function(){ var t = {}; DV_T.forEach(function(x){ var v = Number($("dvT_" + x[0]).value); t[x[0]] = isFinite(v) && v >= 0 ? v : DV_DEF[x[0]]; });
+    dvSave(function(s){ s.timing = t; }, "Timing saved"); });
+  $("dvTestToggle").addEventListener("click", function(){ DV.test = !DV.test; dvLoad().catch(function(e){ tell(e.message); }); });
+
+  // ---------- 11/11: Gift Drive milestone wheel (spec: Interactive Engagement Designer, 11/11) ----------
+  // Slice list: Upstash itpd_drive_wheel_slices_2026 (seeded from the spec's JSON on first use).
+  // Wheel state: itpd_drive_wheel_2026, read by the wheel overlay (Broadcast UI/UX):
+  //   { v, day, park, unticked:[ids], done:[ids], onDeck:[{id, park, day, carried}], queue:[{reason, amount, at}],
+  //     spin:{ seq, at, slices:[{id,label,type}], result, resultLabel, resultType, snack }, lastSpinAt, lastWasWild }
+  var WHEEL_SEED = {"version":1,"rules":{"maxLabel":14,"wildcardsOnEveryWheel":["all-lauras-choice","all-crew-vote"],"onePerStreamDay":true,"wildcardsMayRepeatButNotBackToBack":true},"slices":[{"id":"all-lauras-choice","park":"all","label":"LAURA'S CHOICE","type":"laura","hosts_do":"Laura picks any slice from today's list, or makes up a family-friendly one on the spot.","minutes":"1-10","where":""},{"id":"all-crew-vote","park":"all","label":"CREW VOTE","type":"vote","hosts_do":"Laura names two of today's slices; the Crew taps 🎉 or 💯 for 60 seconds; hosts do the winner.","minutes":"1 + slice","where":""},{"id":"anywhere-tour-guide","park":"anywhere","label":"TOUR GUIDE","type":"host","hosts_do":"Michael narrates the next 5 minutes as an over-the-top tour guide; Laura heckles.","minutes":"5","where":""},{"id":"anywhere-headband-swap","park":"anywhere","label":"HEADBAND SWAP","type":"host","hosts_do":"Hosts swap ears or headbands and wear them for the rest of the walk.","minutes":"1","where":""},{"id":"anywhere-daze-dance","park":"anywhere","label":"DAZE DANCE","type":"host","hosts_do":"A 10-second Daze Crew dance at a clear spot, out of everyone's way.","minutes":"1","where":""},{"id":"anywhere-love-story","park":"anywhere","label":"LOVE STORY","type":"host","hosts_do":"Laura tells one short, family-friendly story from their 24 years together.","minutes":"3","where":""},{"id":"anywhere-slow-mo-walk","park":"anywhere","label":"SLOW-MO WALK","type":"host","hosts_do":"Hosts walk about 20 feet in dramatic slow motion while Michael does movie-trailer narration.","minutes":"1","where":""},{"id":"anywhere-trivia-duel","park":"anywhere","label":"TRIVIA DUEL","type":"challenge","hosts_do":"Laura asks Michael 3 park trivia questions; the Crew judges with taps.","minutes":"3","where":""},{"id":"anywhere-crew-jingle","park":"anywhere","label":"CREW JINGLE","type":"host","hosts_do":"Hosts make up an original 4-line Daze Crew holiday jingle on the spot (no real songs).","minutes":"2","where":""},{"id":"anywhere-surprise-snack","park":"anywhere","label":"SURPRISE SNACK","type":"snack","hosts_do":"Laura orders from the nearest stand; Michael eats whatever she picks. Hosts pay.","minutes":"10","where":""},{"id":"anywhere-wish-for-good","park":"anywhere","label":"WISH FOR GOOD","type":"host","hosts_do":"Each host says one holiday wish for the veteran families (no promises, no amounts).","minutes":"2","where":""},{"id":"mk-dole-whip","park":"mk","label":"DOLE WHIP","type":"snack","hosts_do":"Share a Dole Whip from Aloha Isle; each rates it 1-10. Hosts pay.","minutes":"10","where":"Adventureland"},{"id":"mk-castle-photo","park":"mk","label":"CASTLE PHOTO","type":"host","hosts_do":"Laura stages a dramatic holiday photo of Michael in front of the castle.","minutes":"5","where":"Hub"},{"id":"mk-window-hunt","park":"mk","label":"WINDOW HUNT","type":"challenge","hosts_do":"Find a Main Street window name starting with the Crew's chosen letter in 5 minutes.","minutes":"5","where":"Main Street"},{"id":"mk-teacup-spin","park":"mk","label":"TEACUP SPIN","type":"challenge","hosts_do":"Ride the teacups; Laura spins as hard as she can (ride scene stays clean).","minutes":"10 + queue","where":"Fantasyland"},{"id":"mk-hidden-mickey","park":"mk","label":"HIDDEN MICKEY","type":"challenge","hosts_do":"Find a Hidden Mickey in the current land within 5 minutes.","minutes":"5","where":"any land"},{"id":"mk-pirate-voice","park":"mk","label":"PIRATE VOICE","type":"host","hosts_do":"Hosts talk in pirate voices for the next 5 minutes of walking.","minutes":"5","where":"Adventureland or anywhere"},{"id":"mk-mickey-pretzel","park":"mk","label":"MICKEY PRETZEL","type":"snack","hosts_do":"Split a Mickey pretzel; Laura gets the ears. Hosts pay.","minutes":"10","where":"any cart"},{"id":"mk-pun-patrol","park":"mk","label":"PUN PATROL","type":"host","hosts_do":"Michael tells 2 minutes of his own cheesy puns; the Crew rates them with taps.","minutes":"2","where":"anywhere"},{"id":"mk-peoplemover","park":"mk","label":"PEOPLEMOVER","type":"challenge","hosts_do":"Ride the PeopleMover while Laura narrates like a retro announcer (original lines).","minutes":"15","where":"Tomorrowland"},{"id":"epcot-club-cool","park":"epcot","label":"CLUB COOL","type":"snack","hosts_do":"Beverly taste test at Club Cool; the Crew taps for who made the worse face.","minutes":"10","where":"World Celebration"},{"id":"epcot-world-snack","park":"epcot","label":"WORLD SNACK","type":"snack","hosts_do":"One snack from the next World Showcase pavilion. Hosts pay.","minutes":"15","where":"World Showcase"},{"id":"epcot-say-thank-you","park":"epcot","label":"SAY THANK YOU","type":"challenge","hosts_do":"Michael learns how to say 'thank you' in the next pavilion's language and says it properly.","minutes":"3","where":"World Showcase"},{"id":"epcot-spaceship-pose","park":"epcot","label":"SPACESHIP POSE","type":"host","hosts_do":"Album-cover pose under Spaceship Earth; Laura directs.","minutes":"3","where":"World Celebration"},{"id":"epcot-figment-ride","park":"epcot","label":"FIGMENT RIDE","type":"challenge","hosts_do":"Ride Journey Into Imagination; Michael rates his imagination score after.","minutes":"15","where":"World Celebration"},{"id":"epcot-fountain-dance","park":"epcot","label":"FOUNTAIN DANCE","type":"host","hosts_do":"Watch the next fountain show and dance along to the side, out of the way.","minutes":"5-15","where":"World Celebration"},{"id":"epcot-speed-walk","park":"epcot","label":"SPEED WALK","type":"challenge","hosts_do":"Race-walk to the next pavilion; Laura times Michael.","minutes":"5","where":"World Showcase"},{"id":"hs-mickey-bar","park":"hs","label":"MICKEY BAR","type":"snack","hosts_do":"Split a Mickey ice cream bar; first to finish loses. Hosts pay.","minutes":"10","where":"any cart"},{"id":"hs-drop-face","park":"hs","label":"DROP FACE","type":"challenge","hosts_do":"Ride Tower of Terror; Laura picks the face Michael must pull for the ride photo, shown after.","minutes":"20 + queue","where":"Sunset Blvd"},{"id":"hs-red-carpet","park":"hs","label":"RED CARPET","type":"host","hosts_do":"Laura announces Michael's arrival like an awards-show host; he walks it.","minutes":"3","where":"Hollywood Blvd"},{"id":"hs-directors-cut","park":"hs","label":"DIRECTOR'S CUT","type":"host","hosts_do":"Laura directs Michael through 3 dramatic takes of a made-up movie scene.","minutes":"5","where":"anywhere"},{"id":"hs-tiny-tourist","park":"hs","label":"TINY TOURIST","type":"host","hosts_do":"Forced-perspective 'we've been shrunk' photo.","minutes":"5","where":"Toy Story Land"},{"id":"hs-blue-milk","park":"hs","label":"BLUE MILK","type":"snack","hosts_do":"Share a blue milk; Laura judges Michael's milk mustache. Hosts pay.","minutes":"10","where":"Galaxy's Edge"},{"id":"hs-scream-contest","park":"hs","label":"SCREAM CONTEST","type":"challenge","hosts_do":"On the next coaster, the Crew judges who screamed loudest (audio only).","minutes":"15 + queue","where":"any coaster"},{"id":"ak-safari-guide","park":"ak","label":"SAFARI GUIDE","type":"challenge","hosts_do":"On the safari, Michael whispers nature-documentary narration (ride scene clean).","minutes":"20 + queue","where":"Africa"},{"id":"ak-tree-of-life","park":"ak","label":"TREE OF LIFE","type":"challenge","hosts_do":"Find 5 carved animals on the Tree of Life in 5 minutes.","minutes":"5","where":"Discovery Island"},{"id":"ak-animal-walk","park":"ak","label":"ANIMAL WALK","type":"host","hosts_do":"Laura picks an animal; Michael walks like it for 10 seconds.","minutes":"1","where":"anywhere"},{"id":"ak-snack-safari","park":"ak","label":"SNACK SAFARI","type":"snack","hosts_do":"One snack from the nearest stand, rated by both. Hosts pay.","minutes":"10","where":"any stand"},{"id":"ak-yeti-yell","park":"ak","label":"YETI YELL","type":"challenge","hosts_do":"Ride Expedition Everest; the Crew judges the best yell.","minutes":"15 + queue","where":"Asia"},{"id":"ak-bird-call","park":"ak","label":"BIRD CALL","type":"host","hosts_do":"Michael tries his best bird call; the Crew rates with taps.","minutes":"1","where":"anywhere"},{"id":"ak-trail-count","park":"ak","label":"TRAIL COUNT","type":"challenge","hosts_do":"On the next animal trail, hosts count how many species they spot.","minutes":"15","where":"Africa or Asia trails"},{"id":"springs-brick-buddy","park":"springs","label":"BRICK BUDDY","type":"challenge","hosts_do":"Find a brick-built sculpture and copy its pose.","minutes":"3","where":"LEGO store area"},{"id":"springs-candy-scoop","park":"springs","label":"CANDY SCOOP","type":"snack","hosts_do":"Laura picks 3 candies for Michael to taste blind. Hosts pay.","minutes":"10","where":"candy shop"},{"id":"springs-window-shop","park":"springs","label":"WINDOW SHOP","type":"host","hosts_do":"Each host picks one ornament they'd give the Daze Crew tree (looking only, no buying).","minutes":"5","where":"any shop"},{"id":"springs-tree-stroll","park":"springs","label":"TREE STROLL","type":"vote","hosts_do":"Hosts each pick a favourite holiday tree; the Crew taps to choose the winner (in season).","minutes":"10","where":"Christmas trees"},{"id":"springs-cupcake-split","park":"springs","label":"CUPCAKE SPLIT","type":"snack","hosts_do":"Split one cupcake or bakery treat; Laura cuts, Michael chooses. Hosts pay.","minutes":"10","where":"bakery"},{"id":"springs-springs-tour","park":"springs","label":"SPRINGS TOUR","type":"host","hosts_do":"Laura gives a 3-minute 'insider' tour of whatever's in front of them.","minutes":"3","where":"anywhere"},{"id":"universal-butterbeer","park":"universal","label":"BUTTERBEER","type":"snack","hosts_do":"Share a Butterbeer (non-alcoholic); Laura judges Michael's foam mustache. Hosts pay.","minutes":"10","where":"Wizarding areas"},{"id":"universal-spell-cast","park":"universal","label":"SPELL CAST","type":"host","hosts_do":"Michael performs a dramatic, made-up spell at a quiet spot (no wand bought).","minutes":"1","where":"anywhere"},{"id":"universal-big-donut","park":"universal","label":"BIG DONUT","type":"snack","hosts_do":"Split a giant donut. Hosts pay.","minutes":"10","where":"Universal Studios Florida"},{"id":"universal-scream-scale","park":"universal","label":"SCREAM SCALE","type":"challenge","hosts_do":"On the next coaster, the Crew rates the hosts' screams (audio only).","minutes":"15 + queue","where":"any coaster"},{"id":"universal-hero-pose","park":"universal","label":"HERO POSE","type":"host","hosts_do":"Superhero landing pose; Laura directs a retake.","minutes":"1","where":"Islands of Adventure"},{"id":"universal-movie-trailer","park":"universal","label":"MOVIE TRAILER","type":"host","hosts_do":"Laura narrates Michael's next walk as a movie-trailer voice-over.","minutes":"2","where":"anywhere"},{"id":"universal-churro-split","park":"universal","label":"CHURRO SPLIT","type":"snack","hosts_do":"Split a churro; who gets the bigger half is decided by the Crew. Hosts pay.","minutes":"10","where":"any cart"}]};
+  var WH = { slices:null, st:null };
+  var WH_PARKS = [["mk","Magic Kingdom"],["epcot","EPCOT"],["hs","Hollywood Studios"],["ak","Animal Kingdom"],["springs","Disney Springs"],["universal","Universal"],["anywhere","Anywhere"]];
+  function whKey(){ return DV.test ? "itpd_drive_wheel_test_2026" : "itpd_drive_wheel_2026"; }
+  function whDay(){ return new Intl.DateTimeFormat("en-CA", { timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(Date.now() - 4 * 3600000)); }
+  function whBlank(){ return { v:1, day:whDay(), park:"", unticked:[], done:[], onDeck:[], queue:[], spin:null, lastSpinAt:0, lastWasWild:false }; }
+  function whRollover(w){
+    var today = whDay(); if (w.day === today) return w;
+    // a new stream day: greyed slices and day-ticks reset; On Deck carries ONCE to the next stream at that park
+    w.onDeck = (w.onDeck || []).filter(function(d){ return !d.carried; }).map(function(d){ d.carried = true; return d; });
+    w.day = today; w.done = []; w.unticked = []; w.spin = null; w.lastWasWild = false;
+    return w;
+  }
+  function whLoad(){
+    return dvPipe([["GET", "itpd_drive_wheel_slices_2026"], ["GET", whKey()]]).then(function(j){
+      var sl = null; try { sl = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){}
+      if (!sl || !sl.slices){ sl = WHEEL_SEED; dvPipe([["SET", "itpd_drive_wheel_slices_2026", JSON.stringify(sl)]]).catch(function(){}); }
+      WH.slices = sl;
+      var w = null; try { w = j[1].result ? JSON.parse(j[1].result) : null; } catch(e){}
+      WH.st = whRollover(Object.assign(whBlank(), w || {}));
+      if (!WH.st.park){ WH.st.park = whGuessPark(); }
+      whPaint();
+    });
+  }
+  function wheelChange(fn, msg){
+    return dvPipe([["GET", whKey()]]).then(function(j){
+      var w = null; try { w = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){}
+      w = whRollover(Object.assign(whBlank(), w || {})); fn(w); w.at = Date.now();
+      return dvPipe([["SET", whKey(), JSON.stringify(w)]]).then(function(){ WH.st = w; if ($("wheel").classList.contains("open")) whPaint(); if (msg) note(msg + (DV.test ? " (test copy)" : ""), "", Date.now()); });
+    }).catch(function(e){ tell("Wheel change not saved: " + e.message); });
+  }
+  function whGuessPark(){
+    var v = poCat && poState ? poCat.venues[poState.venue || 0] : null; if (!v) return "anywhere";
+    var p = v.waitPark || "";
+    if (p === "mk" || p === "epcot" || p === "hs" || p === "ak") return p;
+    if (p === "usf" || p === "ioa" || p === "epic" || v.company === "universal") return "universal";
+    if (/springs/i.test(v.id + " " + v.name)) return "springs";
+    return "anywhere";
+  }
+  function bySlice(id){ return (WH.slices.slices || []).filter(function(x){ return x.id === id; })[0]; }
+  function isWild(id){ return (WH.slices.rules.wildcardsOnEveryWheel || []).indexOf(id) >= 0; }
+  function whToday(w){ var park = w.park || "anywhere"; return (WH.slices.slices || []).filter(function(x){ return x.park === park; }); }
+  // the wheel for today: the park's slices (not unticked, not done) + the two wildcards; topped up
+  // from Anywhere if fewer than 8 (spec: a short wheel still needs at least 8 slices)
+  function whWheel(w){
+    var list = whToday(w).filter(function(x){ return w.unticked.indexOf(x.id) < 0 && w.done.indexOf(x.id) < 0; });
+    (WH.slices.rules.wildcardsOnEveryWheel || []).forEach(function(id){ var x = bySlice(id); if (x) list.push(x); });
+    if (w.park !== "anywhere"){
+      (WH.slices.slices || []).filter(function(x){ return x.park === "anywhere" && w.done.indexOf(x.id) < 0 && w.unticked.indexOf(x.id) < 0; })
+        .forEach(function(x){ if (list.length < 8) list.splice(list.length - 2, 0, x); });
+    }
+    return list.slice(0, 11);
+  }
+  function whSpin(isRespin){
+    var w = WH.st; if (!w) return;
+    var wheel = whWheel(w), pool = wheel.filter(function(x){ return !(w.lastWasWild && isWild(x.id)); });   // wildcards never twice in a row
+    if (pool.length < 2){ tell("Not enough slices left for today. Untick fewer, or pick Anywhere."); return; }
+    var pick = pool[Math.floor(Math.random() * pool.length)];
+    wheelChange(function(st){
+      if (!isRespin && st.queue.length) st.queue.shift();
+      st.spin = { seq:Date.now(), at:Date.now(), slices:wheel.map(function(x){ return { id:x.id, label:x.label, type:x.type }; }),
+                  result:pick.id, resultLabel:pick.label, resultType:pick.type, snack:pick.type === "snack" };
+      st.lastSpinAt = Date.now(); st.lastWasWild = isWild(pick.id);
+    }, "\ud83c\udfa1 The wheel landed on " + pick.label);
+  }
+  function whPaint(){
+    var w = WH.st; if (!w || !WH.slices) return;
+    var box = $("wheelParks"); box.textContent = "";
+    WH_PARKS.forEach(function(pp){
+      var b = document.createElement("button"); b.className = "btn" + (w.park === pp[0] ? " on" : ""); b.textContent = pp[1];
+      b.addEventListener("click", function(){ wheelChange(function(st){ st.park = pp[0]; }, "Wheel park: " + pp[1]); });
+      box.appendChild(b);
+    });
+    var waitMs = w.lastSpinAt ? 600000 - (Date.now() - w.lastSpinAt) : 0;
+    $("wheelStatus").textContent = (w.queue.length ? w.queue.length + " spin" + (w.queue.length > 1 ? "s" : "") + " waiting (" + w.queue.map(function(q){ return q.reason === "milestone" ? money(q.amount) : "by hand"; }).join(", ") + ")" : "No spins waiting") +
+      (w.queue.length > 0 && waitMs > 0 ? " \u00b7 next queued spin allowed in " + Math.ceil(waitMs / 60000) + " min (10 min between spins)" : "") + " \u00b7 walking scenes only";
+    $("wheelSpin").disabled = !w.queue.length || waitMs > 0;
+    var sp = w.spin, r = sp ? bySlice(sp.result) : null;
+    $("wheelResult").textContent = r ? "\ud83c\udfaf " + r.label : "";
+    $("wheelResultDo").textContent = r ? r.hosts_do + (r.minutes ? " (" + r.minutes + " min" + (/\d$/.test(r.minutes) ? "" : "") + ")" : "") + (r.type === "snack" ? " \u00b7 Our treat, not drive money." : "") : "";
+    $("wheelActs").style.display = r ? "" : "none";
+    var dl = $("wheelDeckList"); dl.textContent = "";
+    if (!w.onDeck.length){ dl.textContent = "Nothing on deck."; }
+    w.onDeck.forEach(function(d){
+      var x = bySlice(d.id); if (!x) return;
+      var l = document.createElement("label"), sp2 = document.createElement("span"), ok = document.createElement("button"), rm = document.createElement("button");
+      sp2.textContent = x.label + (d.carried ? " (carried over: do it first, last chance)" : "") + (d.park !== w.park ? " \u00b7 " + d.park : "");
+      ok.className = "btn"; ok.textContent = "Done"; rm.className = "btn"; rm.textContent = "Drop";
+      ok.addEventListener("click", function(e){ e.preventDefault(); wheelChange(function(st){ st.onDeck = st.onDeck.filter(function(y){ return y.id !== d.id; }); if (st.done.indexOf(d.id) < 0) st.done.push(d.id); }, "\u2705 " + x.label + " done"); });
+      rm.addEventListener("click", function(e){ e.preventDefault(); wheelChange(function(st){ st.onDeck = st.onDeck.filter(function(y){ return y.id !== d.id; }); }, x.label + " dropped (Laura's swap)"); });
+      l.appendChild(sp2); l.appendChild(ok); l.appendChild(rm); dl.appendChild(l);
+    });
+    var sl = $("wheelSlices"); sl.textContent = "";
+    whToday(w).concat((WH.slices.slices || []).filter(function(x){ return w.park !== "anywhere" && x.park === "anywhere"; })).forEach(function(x){
+      var l = document.createElement("label"), c = document.createElement("input"), t = document.createElement("span");
+      c.type = "checkbox"; c.checked = w.unticked.indexOf(x.id) < 0; t.textContent = x.label + " \u00b7 " + x.type + (x.park === "anywhere" && w.park !== "anywhere" ? " (fill-in)" : "");
+      if (w.done.indexOf(x.id) >= 0){ l.className = "done"; c.disabled = true; }
+      c.addEventListener("change", function(){ var on = c.checked; wheelChange(function(st){ st.unticked = st.unticked.filter(function(y){ return y !== x.id; }); if (!on) st.unticked.push(x.id); }); });
+      l.appendChild(c); l.appendChild(t); sl.appendChild(l);
+    });
+  }
+  $("dvWheelBtn").addEventListener("click", function(){ $("wheel").classList.add("open"); $("wheelStatus").textContent = "Loading\u2026"; poLoad().catch(function(){}).then(whLoad).catch(function(e){ $("wheelStatus").textContent = "Couldn\u2019t load: " + e.message; }); });
+  $("wheelClose").addEventListener("click", function(){ $("wheel").classList.remove("open"); });
+  $("wheelSpin").addEventListener("click", function(){ whSpin(false); });
+  $("wheelDone").addEventListener("click", function(){ var sp = WH.st && WH.st.spin; if (!sp) return;
+    wheelChange(function(st){ if (!isWild(sp.result) && st.done.indexOf(sp.result) < 0) st.done.push(sp.result); st.spin = null; }, "\u2705 " + sp.resultLabel + " done"); });
+  $("wheelDeck").addEventListener("click", function(){ var sp = WH.st && WH.st.spin; if (!sp) return;
+    wheelChange(function(st){ if (!st.onDeck.some(function(d){ return d.id === sp.result; })) st.onDeck.push({ id:sp.result, park:st.park, day:st.day, carried:false }); st.spin = null; }, sp.resultLabel + " is On Deck"); });
+  $("wheelCant").addEventListener("click", function(){ var sp = WH.st && WH.st.spin; if (!sp) return;
+    wheelChange(function(st){ if (st.unticked.indexOf(sp.result) < 0) st.unticked.push(sp.result); }).then(function(){ whSpin(true); }); });
+  $("wheelVeto").addEventListener("click", function(){ var sp = WH.st && WH.st.spin; if (!sp) return;   // vetoed slice leaves the wheel for today
+    wheelChange(function(st){ if (!isWild(sp.result) && st.unticked.indexOf(sp.result) < 0) st.unticked.push(sp.result); }, "Mrs. Daze veto!").then(function(){ whSpin(true); }); });
+  $("wheelAddSpin").addEventListener("click", function(){ wheelChange(function(st){ st.queue.push({ reason:"hand", at:Date.now() }); }, "A spin was added by hand"); });
+  $("wheelClearQ").addEventListener("click", function(){ compose("Clear all waiting spins?", null, "Clear", function(){ wheelChange(function(st){ st.queue = []; }, "Waiting spins cleared"); }); });
 
   // ---------- 11/06: Boss Battle controls (the engine runs in the Daze Bot) ----------
   var BOSS_FIGHT = "itpd_boss_fight_2026", BOSS_CMD = "itpd_boss_cmd_2026", bossTimer = null, bossLast = null, bossKoShown = 0;
