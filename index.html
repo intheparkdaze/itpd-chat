@@ -233,12 +233,14 @@ button{font:inherit;color:inherit}
     <div id="driveTest">TEST MODE: changes go to the test copy only (overlay link needs &amp;testkey). The live overlay is untouched.</div>
     <div id="driveStatus">Loading&hellip;</div>
     <h3>Drive on stream</h3>
-    <div class="grid2"><button class="btn" data-mode="off">Off</button><button class="btn" data-mode="awareness">Awareness</button>
-      <button class="btn" data-mode="give" id="dvGiveMode">Give (cleared only)</button><button class="btn" id="dvStart">Stream started</button></div>
+    <div class="small">Which cards are allowed today (doesn't put anything on screen by itself).</div>
+    <div class="grid2"><button class="btn" data-mode="off">Drive: Off</button><button class="btn" data-mode="awareness">Drive: Awareness</button>
+      <button class="btn" data-mode="give" id="dvGiveMode">Drive: Give (cleared only)</button><button class="btn" id="dvStart">Stream started</button></div>
     <h3>Show now</h3>
-    <div class="grid2"><button class="btn" data-show="awareness">Awareness</button><button class="btn" data-show="thanks">Thank-yous</button>
-      <button class="btn" data-show="give" id="dvShowGive">How to help</button><button class="btn" data-show="total" id="dvShowTotal">Total</button>
-      <button class="btn" data-show="shopping">Shopping</button><button class="btn" id="dvHide">Hide all</button></div>
+    <div class="small">Puts one card on screen now (within 30 s).</div>
+    <div class="grid2"><button class="btn" data-show="awareness">&#x25B6; Awareness card</button><button class="btn" data-show="thanks">&#x25B6; Thank-you card</button>
+      <button class="btn" data-show="give" id="dvShowGive">&#x25B6; How to help card</button><button class="btn" data-show="total" id="dvShowTotal">&#x25B6; Total card</button>
+      <button class="btn" data-show="shopping">&#x25B6; Shopping card</button><button class="btn" id="dvHide">&#x23F9; Hide all</button></div>
     <button class="btn wide" id="dvPause" style="margin-top:8px">Pause automatic cards</button>
     <h3>Super Chats (live count)</h3>
     <div id="dvScLine" class="small"></div>
@@ -370,7 +372,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-11b (gift drive test mode fix)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-11c (clearer gift drive buttons)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
