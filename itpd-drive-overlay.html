@@ -16,6 +16,7 @@
     itpd-drive-overlay.html#url=https://charming-worm-109173.upstash.io&tok=READ_ONLY_TOKEN
       &test     plays every card with fake data (incl. the gated ones); reads and writes nothing
       &testkey  reads the controller's TEST state (itpd_drive_test_2026) instead of the live one
+      &debug    shows a small status box: last read OK or the error, mode, ask cleared, last command
     The overlay only READS, so use the read-only token. Put it only on walking scenes, never on ride
     or show scenes (that's how it hides there, like the other overlays).
 
@@ -86,7 +87,17 @@
   var CARDS = { awareness:"drive-awareness", thanks:"drive-thanks", give:"drive-give", total:"drive-total", shopping:"drive-shopping" };
   var $ = function(id){ return document.getElementById(id); };
 
-  var st = null, sc = { cents:0, events:0, nonusd:0 }, lastOk = 0, lastCmd = null, loadedAt = Date.now();
+  var st = null, sc = { cents:0, events:0, nonusd:0 }, lastOk = 0, lastCmd = null, loadedAt = Date.now(), lastErr = "", lastCmdNote = "";
+  var DEBUG = H.has("debug"), dbgEl = null;
+  function dbg(){
+    if (!DEBUG) return;
+    if (!dbgEl){ dbgEl = document.createElement("div"); dbgEl.style.cssText = "position:fixed;left:12px;top:12px;z-index:99;background:rgba(0,0,0,.75);color:#fff;font:16px/1.4 monospace;padding:8px 12px;border-radius:8px;white-space:pre"; document.body.appendChild(dbgEl); }
+    dbgEl.textContent = "ITPD drive overlay  key: " + KEY + (TEST ? "  (TEST: fake data)" : "") +
+      "\nlink: url " + (URL_ ? "set" : "MISSING") + ", token " + (TOK ? "set" : "MISSING") +
+      "\nlast read: " + (TEST ? "n/a" : lastOk ? Math.round((Date.now() - lastOk) / 1000) + " s ago" : "never") + (lastErr ? "  error: " + lastErr : "") +
+      "\nmode: " + (st ? st.mode : "-") + "  ask cleared: " + (st ? !!st.askCleared : "-") + "  paused: " + (st ? !!st.paused : "-") +
+      "\nlast command: " + (lastCmdNote || "none yet") + "\nshowing: " + (showing || "nothing");
+  }
   var showing = null, hideTimer = null, queue = [], lastRun = {};
 
   // ---------- reading (fail closed) ----------
@@ -101,10 +112,10 @@
         var s = j && j[0] && j[0].result ? JSON.parse(j[0].result) : null;
         if (!s || typeof s !== "object") throw new Error("no state");
         var h = {}, a = (j[1] && j[1].result) || []; for (var i = 0; i < a.length; i += 2) h[a[i]] = Number(a[i + 1]) || 0;
-        st = s; sc = { cents:h.cents || 0, events:h.events || 0, nonusd:h.nonusd || 0 }; lastOk = Date.now();
-        handleCommand();
+        st = s; sc = { cents:h.cents || 0, events:h.events || 0, nonusd:h.nonusd || 0 }; lastOk = Date.now(); lastErr = "";
+        handleCommand(); dbg();
       })
-      .catch(function(){ /* keep the old state only until it goes stale; then everything hides */ });
+      .catch(function(e){ lastErr = e.message || String(e); dbg(); /* keep the old state only until it goes stale; then everything hides */ });
   }
 
   // ---------- what may show (the gate lives here too) ----------
@@ -166,7 +177,8 @@
     if (!c || c.seq == null) return;
     if (c.seq === lastCmd) return;
     lastCmd = c.seq;
-    if (Date.now() - (c.at || 0) > 120000) return;           // too old to act on
+    if (Date.now() - (c.at || 0) > 120000) { lastCmdNote = c.card + " (ignored: older than 2 min)"; return; }   // too old to act on
+    lastCmdNote = c.card + (c.card !== "hide" && !allowed(c.card) ? " (not allowed right now: drive off, gate, or nothing to show)" : "");
     if (c.card === "hide") { hideAll(); return; }
     if (CARDS[c.card]) { queue = []; if (showing) { $(CARDS[showing]).classList.remove("show"); clearTimeout(hideTimer); showing = null; } enqueue(c.card); }
   }
@@ -194,7 +206,7 @@
     sc = { cents:25650, events:9, nonusd:1 }; lastOk = Date.now();
   }
   window.__drive = { show:show, hideAll:hideAll, allowed:allowed, state:function(){ return st; }, tick:tick };
-  poll(); setInterval(poll, POLL_MS); setInterval(tick, 1000);
+  poll(); setInterval(poll, POLL_MS); setInterval(tick, 1000); setInterval(dbg, 1000);
 })();
 </script>
 </body></html>
