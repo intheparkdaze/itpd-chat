@@ -212,6 +212,17 @@
   .bit{position:fixed;top:-40px;font-size:40px;animation:fall linear forwards;pointer-events:none}
   @keyframes fall{to{transform:translateY(115vh) rotate(540deg);opacity:.9}}
   @media (prefers-reduced-motion:reduce){.bit{display:none}#party{transition:opacity .3s}#party .stamp{transition:none}}
+  /* Twitch milestone (Broadcast UI/UX, 11/11): same celebration card, in Twitch purple.
+     Switched on by a small script at the end whenever the stub reads "...TWITCH". */
+  #party.twitch{box-shadow:0 0 0 6px #9146FF,0 22px 60px rgba(0,0,0,.5)}
+  #party.twitch .stub{background:#6A2FD0}
+  #party.twitch .k{color:#7A3FF0}
+  #party.twitch .unit{color:#5B2BC4}
+  #party.twitch .rule{background:linear-gradient(90deg,#9146FF,#C9A8FF)}
+  #party.twitch .stamp{border-color:#7A3FF0;color:#7A3FF0}
+  /* Twitch follower bar: match the slim subscriber bar it docks under */
+  #twbar .tstub{background:#6A2FD0}
+  #twbar .t::before{content:"";display:inline-block;width:9px;height:9px;border-radius:2px;background:#9146FF;margin-right:7px;vertical-align:1px}
 </style>
 </head>
 <body>
@@ -643,7 +654,7 @@
   if (!URL_ || !TOK || (!KEY && !TEST)){ document.body.textContent = "Missing url / tok / key after the # in the link."; return; }
   start();
   followPark(); setInterval(followPark, 30000);
-  window.__records = { onLikes:onLikes, onViewers:onViewers, onSubs:onSubs, pollSubs:pollSubs, subs:function(){ return subs; }, poll:poll, state:function(){ return { record:record, vrecord:vrecord, live:live, goal:goal, status:status }; } };
+  window.__records = { party:queueParty, onLikes:onLikes, onViewers:onViewers, onSubs:onSubs, pollSubs:pollSubs, subs:function(){ return subs; }, poll:poll, state:function(){ return { record:record, vrecord:vrecord, live:live, goal:goal, status:status }; } };
 })();
 </script>
 <script>
@@ -746,7 +757,34 @@
   var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "";
   var bar = document.getElementById("twbar"), sub = document.getElementById("subbar"), chip = document.getElementById("chip");
   var fmt = function(n){ return Number(n).toLocaleString("en-US"); };
+  // 11/11: a celebration (the same card and confetti as the like and subscriber milestones, in
+  // Twitch purple) when the follower count reaches a goal. The last goal celebrated is saved in
+  // Upstash (itpd_twitch_followers_milestone_2026), so a reload never repeats it, and the first
+  // reading after setup is taken quietly as the starting point.
+  var MS_KEY = "itpd_twitch_followers_milestone_2026", lastMs = null;
+  function reachedGoal(count){ var g = GOAL, r = 0; while (count >= g){ r = g; g += STEP; } return r; }
+  function cel(count){
+    var r = reachedGoal(count); if (!r) { if (lastMs === null) lastMs = 0; return; }
+    if (lastMs === null) return;                                   // still loading the saved milestone
+    if (r <= lastMs) return;
+    lastMs = r;
+    fetch(URL_ + "/set/" + MS_KEY, { method:"POST", headers:{ Authorization:"Bearer " + TOK }, body: JSON.stringify({ last:r, at:Date.now() }) }).catch(function(){});
+    if (window.__records && window.__records.party)
+      window.__records.party({ stub:"ITPD TWITCH", k:fmt(r) + " FOLLOWERS!", big:fmt(r), unit:"Twitch follows",
+        sub:"Thank you for following us on Twitch, Daze crew!", old:"Next goal: " + fmt(r + STEP) + " follows",
+        stamp:["TWITCH", "MILESTONE"], emo:["\ud83d\udc9c","\ud83c\udf89","\u2b50","\ud83d\udc9c"] });
+  }
+  function loadMs(count){
+    fetch(URL_ + "/get/" + MS_KEY, { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var v = j && j.result ? JSON.parse(j.result) : null;
+        if (v && v.last >= 0) lastMs = v.last;
+        else { lastMs = reachedGoal(count); fetch(URL_ + "/set/" + MS_KEY, { method:"POST", headers:{ Authorization:"Bearer " + TOK }, body: JSON.stringify({ last:lastMs, at:Date.now() }) }).catch(function(){}); }
+      }).catch(function(){});
+  }
   function paint(count){
+    if (lastMs === null && !H.has("test")) loadMs(count); else if (!H.has("test")) cel(count);
     var goal = GOAL, just = 0;
     while (count >= goal){ just = goal; goal += STEP; }
     var show = just && count - just < 5 ? just : goal;          // stay on a reached goal briefly
@@ -770,6 +808,17 @@
     else { bar.style.top = "16px"; bar.style.right = "16px"; bar.style.width = ""; }
   }
   poll(); setInterval(poll, 30000); dock(); setInterval(dock, 500);
+})();
+</script>
+<script>
+/* Broadcast UI/UX, 2026-11-11: purple look for Twitch milestones. Watches the celebration
+   card's stub text (set by the shared showParty) and nothing else; changes no data. */
+(function(){
+  var party = document.getElementById("party"), stub = document.getElementById("pStub");
+  if (!party || !stub) return;
+  function theme(){ var tw = /TWITCH/i.test(stub.textContent || ""); if (party.classList.contains("twitch") !== tw) party.classList.toggle("twitch", tw); }
+  new MutationObserver(theme).observe(stub, { childList:true, characterData:true, subtree:true });
+  theme();
 })();
 </script>
 </body>
