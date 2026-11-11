@@ -139,6 +139,20 @@
     return false;
   }
 
+  function whyNot(card){
+    if (!fresh() || !st) return "no fresh data";
+    if (st.mode !== "awareness" && st.mode !== "give") return "drive is Off";
+    if (card === "thanks") return "no business names marked OK";
+    if (card === "shopping") return !st.shoppingOn ? "shopping card is off" : "shopping list is empty";
+    if (card === "give" || card === "total"){
+      if (st.mode !== "give") return "drive isn't in Give mode";
+      if (!cleared()) return "ask not cleared";
+      if (card === "give") return "no PayPal or Venmo details saved";
+      return "Given for gifts not set";
+    }
+    return "not allowed";
+  }
+
   // ---------- showing one card at a time ----------
   function fill(card, arg){
     if (card === "thanks") $("d-thanks-name").textContent = arg || "";
@@ -178,7 +192,7 @@
     if (c.seq === lastCmd) return;
     lastCmd = c.seq;
     if (Date.now() - (c.at || 0) > 120000) { lastCmdNote = c.card + " (ignored: older than 2 min)"; return; }   // too old to act on
-    lastCmdNote = c.card + (c.card !== "hide" && !allowed(c.card) ? " (not allowed right now: drive off, gate, or nothing to show)" : "");
+    lastCmdNote = c.card + (c.card !== "hide" && !allowed(c.card) ? " (can't show: " + whyNot(c.card) + ")" : "");
     if (c.card === "hide") { hideAll(); return; }
     if (CARDS[c.card]) { queue = []; if (showing) { $(CARDS[showing]).classList.remove("show"); clearTimeout(hideTimer); showing = null; } enqueue(c.card); }
   }
