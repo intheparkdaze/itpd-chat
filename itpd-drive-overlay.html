@@ -277,7 +277,8 @@
      until that exists: 250, 500, 1000, 1500, 2000, then every 500.
    - When the Total card shows, "Given for gifts" morphs into a thermometer after 3 s, filling
      toward the next milestone. Super Chats never count toward it.
-   - When "Given for gifts" crosses a milestone between two reads, a celebration card plays
+   - Celebration: from state.milestone {amount, at, seq} written by the phone (11/11); fallback:
+     when "Given for gifts" crosses a milestone between two reads, a celebration card plays
      (only while the Total card is allowed, so the ask-cleared gate still applies).
    Wording ("NEXT MILESTONE", "MILESTONE REACHED", "Thank you, Daze Crew!") awaits Community's OK. */
 (function(){
@@ -337,8 +338,21 @@
     card.classList.add("show"); setTimeout(stars, 500);
     setTimeout(function(){ card.classList.remove("show"); }, 9000);
   }
+  // Stream Engineering's phone now records each milestone as state.milestone {amount, at, seq}
+  // (11/11). When that exists, celebrate from it so the card and the wheel's spin queue agree;
+  // the crossing check below is the fallback for older phone pages.
+  var msSeq = null, usePhone = false;
+  setInterval(function(){
+    var st = D.state(), m = st && st.milestone;
+    if (m && m.seq != null){
+      usePhone = true;
+      if (msSeq === null){ msSeq = m.seq; return; }                 // don't replay on load
+      if (m.seq !== msSeq){ msSeq = m.seq; if (!m.at || Date.now() - m.at < 180000) celebrate(Number(m.amount) || 0); }
+    } else if (msSeq === null && st) msSeq = 0;
+  }, 2000);
   setInterval(function(){
     var v = gifts(); if (v === null) return;
+    if (usePhone){ lastV = v; return; }
     if (lastV !== null && v > lastV){
       var crossed = null, m = ladder().slice(), top = m[m.length - 1];
       for (var x = top + 500; x <= v + 500; x += 500) m.push(x);

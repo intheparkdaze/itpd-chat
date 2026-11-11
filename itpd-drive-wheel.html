@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<title>ITPD Gift Drive milestone wheel</title>
+<!--
+  ITPD GIFT DRIVE MILESTONE WHEEL (Broadcast UI/UX, 2026-11-11, v1)
+  IRLToolkit browser source, 1920x1080, transparent. DISPLAY ONLY: the phone (Stream
+  Engineering) chooses the slices and the result; this page draws them and lands on it,
+  so every copy shows the same result. It never picks anything itself.
+
+  LINK (settings after the #):
+    itpd-drive-wheel.html#url=https://charming-worm-109173.upstash.io&tok=READ_ONLY_TOKEN
+      &testkey  follow the phone's Test mode (reads itpd_drive_wheel_test_2026)
+      &test     plays sample EPCOT spins with fake data; reads and writes nothing
+      &debug    small status box (last read, spin seq, last result)
+  Walking scenes only (that's how it hides during rides and shows).
+
+  DATA (Stream Engineering, 11/11): itpd_drive_wheel_2026, read every 2.5 s
+    spin: { seq, at, slices:[{id,label,type}], result, resultLabel, resultType, snack }
+    onDeck: [{ id, park, day, carried }]
+  A new spin.seq less than 2 minutes old plays: the wheel appears, spins about 6 s, lands
+  on spin.result (a slice id or an index), shows the landing card for 12 s, then hides.
+  Snack landings add "Our treat, not drive money" (the spec's on-air line).
+  Fail closed: if the key can't be read, nothing new plays and an open wheel hides.
+
+  STABLE IDS: dw-wrap, dw-wheel, dw-land, dw-land-label, dw-land-type, dw-land-note, dw-deck
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#FFFBF3;--ink:#17152A;--navy:#22306B;--muted:#6B6780;--gold:#FFD34E;--red:#B3202D;--green:#1F7A4D}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:transparent;overflow:hidden;font-family:"Baloo 2","Trebuchet MS",sans-serif;color:var(--ink)}
+  #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+
+  /* wheel sits centre-right, clear of the drive cards (middle-left) */
+  #dw-wrap{position:absolute;left:1010px;top:110px;width:640px;height:760px;opacity:0;transform:scale(.6) translateY(60px);
+    transition:opacity .6s,transform .7s cubic-bezier(.2,1.3,.4,1)}
+  #dw-wrap.show{opacity:1;transform:none}
+  .head{position:absolute;left:50%;top:0;transform:translateX(-50%);display:flex;align-items:center;background:var(--paper);border-radius:16px;
+    box-shadow:0 0 0 4px var(--red),0 10px 24px rgba(0,0,0,.4);overflow:hidden;white-space:nowrap}
+  .head .s{background:var(--red);color:#fff;font:500 13px/1 "DM Mono",monospace;letter-spacing:3px;padding:14px 12px}
+  .head .t{font-weight:800;font-size:30px;padding:6px 20px 4px;color:var(--ink)}
+  .head .t b{color:var(--red)}
+  #dw-disc{position:absolute;left:40px;top:84px;width:560px;height:560px;border-radius:50%;
+    box-shadow:0 0 0 10px var(--paper),0 0 0 16px var(--red),0 18px 40px rgba(0,0,0,.45)}
+  #dw-wheel{width:100%;height:100%;display:block;transform:rotate(0deg)}
+  #dw-wheel.spin{transition:transform 6s cubic-bezier(.12,.6,.1,1)}
+  .hub{position:absolute;left:50%;top:50%;width:92px;height:92px;margin:-46px 0 0 -46px;border-radius:50%;background:var(--paper);
+    box-shadow:0 0 0 6px var(--gold),0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
+  .hub svg{width:48px;height:48px}
+  .pointer{position:absolute;left:50%;top:62px;width:0;height:0;margin-left:-22px;border-left:22px solid transparent;border-right:22px solid transparent;
+    border-top:46px solid var(--gold);filter:drop-shadow(0 3px 3px rgba(0,0,0,.4));z-index:2}
+
+  /* landing card */
+  #dw-land{position:absolute;left:50%;top:660px;transform:translate(-50%,30px) scale(.9);opacity:0;display:flex;background:var(--paper);border-radius:20px;
+    box-shadow:0 0 0 4px var(--gold),0 14px 32px rgba(0,0,0,.45);overflow:hidden;transition:opacity .5s,transform .6s cubic-bezier(.2,1.3,.4,1);width:max-content;max-width:900px}
+  #dw-land.show{opacity:1;transform:translate(-50%,0) scale(1)}
+  #dw-land .ls{width:54px;background:#B07A00;border-right:3px dashed rgba(255,255,255,.55);display:flex;align-items:center;justify-content:center}
+  #dw-land .ls span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 12px/1 "DM Mono",monospace;letter-spacing:3px;color:#fff}
+  #dw-land .lb{padding:14px 30px 16px 24px}
+  #dw-land-type{font-weight:800;font-size:18px;letter-spacing:3px;color:#B07A00}
+  #dw-land-label{font-weight:800;font-size:46px;line-height:1.05;color:var(--ink)}
+  #dw-land-note{font-weight:700;font-size:22px;color:var(--green);margin-top:4px}
+  #dw-land-note:empty{display:none}
+  #dw-deck{position:absolute;left:50%;top:790px;transform:translateX(-50%);font:500 18px/1 "DM Mono",monospace;letter-spacing:2px;color:#fff;
+    background:rgba(23,21,42,.7);border-radius:10px;padding:8px 14px 6px;white-space:nowrap;opacity:0;transition:opacity .5s}
+  #dw-deck.show{opacity:1}
+  @media (prefers-reduced-motion:reduce){#dw-wrap,#dw-land{transition:opacity .3s}#dw-wheel.spin{transition:transform 1.5s ease-out}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="dw-wrap">
+    <div class="head"><span class="s">GIFT DRIVE</span><span class="t">Milestone <b>spin!</b></span></div>
+    <div class="pointer"></div>
+    <div id="dw-disc"><svg id="dw-wheel" viewBox="-300 -300 600 600"></svg>
+      <div class="hub"><svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="11" rx="2" fill="#B3202D"/><rect x="2" y="7" width="20" height="4" rx="1.5" fill="#FFD34E"/><rect x="11" y="7" width="2" height="14" fill="#FFD34E"/><path d="M12 7c-2-4-6-4-6-1.5S10 7 12 7zm0 0c2-4 6-4 6-1.5S14 7 12 7z" fill="#FFD34E"/></svg></div>
+    </div>
+    <div id="dw-land"><div class="ls"><span>LANDED</span></div><div class="lb">
+      <div id="dw-land-type">PARK CHALLENGE</div><div id="dw-land-label"></div><div id="dw-land-note"></div></div></div>
+    <div id="dw-deck"></div>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+  var H = new URLSearchParams(location.hash.slice(1).replace(/#/g, "&"));
+  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = (H.get("tok") || "").trim();
+  var TEST = H.has("test"), KEY = H.has("testkey") ? "itpd_drive_wheel_test_2026" : "itpd_drive_wheel_2026";
+  var $ = function(id){ return document.getElementById(id); };
+  var stage = $("stage");
+  function fit(){ var k = Math.min(innerWidth / 1920, innerHeight / 1080) || 1; stage.style.transform = "scale(" + k + ")"; }
+  fit(); addEventListener("resize", fit);
+
+  // slice colours by type (ticket palette)
+  var COL = { snack:"#E8622C", challenge:"#22306B", host:"#B3202D", vote:"#1F7A4D", laura:"#D82A83" };
+  var TYPE_NAME = { snack:"SNACK", challenge:"PARK CHALLENGE", host:"HOST MOMENT", vote:"CREW VOTE", laura:"LAURA'S CHOICE" };
+  var lastSeq = null, rot = 0, busy = false, lastOk = 0, lastNote = "";
+
+  function draw(slices){
+    var svg = $("dw-wheel"), n = slices.length, R = 290, out = "";
+    for (var i = 0; i < n; i++){
+      var a0 = (i / n) * 2 * Math.PI - Math.PI / 2, a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2;
+      var x0 = R * Math.cos(a0), y0 = R * Math.sin(a0), x1 = R * Math.cos(a1), y1 = R * Math.sin(a1);
+      var c = COL[slices[i].type] || "#22306B";
+      out += '<path d="M0 0 L' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + R + ' ' + R + ' 0 0 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + 'Z" fill="' + c + '" stroke="#FFFBF3" stroke-width="5"/>';
+      var am = (a0 + a1) / 2, deg = am * 180 / Math.PI;
+      var label = String(slices[i].label || "").slice(0, 14).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      var fs = n > 10 ? 21 : 24;
+      var dn = ((deg % 360) + 360) % 360, flip = dn > 90 && dn < 270;   // keep labels on the left half upright
+      out += '<text x="0" y="0" transform="' + (flip ? 'rotate(' + (deg + 180).toFixed(1) + ') translate(' + (-(R - 22)) + ' 0)" text-anchor="start"' : 'rotate(' + deg.toFixed(1) + ') translate(' + (R - 22) + ' 0)" text-anchor="end"') + ' dominant-baseline="middle" ' +
+             'font-family="Baloo 2, sans-serif" font-weight="800" font-size="' + fs + '" fill="#FFFBF3" letter-spacing="0.5">' + label + '</text>';
+    }
+    svg.innerHTML = out;
+  }
+  function resultIndex(spin){
+    var r = spin.result, sl = spin.slices || [];
+    if (typeof r === "number" && r >= 0 && r < sl.length) return r;
+    for (var i = 0; i < sl.length; i++) if (sl[i].id === r) return i;
+    if (spin.resultLabel) for (var j = 0; j < sl.length; j++) if (sl[j].label === spin.resultLabel) return j;
+    return -1;
+  }
+  function hideAll(){ $("dw-land").classList.remove("show"); $("dw-deck").classList.remove("show"); $("dw-wrap").classList.remove("show"); busy = false; }
+  function play(spin, onDeck){
+    var sl = (spin.slices || []).filter(function(s){ return s && s.label; });
+    var idx = resultIndex(spin);
+    if (sl.length < 2 || idx < 0){ lastNote = "spin " + spin.seq + ": no usable slices/result"; return; }
+    busy = true; draw(sl);
+    var w = $("dw-wheel"); w.classList.remove("spin"); w.style.transform = "rotate(" + (rot % 360) + "deg)"; rot = rot % 360;
+    $("dw-land").classList.remove("show"); $("dw-deck").classList.remove("show");
+    $("dw-wrap").classList.add("show");
+    // land the middle of the result slice under the pointer (top), with 5 full turns
+    var n = sl.length, mid = (idx + 0.5) * 360 / n, jitter = (Math.random() - 0.5) * (360 / n) * 0.5;
+    var target = rot + 1800 + ((360 - mid - jitter - (rot % 360)) % 360 + 360) % 360;
+    setTimeout(function(){ w.classList.add("spin"); w.style.transform = "rotate(" + target + "deg)"; rot = target; }, 700);
+    setTimeout(function(){
+      var r = sl[idx], snack = spin.snack || r.type === "snack";
+      $("dw-land-type").textContent = TYPE_NAME[spin.resultType || r.type] || "IT'S…";
+      $("dw-land-label").textContent = spin.resultLabel || r.label;
+      $("dw-land-note").textContent = snack ? "Our treat, not drive money" : "";
+      $("dw-land").classList.add("show");
+      var deck = (onDeck || []).map(function(d){ var s = sl.filter(function(x){ return x.id === d.id; })[0]; return s ? s.label : ""; }).filter(Boolean);
+      if (deck.length){ $("dw-deck").textContent = "ON DECK: " + deck.slice(0, 2).join(" \u00b7 "); $("dw-deck").classList.add("show"); }
+      lastNote = "spin " + spin.seq + " landed: " + (spin.resultLabel || r.label);
+    }, 7000);
+    setTimeout(hideAll, 19000);
+  }
+
+  function handle(s){
+    var spin = s && s.spin; if (!spin || spin.seq == null) return;
+    if (lastSeq === null){ lastSeq = spin.seq; return; }            // don't replay an old spin on load
+    if (spin.seq === lastSeq) return;
+    lastSeq = spin.seq;
+    if (spin.at && Date.now() - spin.at > 120000){ lastNote = "spin " + spin.seq + " ignored (older than 2 min)"; return; }
+    if (busy) hideAll();
+    play(spin, s.onDeck);
+  }
+  function poll(){
+    fetch(URL_ + "/get/" + KEY, { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(d){ var s = d && d.result ? JSON.parse(d.result) : null; lastOk = Date.now(); if (lastSeq === null && !(s && s.spin)) lastSeq = 0; handle(s); dbg(); })
+      .catch(function(e){ lastNote = "read error: " + e.message; if (busy && Date.now() - lastOk > 15000) hideAll(); dbg(); });   // fail closed
+  }
+
+  var dbgEl = null;
+  function dbg(){
+    if (!H.has("debug")) return;
+    if (!dbgEl){ dbgEl = document.createElement("div"); dbgEl.style.cssText = "position:fixed;left:12px;top:12px;z-index:9;background:rgba(0,0,0,.75);color:#fff;font:15px/1.4 monospace;padding:8px 12px;border-radius:8px;white-space:pre"; document.body.appendChild(dbgEl); }
+    dbgEl.textContent = "ITPD drive wheel  key: " + KEY + (TEST ? "  (TEST)" : "") + "\nlink: url " + (URL_ ? "set" : "MISSING") + ", token " + (TOK ? "set" : "MISSING") +
+      "\nlast read: " + (lastOk ? Math.round((Date.now() - lastOk) / 1000) + " s ago" : "never") + "\nspin seq seen: " + lastSeq + "\n" + (lastNote || "");
+  }
+
+  if (TEST){
+    var EP = [
+      { id:"all-lauras-choice", label:"LAURA'S CHOICE", type:"laura" }, { id:"epcot-club-cool", label:"CLUB COOL", type:"snack" },
+      { id:"epcot-say-thank-you", label:"SAY THANK YOU", type:"challenge" }, { id:"epcot-spaceship-pose", label:"SPACESHIP POSE", type:"host" },
+      { id:"all-crew-vote", label:"CREW VOTE", type:"vote" }, { id:"epcot-world-snack", label:"WORLD SNACK", type:"snack" },
+      { id:"epcot-figment-ride", label:"FIGMENT RIDE", type:"challenge" }, { id:"epcot-fountain-dance", label:"FOUNTAIN DANCE", type:"host" },
+      { id:"epcot-speed-walk", label:"SPEED WALK", type:"challenge" }
+    ];
+    var k = 0;
+    (function go(){ k++; var r = EP[(k * 4) % EP.length]; play({ seq:k, slices:EP, result:r.id, resultLabel:r.label, resultType:r.type, snack:r.type === "snack" }, k % 2 ? [{ id:"epcot-figment-ride" }] : []); setTimeout(go, 22000); })();
+    var b = document.createElement("div"); b.style.cssText = "position:fixed;right:12px;top:10px;color:#fff;font:14px system-ui,sans-serif;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:8px";
+    b.textContent = "TEST: sample spins, nothing live"; document.body.appendChild(b);
+  } else if (URL_ && TOK){ poll(); setInterval(poll, 2500); setInterval(dbg, 1000); }
+  else { dbg(); }
+  window.__wheel = { play:play, hide:hideAll };
+})();
+</script>
+</body>
+</html>
