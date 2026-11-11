@@ -291,7 +291,11 @@
            timing:{ startDelayMin:0, awarenessSec:5, thanksSec:4, giveSec:5, totalSec:5, shoppingSec:5, awarenessEveryMin:1, thanksEveryMin:1, giveEveryMin:1, totalEveryMin:1, shoppingEveryMin:1 } };
     sc = { cents:25650, events:9, nonusd:1 }; lastOk = Date.now();
   }
-  window.__drive = { show:show, hideAll:hideAll, allowed:allowed, state:function(){ return st; }, tick:tick };
+  // 11/11 (for UI/UX's persistent drive meter): the live Super Chat figure in dollars, before
+  // rounding, exactly as the Total card computes it (Daze Bot count + the phone's correction)
+  function scDollars(){ return ((sc.cents || 0) + Math.round((Number(st && st.scCorrection) || 0) * 100)) / 100; }
+  window.__drive = { show:show, hideAll:hideAll, allowed:allowed, state:function(){ return st; }, tick:tick, scDollars:scDollars };
+  if (TEST) window.__drive.testSc = function(cents){ sc.cents = Math.max(0, Number(cents) || 0); };   // #test only: change the fake Super Chat count
   poll(); setInterval(poll, POLL_MS); setInterval(tick, 1000); setInterval(dbg, 1000);
 })();
 </script>
@@ -390,11 +394,19 @@
   // while the Total card is allowed (same gate and fail-closed), steps aside while the Total
   // card itself is up. Super Chat figure: from __drive.scDollars() when Stream Engineering
   // exposes it; until then, the figure last shown on the Total card.
-  var meter = $("drive-meter"), seenTotal = false;
+  var meter = $("drive-meter"), seenTotal = false, scBase = null;
+  function corr(){ var st = D.state(); return Number(st && st.scCorrection) || 0; }
   function scNow(){
     if (typeof D.scDollars === "function"){ var v = Number(D.scDollars()); if (isFinite(v)) return v; }
-    var t = ($("d-total-sc").textContent || "").replace(/[^0-9.]/g, ""); return t ? Number(t) : null;
+    // Until the engine exposes the live figure: the counted part comes from the last Total card,
+    // and the phone's correction is applied live (so a correction shows within one read, ~30 s).
+    return scBase === null ? null : scBase + corr();
   }
+  // remember the counted part each time the Total card fills its Super Chat figure
+  new MutationObserver(function(){
+    var t = ($("d-total-sc").textContent || "").replace(/[^0-9.]/g, "");
+    if (t) scBase = Number(t) - corr();
+  }).observe($("d-total-sc"), { childList:true, characterData:true, subtree:true });
   setInterval(function(){
     var ok = D.allowed("total"), totalUp = total.classList.contains("show");
     if (totalUp) seenTotal = true;
@@ -408,7 +420,19 @@
     }
     if (meter.classList.contains("on") !== on) meter.classList.toggle("on", on);
   }, 1000);
-  window.__driveLook = { celebrate: celebrate, nextFor: nextFor };
+  // &debug: show which LOOK version is loaded and why the meter is or isn't on
+  var LOOK_VERSION = "2026-11-11 meter";
+  if (/[#&]debug(?=$|[&#=])/.test(location.hash)){
+    var lb = document.createElement("div");
+    lb.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:99;background:rgba(0,0,0,.75);color:#fff;font:15px/1.4 monospace;padding:6px 10px;border-radius:8px;white-space:pre";
+    document.body.appendChild(lb);
+    setInterval(function(){
+      var ok = D.allowed("total"), up = total.classList.contains("show");
+      lb.textContent = "LOOK: " + LOOK_VERSION + "\nmeter: " + (meter.classList.contains("on") ? "ON" : "off") +
+        "  (Total allowed: " + ok + ", Total card shown yet: " + seenTotal + ", Total up now: " + up + ")";
+    }, 1000);
+  }
+  window.__driveLook = { celebrate: celebrate, nextFor: nextFor, version: LOOK_VERSION };
 })();
 </script>
 </body></html>
