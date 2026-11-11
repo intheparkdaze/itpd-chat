@@ -81,6 +81,24 @@
   .mstar{position:fixed;width:2vw;height:2vw;pointer-events:none;opacity:0;animation:mpop 1.6s ease-out forwards}
   @keyframes mpop{0%{opacity:0;transform:translate(0,0) scale(.3)}15%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1) rotate(200deg)}}
   @media (prefers-reduced-motion:reduce){.card{transition:opacity .4s}.bow{animation:none}.mstar{display:none}.thermo .fill{transition:none}}
+  /* Persistent drive meter, right edge (UI/UX 11/11): between the goals stack (top-right) and
+     the chat card / clock (bottom-right). Red thermometer = Given for gifts only. Super Chats
+     are a separate green figure with no bar, so the two are never joined or compared. */
+  #drive-meter{position:fixed;right:1.25vw;top:35vh;width:11.6vw;background:var(--paper);border-radius:.9vw;overflow:hidden;font-size:1.15vw;
+    box-shadow:0 0 0 .16vw var(--red),0 .6vw 1.6vw rgba(0,0,0,.42);opacity:0;transform:translateX(130%);transition:opacity .6s,transform .7s cubic-bezier(.2,.9,.3,1.1)}
+  #drive-meter.on{opacity:1;transform:none}
+  #drive-meter .mh{display:flex;align-items:center;gap:.4em;background:var(--red);color:#fff;font:500 .62em/1 "DM Mono",monospace;letter-spacing:.18em;padding:.55em .7em}
+  #drive-meter .mh svg{width:1.4em;height:1.4em}
+  #drive-meter .gift{display:flex;gap:.7em;padding:.7em .75em .55em}
+  #drive-meter .tube{position:relative;width:1.15em;height:9.5em;flex-shrink:0;border-radius:.6em;background:#EDE5D6;box-shadow:inset 0 0 0 .1em rgba(23,21,42,.08);overflow:hidden}
+  #drive-meter .tube i{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:.6em;transition:height 1.6s cubic-bezier(.2,.8,.2,1);
+    background:repeating-linear-gradient(135deg,#B3202D 0 .45em,#FFFBF3 .45em .7em)}
+  #drive-meter .gl{display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+  #drive-meter .lab{font:500 .6em/1.25 "DM Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  #drive-meter .amt{font-weight:800;font-size:1.65em;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+  #drive-meter .nx{font:500 .58em/1.3 "DM Mono",monospace;color:var(--red)}
+  #drive-meter .scb{border-top:.16em dashed #E2D9C6;padding:.55em .75em .7em;background:#EEF6F0}
+  #drive-meter .scb .amt{color:#1F7A4D;font-size:1.35em}
 </style>
 </head><body>
 
@@ -116,6 +134,13 @@
   <div class="big" id="d-ms-amount"></div>
   <div class="sub">Thank you, Daze Crew!</div>
   <div class="rule"></div></div></div>
+
+<div id="drive-meter" aria-hidden="true">
+  <div class="mh"><svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="11" rx="2" fill="#FFFBF3"/><rect x="2" y="7" width="20" height="4" rx="1.5" fill="#FFD34E"/><rect x="11" y="7" width="2" height="14" fill="#FFD34E"/></svg>GIFT DRIVE</div>
+  <div class="gift"><div class="tube"><i id="dm-fill"></i></div>
+    <div class="gl"><div><div class="lab">Given for gifts</div><div class="amt" id="dm-gifts">$0</div></div><div class="nx" id="dm-next"></div></div></div>
+  <div class="scb"><div class="lab">Super Chats during the drive</div><div class="amt" id="dm-sc">$0</div></div>
+</div>
 
 <div class="card" id="drive-shopping" aria-hidden="true"><div class="stub"><svg viewBox="0 0 24 24" class="bow"><rect x="3" y="10" width="18" height="11" rx="2" fill="#FFFBF3"/><rect x="2" y="7" width="20" height="4" rx="1.5" fill="#FFD34E"/><rect x="11" y="7" width="2" height="14" fill="#FFD34E"/><path d="M12 7c-2-4-6-4-6-1.5S10 7 12 7zm0 0c2-4 6-4 6-1.5S14 7 12 7z" fill="#FFD34E"/></svg><span>GIFT DRIVE</span></div><div class="body">
   <div class="k">SHOPPING FOR THE GIFT DRIVE</div>
@@ -361,6 +386,28 @@
     }
     lastV = v;
   }, 2000);
+  // ---- persistent meter (Michael, 11/11): appears once the Total card has been shown, stays
+  // while the Total card is allowed (same gate and fail-closed), steps aside while the Total
+  // card itself is up. Super Chat figure: from __drive.scDollars() when Stream Engineering
+  // exposes it; until then, the figure last shown on the Total card.
+  var meter = $("drive-meter"), seenTotal = false;
+  function scNow(){
+    if (typeof D.scDollars === "function"){ var v = Number(D.scDollars()); if (isFinite(v)) return v; }
+    var t = ($("d-total-sc").textContent || "").replace(/[^0-9.]/g, ""); return t ? Number(t) : null;
+  }
+  setInterval(function(){
+    var ok = D.allowed("total"), totalUp = total.classList.contains("show");
+    if (totalUp) seenTotal = true;
+    var on = ok && seenTotal && !totalUp;
+    if (on){
+      var v = gifts() || 0, r = nextFor(v), sc = scNow();
+      $("dm-gifts").textContent = money(v);
+      $("dm-next").textContent = "Next milestone " + money(r.next);
+      $("dm-fill").style.height = Math.max(4, Math.min(100, ((v - r.prev) / (r.next - r.prev)) * 100)) + "%";
+      $("dm-sc").textContent = sc === null ? "\u2013" : money(sc);
+    }
+    if (meter.classList.contains("on") !== on) meter.classList.toggle("on", on);
+  }, 1000);
   window.__driveLook = { celebrate: celebrate, nextFor: nextFor };
 })();
 </script>
