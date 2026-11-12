@@ -19,6 +19,7 @@
 <style>
   :root{--paper:#FFFBF3;--ink:#17152A;--navy:#22306B;--muted:#6B6780;--gold:#FFD34E;--red:#B3202D;--green:#1F7A4D;--amber:#B07A00}
   html,body{margin:0;background:transparent;overflow:hidden;font-family:"Baloo 2","Trebuchet MS",system-ui,sans-serif;color:var(--ink)}
+  /* Drive meter, right edge (Broadcast UI/UX): between the goals stack (top-right) and
      the chat card / clock (bottom-right). Red thermometer = Given for gifts only. Super Chats
      are a separate green figure with no bar, so the two are never joined or compared. */
   #drive-meter{position:fixed;right:1.25vw;top:35vh;width:11.6vw;background:var(--paper);border-radius:.9vw;overflow:hidden;font-size:1.15vw;
@@ -49,7 +50,8 @@
 (function(){
   "use strict";
   var H = new URLSearchParams(location.hash.slice(1));
-  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "", KEY = "itpd_drive_static_2026";
+  function rawParam(name){ var m = location.hash.match(new RegExp("[#&]" + name + "=([^&#]*)")); try { return m ? decodeURIComponent(m[1]) : ""; } catch(e){ return m ? m[1] : ""; } }
+  var URL_ = (rawParam("url") || "").replace(/\/+$/, ""), TOK = rawParam("tok").trim(), KEY = "itpd_drive_static_2026";
   var $ = function(id){ return document.getElementById(id); }, lastOk = 0;
   var LADDER = [250, 500, 1000, 1500, 2000];
   function nextFor(v){
