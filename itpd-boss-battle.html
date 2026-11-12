@@ -16,6 +16,8 @@
            rage, pause, KO, a retreat), on a loop. Safe to leave in IRLToolkit's preview.
   &scale=0.9  size of the fight panel (default 1).
   &debug   status box: last read, phase, boss, and why nothing may be showing.
+  &introsec=8  longest the big entrance card stays (default 8 s); if the engine is still in
+           "intro" after that, the fight panel shows with a "get ready" line.
 
   PHASES: idle / hidden -> nothing on screen. intro -> entrance card. fight -> compact
   panel at the bottom centre (portrait, name, level, health bar, hits). paused -> panel
@@ -206,6 +208,9 @@
   function rawParam(name){ var m = location.hash.match(new RegExp("[#&]" + name + "=([^&#]*)")); try { return m ? decodeURIComponent(m[1]) : ""; } catch(e){ return m ? m[1] : ""; } }
   var URL_ = (rawParam("url") || "").replace(/\/+$/, ""), TOK = rawParam("tok").trim(), TEST = H.has("test");
   var DEBUG = H.has("debug"), lastOk = 0, lastErr = "", lastPhase = "-", lastBoss = "-";
+  // The big entrance card shows for at most INTRO_SEC, however long the engine stays in "intro";
+  // then the compact panel slides in with a "get ready" line until the fight starts.
+  var INTRO_SEC = Math.max(3, parseFloat(H.get("introsec")) || 8), introAt = 0, introDone = false;
   var KEY = "itpd_boss_fight_2026";
   var $ = function(id){ return document.getElementById(id); };
   var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--scale", sc);
@@ -354,7 +359,11 @@
       $("bb-hptext").textContent = Math.max(0, Math.round(s.hp)) + " / " + Math.round(s.maxHp);
     }
     var panel = $("bb-panel");
-    panel.classList.toggle("on", phase === "fight" || phase === "paused");
+    if (phase === "intro" && (phase !== shown.phase || fresh)){ introAt = Date.now(); introDone = false; }
+    var introLong = phase === "intro" && introAt && Date.now() - introAt > INTRO_SEC * 1000;
+    if (introLong && !introDone){ introDone = true; setCard(null); }
+    $("bb-hint").textContent = phase === "intro" ? "Get ready, Daze Crew\u2026 the fight starts any second!" : "Every tap is a hit! Any emoji \u00B7 smash that like";
+    panel.classList.toggle("on", phase === "fight" || phase === "paused" || introLong);
     // hit badges and the volley belong to the fight: clear them for cards and hidden phases
     var inFight = phase === "fight" || phase === "paused";
     $("bb-badges").style.opacity = inFight ? "1" : "0";
@@ -410,7 +419,7 @@
         var s = null; try { s = d.result ? JSON.parse(d.result) : null; } catch(e){}
         lastOk = Date.now(); lastErr = s ? "" : "no fight saved yet (key is empty)";
         lastPhase = s && s.phase || "idle"; lastBoss = s && s.boss ? (s.boss.name || s.boss.id) + " (level " + (s.level || "?") + ")" : "-";
-        if (s) render(s); else render({ phase:"idle" });
+        lastState = s; if (s) render(s); else render({ phase:"idle" });
         dbg();
       })
       .catch(function(e){ lastErr = e.message || String(e); dbg(); });
@@ -427,6 +436,7 @@
       "\nphase: " + lastPhase + (why ? "  <- " + why : "") + "\nboss: " + lastBoss;
   }
   if (DEBUG) setInterval(dbg, 1000);
+  var lastState = null;
 
   // ---------- &test: scripted fight, no Upstash ----------
   function runTest(){
