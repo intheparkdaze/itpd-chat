@@ -156,6 +156,13 @@ button{font:inherit;color:inherit}
 #wheel .lst label{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line)}
 #wheel .lst label span{flex:1}
 #wheel .lst label.done{opacity:.45;text-decoration:line-through}
+#gds{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#gds.open{display:flex}
+#gds h2{font-size:1.1rem;margin:0 0 8px}
+#gds label{display:block;font-weight:700;margin-top:12px}
+#gds input{width:100%;box-sizing:border-box;padding:12px;font-size:1.3rem;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin-top:4px}
+#gds .bigbtn{width:100%;padding:14px;font-size:1.1rem;margin-top:12px}
+#gdsShow.on{border-color:var(--ok);background:rgba(31,107,58,.15)}
 #boss{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #boss.open{display:flex}
 #boss .card h2{font-size:1.05rem;margin:0 0 6px}
@@ -314,6 +321,20 @@ button{font:inherit;color:inherit}
   </div>
 </div>
 
+<div id="gds" role="dialog" aria-modal="true" aria-labelledby="gdsTitle">
+  <div class="card">
+    <h2 id="gdsTitle">&#x1F381; Gift Drive numbers</h2>
+    <div class="small" id="gdsStatus">Loading&hellip;</div>
+    <label for="gdsGifts">Given for gifts (PayPal + Venmo), $</label>
+    <input type="number" id="gdsGifts" inputmode="decimal" min="0" step="1">
+    <label for="gdsSc">Super Chats during the drive, $</label>
+    <input type="number" id="gdsSc" inputmode="decimal" min="0" step="1">
+    <button class="btn primary bigbtn" id="gdsSave">Save numbers</button>
+    <button class="btn bigbtn" id="gdsShow">On stream: OFF</button>
+    <div class="row"><button class="btn" id="gdsClose">Close</button></div>
+  </div>
+</div>
+
 <div id="boss" role="dialog" aria-modal="true" aria-labelledby="bossTitle">
   <div class="card">
     <h2 id="bossTitle">&#x2694;&#xFE0F; Boss Battle</h2>
@@ -344,7 +365,8 @@ button{font:inherit;color:inherit}
 <div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
   <div class="card">
     <button class="btn primary" id="hypeBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
-    <button class="btn" id="driveBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F381; Holiday Gift Drive controls</button>
+    <button class="btn" id="gdsBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F381; Gift Drive numbers</button>
+    <button class="btn" id="driveBtn" style="display:none">&#x1F381; Holiday Gift Drive controls (retired)</button>
     <button class="btn" id="bossBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x2694;&#xFE0F; Boss Battle controls</button>
     <h2 id="quickTitle">Quick messages</h2>
     <div class="small" style="margin:4px 0 2px">Post to:
@@ -382,7 +404,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-11d (pretend gifts for testing)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12 (simple Gift Drive numbers)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -1267,6 +1289,37 @@ button{font:inherit;color:inherit}
   });
   $("venueBack").addEventListener("click", poMain);
   $("venueClose").addEventListener("click", closeVenue);
+
+  // ---------- 11/12: Gift Drive numbers (simple static display; Michael's decision) ----------
+  // Two numbers typed here and an on/off switch, saved to Upstash itpd_drive_static_2026;
+  // itpd-drive-static.html shows them. Nothing is counted or changed automatically.
+  var GDS_KEY = "itpd_drive_static_2026", GDS = null;
+  function gdsPaint(){
+    var d = GDS || {};
+    $("gdsShow").textContent = "On stream: " + (d.show ? "ON (tap to hide)" : "OFF (tap to show)");
+    $("gdsShow").classList.toggle("on", !!d.show);
+    $("gdsStatus").textContent = d.at ? "Last saved " + new Date(d.at).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) + " \u00b7 on screen: " +
+      "$" + Math.floor(d.gifts || 0).toLocaleString("en-US") + " and $" + Math.floor(d.sc || 0).toLocaleString("en-US") : "Nothing saved yet.";
+  }
+  function gdsSave(change, msg){
+    return dvPipe([["GET", GDS_KEY]]).then(function(j){
+      var d = {}; try { d = j[0].result ? JSON.parse(j[0].result) : {}; } catch(e){}
+      change(d); d.at = Date.now();
+      return dvPipe([["SET", GDS_KEY, JSON.stringify(d)]]).then(function(){ GDS = d; gdsPaint(); note("\ud83c\udf81 " + msg, "", Date.now()); });
+    }).catch(function(e){ tell("Not saved: " + e.message); });
+  }
+  $("gdsBtn").addEventListener("click", function(){
+    closeQuick(); $("gds").classList.add("open"); $("gdsStatus").textContent = "Loading\u2026";
+    dvPipe([["GET", GDS_KEY]]).then(function(j){ var d = {}; try { d = j[0].result ? JSON.parse(j[0].result) : {}; } catch(e){}
+      GDS = d; $("gdsGifts").value = d.gifts || ""; $("gdsSc").value = d.sc || ""; gdsPaint(); })
+      .catch(function(e){ $("gdsStatus").textContent = "Couldn\u2019t load: " + e.message; });
+  });
+  $("gdsClose").addEventListener("click", function(){ $("gds").classList.remove("open"); });
+  $("gdsSave").addEventListener("click", function(){
+    var g = Math.max(0, Number($("gdsGifts").value) || 0), c = Math.max(0, Number($("gdsSc").value) || 0);
+    gdsSave(function(d){ d.gifts = g; d.sc = c; }, "Saved: $" + Math.floor(g).toLocaleString("en-US") + " given, $" + Math.floor(c).toLocaleString("en-US") + " Super Chats (on screen within 10 s" + (GDS && GDS.show ? "" : " once you switch it on") + ")");
+  });
+  $("gdsShow").addEventListener("click", function(){ var on = !(GDS && GDS.show); gdsSave(function(d){ d.show = on; }, on ? "Gift Drive numbers ON stream" : "Gift Drive numbers hidden"); });
 
   // ---------- 11/10: Holiday Gift Drive controller (state in Upstash itpd_drive_2026) ----------
   // Every change reads the saved state, changes only what was tapped and saves it back.
