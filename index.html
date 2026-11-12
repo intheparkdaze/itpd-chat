@@ -404,7 +404,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12 (simple Gift Drive numbers)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12b (boss: warns if the Daze Bot isn't answering)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -1623,9 +1623,18 @@ button{font:inherit;color:inherit}
   function bossCmd(cmd, arg){
     var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
     if (!url || !tok){ tell("To control the Boss Battle, add the Upstash URL and the alerts token in \u2699."); return; }
+    var seq = Date.now();
     fetch(url + "/set/" + BOSS_CMD, { method:"POST", headers:{ Authorization:"Bearer " + tok }, cache:"no-store",
-      body:JSON.stringify({ seq: Date.now(), cmd: cmd, arg: arg == null ? "" : arg, at: Date.now() }) })
-      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); $("bossInfo").textContent = "Sent\u2026 (the Daze Bot acts within a second or two)"; })
+      body:JSON.stringify({ seq: seq, cmd: cmd, arg: arg == null ? "" : arg, at: Date.now() }) })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); $("bossInfo").textContent = "Sent\u2026 (the Daze Bot acts within a second or two)";
+        // 11/12: the Daze Bot on the home PC carries out every command; say so plainly if it doesn't answer
+        setTimeout(function(){
+          upstash("/get/" + BOSS_FIGHT).then(function(r){ var f = null; try { f = r ? JSON.parse(r) : null; } catch(e){}
+            // the bot saves the fight at least every 15 s while it's running, so nothing newer than the tap = not running
+            if (!f || (!(f.lastCmd && f.lastCmd.seq === seq) && (Number(f.at) || 0) < seq))
+              tell("The Daze Bot didn\u2019t answer. Boss commands are carried out by the Daze Bot on the home PC: make sure it\u2019s open (the 11/06 version or newer, with the \u201cBoss Battle\u201d card), then try again.");
+          }).catch(function(){});
+        }, 17000); })
       .catch(function(e){ tell("Boss command not sent: " + e.message); });
   }
   function bossPaint(f){
