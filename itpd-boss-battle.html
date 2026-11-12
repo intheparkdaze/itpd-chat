@@ -15,6 +15,7 @@
   &test    plays a scripted fight with no Upstash (intro, hits, Like Volley, big hits,
            rage, pause, KO, a retreat), on a loop. Safe to leave in IRLToolkit's preview.
   &scale=0.9  size of the fight panel (default 1).
+  &debug   status box: last read, phase, boss, and why nothing may be showing.
 
   PHASES: idle / hidden -> nothing on screen. intro -> entrance card. fight -> compact
   panel at the bottom centre (portrait, name, level, health bar, hits). paused -> panel
@@ -200,8 +201,11 @@
 <script>
 (function(){
   "use strict";
-  var H = new URLSearchParams(location.hash.slice(1));
-  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "", TEST = H.has("test");
+  var H = new URLSearchParams(location.hash.slice(1).replace(/#/g, "&"));
+  // read url/tok exactly as written: URLSearchParams turns "+" into a space (-> HTTP 401)
+  function rawParam(name){ var m = location.hash.match(new RegExp("[#&]" + name + "=([^&#]*)")); try { return m ? decodeURIComponent(m[1]) : ""; } catch(e){ return m ? m[1] : ""; } }
+  var URL_ = (rawParam("url") || "").replace(/\/+$/, ""), TOK = rawParam("tok").trim(), TEST = H.has("test");
+  var DEBUG = H.has("debug"), lastOk = 0, lastErr = "", lastPhase = "-", lastBoss = "-";
   var KEY = "itpd_boss_fight_2026";
   var $ = function(id){ return document.getElementById(id); };
   var sc = parseFloat(H.get("scale")); if (sc > 0) document.documentElement.style.setProperty("--scale", sc);
@@ -401,10 +405,28 @@
   // ---------- live data ----------
   function poll(){
     fetch(URL_ + "/get/" + KEY, { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } })
-      .then(function(r){ return r.json(); })
-      .then(function(d){ var s = null; try { s = d.result ? JSON.parse(d.result) : null; } catch(e){} if (s) render(s); else render({ phase:"idle" }); })
-      .catch(function(){});
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status + (r.status === 401 ? " (token refused)" : "")); return r.json(); })
+      .then(function(d){
+        var s = null; try { s = d.result ? JSON.parse(d.result) : null; } catch(e){}
+        lastOk = Date.now(); lastErr = s ? "" : "no fight saved yet (key is empty)";
+        lastPhase = s && s.phase || "idle"; lastBoss = s && s.boss ? (s.boss.name || s.boss.id) + " (level " + (s.level || "?") + ")" : "-";
+        if (s) render(s); else render({ phase:"idle" });
+        dbg();
+      })
+      .catch(function(e){ lastErr = e.message || String(e); dbg(); });
   }
+  // &debug: what the overlay last read, and why nothing may be on screen
+  var dbgEl = null;
+  function dbg(){
+    if (!DEBUG) return;
+    if (!dbgEl){ dbgEl = document.createElement("div"); dbgEl.style.cssText = "position:fixed;left:12px;top:12px;z-index:99;background:rgba(0,0,0,.78);color:#fff;font:16px/1.45 monospace;padding:8px 12px;border-radius:8px;white-space:pre"; document.body.appendChild(dbgEl); }
+    var why = { idle:"idle: no fight running (nothing shows by design)", hidden:"hidden: ride/show pause from the phone" }[lastPhase] || "";
+    dbgEl.textContent = "ITPD boss battle  key: " + KEY + (TEST ? "  (TEST)" : "") +
+      "\nlink: url " + (URL_ ? "set" : "MISSING") + ", token " + (TOK ? TOK.length + " characters" + (/\s/.test(TOK) ? " (HAS A SPACE)" : "") : "MISSING") +
+      "\nlast read: " + (lastOk ? Math.round((Date.now() - lastOk) / 1000) + " s ago" : "never") + (lastErr ? "  " + lastErr : "") +
+      "\nphase: " + lastPhase + (why ? "  <- " + why : "") + "\nboss: " + lastBoss;
+  }
+  if (DEBUG) setInterval(dbg, 1000);
 
   // ---------- &test: scripted fight, no Upstash ----------
   function runTest(){
