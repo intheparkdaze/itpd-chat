@@ -404,7 +404,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12b (boss: warns if the Daze Bot isn't answering)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12c (Chat Poster check before removals)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -720,6 +720,10 @@ button{font:inherit;color:inherit}
     if (!url || !key){ tell("To post in " + where + " from here, add the Chat Poster URL and bot key in \u2699."); return; }
     if (!tries) note("Posting in " + where + ": " + text, "", Date.now());
     var body = plat === "twitch" ? { key:key, action:"twitch", text:text } : { key:key, action:"post", text:text, source:"manual" };
+    if (plat === "twitch" && !tries){
+      return posterCheck().then(function(ok){ if (!ok){ tell(STALE_POSTER); return; } postToChat(text, 1, plat); })
+        .catch(function(e){ tell("Couldn\u2019t check the Chat Poster: " + e.message); });
+    }
     fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(body), redirect:"follow", cache:"no-store" })
       .then(function(r){ return r.json(); })
       .then(function(j){
@@ -758,10 +762,31 @@ button{font:inherit;color:inherit}
   });
   function tell(msg){ note(msg, "gap", Date.now()); }
 
+  // 11/12: before a removal or a Twitch post, make sure the deployed Chat Poster is new enough.
+  // An old deployment doesn't know these requests and would POST the text as you instead.
+  var posterOk = { url:"", at:0 };
+  var STALE_POSTER = "Stopped, so nothing was posted: the Chat Poster at the URL in \u2699 is an OLD deployment. In that Apps Script project: paste the latest code, then Deploy \u2192 Manage deployments \u2192 \u270f\ufe0f edit the EXISTING deployment \u2192 Version: New version \u2192 Deploy (don\u2019t make a new deployment, or the URL changes). Then check the Web app URL there matches the one in \u2699.";
+  function posterCheck(){
+    var url = cfg("purl"), key = cfg("pkey");
+    if (posterOk.url === url && Date.now() - posterOk.at < 600000) return Promise.resolve(true);
+    return fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, cache:"no-store", redirect:"follow", body:JSON.stringify({ key:key, action:"version" }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.ok && j.version && j.version >= "2026-11-12"){ posterOk = { url:url, at:Date.now() }; return true; }
+        if (j && j.reason === "wrong key") throw new Error("the bot key in \u2699 doesn't match this Chat Poster");
+        return false;
+      });
+  }
   function moderate(op, m){
     var url = cfg("purl"), key = cfg("pkey"), name = String(m.chatname || "");
     var verb = op === "delete" ? "Removing message from " : op === "timeout" ? "Timing out " : "Banning ";
     note(verb + name + "\u2026", "", Date.now());
+    posterCheck().then(function(ok){
+      if (!ok){ tell(STALE_POSTER); return; }
+      moderateNow(op, m, url, key, name);
+    }).catch(function(e){ tell("Couldn\u2019t check the Chat Poster: " + e.message); });
+  }
+  function moderateNow(op, m, url, key, name){
     fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, cache:"no-store", redirect:"follow",
                  body:JSON.stringify({ key:key, action:"moderate", op:op, messageId:m.id, author:name, text:plainText(m) }) })
       .then(function(r){ return r.json(); })
