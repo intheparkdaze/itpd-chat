@@ -45,13 +45,38 @@
     var d = new Date(Date.now() - 4 * 3600000);
     return new Intl.DateTimeFormat("en-CA", { timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit" }).format(d);
   }
+  // 11/12: STREAM SESSIONS. Each new YouTube stream (the video the records overlay saves in
+  // itpd_records_live_2026) starts a session: itpd_stream_session_2026 = { id, startedAt }.
+  // A new session clears the catch-up buffer and the counts (so the phone starts clean) and
+  // the welcome list starts fresh (its key ends in the session id). Two streams on the same
+  // day get separate lists. Without a video (offline), the day is used as before.
+  var SESSION_KEY = "itpd_stream_session_2026", session = { id:"", startedAt:0 };
+  function sessionId(){ return session.id || streamDay(); }
+  function checkSession(){
+    if (!URL_ || !TOK) return;
+    fetch(URL_ + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + TOK, "Content-Type":"application/json" },
+      body: JSON.stringify([["GET", "itpd_records_live_2026"], ["GET", SESSION_KEY]]) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var live = null, ses = null; try { live = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){} try { ses = j[1].result ? JSON.parse(j[1].result) : null; } catch(e){}
+        var vid = live && live.videoId && live.videoId !== "TEST" ? String(live.videoId) : "";
+        if (ses && ses.id) session = ses;
+        if (vid && vid !== session.id){
+          session = { id: vid, startedAt: Date.now() };
+          queue = []; counters = {};
+          return fetch(URL_ + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + TOK, "Content-Type":"application/json" },
+            body: JSON.stringify([["SET", SESSION_KEY, JSON.stringify(session)], ["DEL", BUFFER_KEY], ["DEL", COUNTER_KEY]]) });
+        }
+      }).catch(function(){});
+  }
+  setTimeout(checkSession, 2000); setInterval(checkSession, 60000);
   var rosterSeen = {}, rosterNew = [], rosterDay = "";
   function noteChatter(obj){
     var plat = platOf(obj.type);
     if (plat !== "youtube" && plat !== "twitch") return;
     var n = String(obj.chatname || "").trim(); if (!n) return;
     var low = n.replace(/^@/, "").toLowerCase(); if (SELF[low]) return;
-    var day = streamDay(); if (day !== rosterDay){ rosterDay = day; rosterSeen = {}; }
+    var day = sessionId(); if (day !== rosterDay){ rosterDay = day; rosterSeen = {}; }
     var k = plat + ":" + low; if (rosterSeen[k]) return;
     rosterSeen[k] = 1;
     rosterNew.push({ day:day, k:k, v:JSON.stringify({ n:n, p:plat, t:Date.now(), img:obj.chatimg || "" }) });

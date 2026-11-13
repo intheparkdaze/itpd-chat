@@ -64,6 +64,8 @@ button{font:inherit;color:inherit}
 #log{flex:1;overflow-y:auto;padding:6px 10px 80px;-webkit-overflow-scrolling:touch}
 .msg{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);align-items:flex-start}
 .msg img.av{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;background:var(--line)}
+.msg span.av{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff;background:#7a3ff0}
+.msg span.av.youtube{background:#c4302b}
 .msg .body{min-width:0;flex:1;overflow-wrap:anywhere}
 .msg .who{font-weight:700;font-size:.9rem;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
 .msg .who .t{font-weight:400;color:var(--muted);font-size:.75rem;margin-left:auto}
@@ -364,7 +366,7 @@ button{font:inherit;color:inherit}
 
 <div id="quick" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
   <div class="card">
-    <button class="btn primary" id="hypeBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
+    <button class="btn primary" id="hypeBtn" style="display:none;width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
     <button class="btn" id="gdsBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F381; Gift Drive numbers</button>
     <button class="btn" id="driveBtn" style="display:none">&#x1F381; Holiday Gift Drive controls (retired)</button>
     <button class="btn" id="bossBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x2694;&#xFE0F; Boss Battle controls</button>
@@ -404,7 +406,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12c (Chat Poster check before removals)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12d (fresh start each stream)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -538,6 +540,7 @@ button{font:inherit;color:inherit}
       var parts = [], newest = 0;
       ["viewers","likes","subs","followers"].forEach(function(k){
         var c = counters[d[0] + "." + k];
+        if (c && now - c.ts > 600000) c = null;      // 11/12: counts not updated for 10 minutes (stream over) aren't shown
         if (c){ parts.push(k === "viewers" || k === "likes" ? labels[k] + " " + fmtNum(c.v) : fmtNum(c.v) + " " + labels[k]); newest = Math.max(newest, c.ts); }
       });
       if (!parts.length) return;
@@ -1090,6 +1093,26 @@ button{font:inherit;color:inherit}
       .catch(function(e){ hypeAt = 0; $("hypeBtn").disabled = false; tell("Race to 2K not sent: " + e.message); });
   });
 
+  // ---------- 11/12: stream sessions (set by the recorder when a new YouTube stream starts) ----------
+  // A new session clears this page's chat list, counts and status lights, and the welcome list
+  // follows the session (two streams on one day get separate lists).
+  var SESSION_KEY = "itpd_stream_session_2026", sessionCur = { id: store.get("itpd_phonechat_session") || "", startedAt:0 };
+  function checkSession(){
+    if (!cfg("rurl") || !cfg("rtok")) return;
+    upstash("/get/" + SESSION_KEY).then(function(r){
+      var ses = null; try { ses = r ? JSON.parse(r) : null; } catch(e){}
+      if (!ses || !ses.id) return;
+      var was = sessionCur.id; sessionCur = ses;
+      if (was && was !== ses.id){
+        $("log").textContent = ""; seenKeys = new Set(); seenOrder = []; counters = {};
+        Object.keys(lastByPlat).forEach(function(k){ lastByPlat[k] = 0; });
+        paintLamps(); note("New stream started: chat, counts and the welcome list start fresh.", "", Date.now());
+      }
+      store.set("itpd_phonechat_session", ses.id);
+    }).catch(function(){});
+  }
+  setTimeout(checkSession, 1500); setInterval(checkSession, 30000);
+
   // ---------- 11/08: "In chat today": everyone who has chatted this stream, once each ----------
   // The recorder in IRLToolkit adds every new YouTube/Twitch chatter to Upstash (and this page
   // does too for chats it sees, in case the recorder isn't running). Tick a name once you've
@@ -1098,6 +1121,7 @@ button{font:inherit;color:inherit}
   var ROSTER_PREFIX = "itpd_chat_roster_2026_", WELCOMED_PREFIX = "itpd_chat_welcomed_2026_", rosterTimer = null, rosterSeenHere = {};
   var ROSTER_SELF = { "itpd.dazebot":1, "itpd_dazebot":1, "dazebot":1, "intheparkdaze":1, "in the park daze":1 };
   function streamDay(){
+    if (sessionCur && sessionCur.id) return sessionCur.id;      // 11/12: one list per stream
     return new Intl.DateTimeFormat("en-CA", { timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(Date.now() - 4 * 3600000));
   }
   function hashToObj(arr){ var o = {}; for (var i = 0; arr && i < arr.length; i += 2) o[arr[i]] = arr[i + 1]; return o; }
@@ -1785,9 +1809,17 @@ button{font:inherit;color:inherit}
     row.dataset.userid = m.userid != null ? String(m.userid) : "";
     row.dataset.name = String(m.chatname || "");
 
-    var av = document.createElement("img");
-    av.className = "av"; av.alt = ""; av.loading = "lazy"; av.referrerPolicy = "no-referrer";
-    if (m.chatimg && /^https:\/\//i.test(m.chatimg)) av.src = m.chatimg;
+    // 11/12: a picture that's missing or won't load becomes a coloured circle with the first letter
+    // (some Twitch pictures were showing as broken-image question marks)
+    var letter = function(){ var sp = document.createElement("span"); sp.className = "av " + plat;
+      sp.textContent = (String(m.chatname || "?").replace(/^@/, "").charAt(0) || "?").toUpperCase(); return sp; };
+    var av;
+    if (m.chatimg && /^https:\/\//i.test(m.chatimg)){
+      av = document.createElement("img");
+      av.className = "av"; av.alt = ""; av.loading = "lazy"; av.referrerPolicy = "no-referrer";
+      av.addEventListener("error", function(){ if (av.parentNode) av.parentNode.replaceChild(letter(), av); });
+      av.src = m.chatimg;
+    } else av = letter();
     row.appendChild(av);
 
     var body = document.createElement("div"); body.className = "body";
