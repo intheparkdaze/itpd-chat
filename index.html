@@ -406,7 +406,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-12d (fresh start each stream)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-14 (Daze Bot log, posts before going live)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -445,6 +445,10 @@ button{font:inherit;color:inherit}
       <button class="btn" id="closeBtn">Close</button>
     </div>
     <div id="diag"></div>
+    <details style="margin-top:10px" id="botLogBox"><summary class="small">🤖 Daze Bot log (kept through restarts)</summary>
+      <div class="row" style="margin-top:8px"><button class="btn" id="botLogLoad">Load newest 300 lines</button> <button class="btn" id="botLogCopy">Copy</button></div>
+      <pre id="botLog" style="font-size:.7rem;white-space:pre-wrap;max-height:300px;overflow:auto">Tap Load. Needs the Upstash URL and read-only token above, and the 11/14 Daze Bot.</pre>
+    </details>
     <details style="margin-top:10px"><summary class="small">Last raw event of each type</summary>
       <button class="btn" id="copyRaw" style="margin-top:8px">Copy</button>
       <pre id="raw" style="font-size:.7rem;white-space:pre-wrap;max-height:200px;overflow:auto"></pre>
@@ -723,6 +727,8 @@ button{font:inherit;color:inherit}
     if (!url || !key){ tell("To post in " + where + " from here, add the Chat Poster URL and bot key in \u2699."); return; }
     if (!tries) note("Posting in " + where + ": " + text, "", Date.now());
     var body = plat === "twitch" ? { key:key, action:"twitch", text:text } : { key:key, action:"post", text:text, source:"manual" };
+    // 11/14: name the stream's video (the session), so posting works before going live too
+    if (plat !== "twitch" && /^[\w-]{11}$/.test(String(sessionCur && sessionCur.id || ""))) body.videoId = sessionCur.id;
     if (plat === "twitch" && !tries){
       return posterCheck().then(function(ok){ if (!ok){ tell(STALE_POSTER); return; } postToChat(text, 1, plat); })
         .catch(function(e){ tell("Couldn\u2019t check the Chat Poster: " + e.message); });
@@ -791,7 +797,7 @@ button{font:inherit;color:inherit}
   }
   function moderateNow(op, m, url, key, name){
     fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, cache:"no-store", redirect:"follow",
-                 body:JSON.stringify({ key:key, action:"moderate", op:op, messageId:m.id, author:name, text:plainText(m) }) })
+                 body:JSON.stringify({ key:key, action:"moderate", op:op, messageId:m.id, author:name, text:plainText(m), videoId: /^[\w-]{11}$/.test(String(sessionCur && sessionCur.id || "")) ? sessionCur.id : undefined }) })
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (!j || !j.ok){ tell("Couldn\u2019t " + (op === "delete" ? "remove the message" : op === "timeout" ? "time out " + name : "ban " + name) + ": " + ((j && j.reason) || "no answer")); return; }
@@ -2106,6 +2112,16 @@ button{font:inherit;color:inherit}
     store.set("itpd_phonechat_ytvidmanual", $("ytvidmanual").value.trim());
     setTimeout(pollYouTube, 500);
     closeSheet(); reconnectNow();
+  });
+  $("botLogLoad").addEventListener("click", function(){
+    if (!cfg("rurl") || !cfg("rtok")){ $("botLog").textContent = "Add the Upstash URL and read-only token above first."; return; }
+    $("botLog").textContent = "Loading…";
+    upstash("/lrange/itpd_bot_log_2026/-300/-1").then(function(r){
+      $("botLog").textContent = r && r.length ? r.slice().reverse().join("\n") : "No log saved yet (the 11/14 Daze Bot saves it every 30 seconds).";
+    }).catch(function(e){ $("botLog").textContent = "Couldn\u2019t load the log: " + e.message; });
+  });
+  $("botLogCopy").addEventListener("click", function(){
+    try { navigator.clipboard.writeText($("botLog").textContent); tell("Daze Bot log copied."); } catch (e) {}
   });
   $("copyRaw").addEventListener("click", function(){
     var t = $("raw").textContent;

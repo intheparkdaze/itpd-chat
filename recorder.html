@@ -55,11 +55,15 @@
   function checkSession(){
     if (!URL_ || !TOK) return;
     fetch(URL_ + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + TOK, "Content-Type":"application/json" },
-      body: JSON.stringify([["GET", "itpd_records_live_2026"], ["GET", SESSION_KEY]]) })
+      body: JSON.stringify([["GET", "itpd_records_live_2026"], ["GET", SESSION_KEY], ["GET", "itpd_live_popout_2026"]]) })
       .then(function(r){ return r.json(); })
       .then(function(j){
-        var live = null, ses = null; try { live = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){} try { ses = j[1].result ? JSON.parse(j[1].result) : null; } catch(e){}
+        var live = null, ses = null, pop = null; try { live = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){} try { ses = j[1].result ? JSON.parse(j[1].result) : null; } catch(e){}
+        try { pop = j[2] && j[2].result ? JSON.parse(j[2].result) : null; } catch(e){}
         var vid = live && live.videoId && live.videoId !== "TEST" ? String(live.videoId) : "";
+        // 11/14: the chat popout's own video (saved by the reaction counter) wins while it's fresh,
+        // so the recorder and the Daze Bot always agree on the session, even before going live
+        if (pop && /^[\w-]{11}$/.test(String(pop.videoId || "")) && Date.now() - (pop.at || 0) < 180000) vid = String(pop.videoId);
         if (ses && ses.id) session = ses;
         if (vid && vid !== session.id){
           session = { id: vid, startedAt: Date.now() };
