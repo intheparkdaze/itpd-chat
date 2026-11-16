@@ -214,6 +214,9 @@ button{font:inherit;color:inherit}
 #ctlScenes button{display:block;width:100%;margin-top:6px;padding:12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem;text-align:left}
 #ctlScenes button.cur{border-color:var(--ok);background:rgba(46,160,67,.15)}
 #ctlScenes button.cur:after{content:"  \2713 on air";color:var(--ok);font-size:.8rem}
+#ctlScenes button.hid{opacity:.5;border-style:dashed}
+#ctlScenes button.more{text-align:center;font-size:.9rem;color:var(--muted)}
+#ctlScenes .edhint{font-size:.8rem;color:var(--muted);margin:4px 0}
 #ctlIngests .ing{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--line)}
 #ctlIngests .ing span{flex:1;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #ctlIngests .ing i{font-style:normal;font-size:.75rem;font-weight:800;padding:2px 6px;border-radius:8px;margin-left:6px}
@@ -285,7 +288,7 @@ button{font:inherit;color:inherit}
     <h2 id="ctlTitle">&#x1F3AC; Stream controls</h2>
     <div id="ctlStatus">Not set up</div>
     <div id="ctlSub"></div>
-    <h3>Scenes</h3>
+    <h3>Scenes <button class="btn" id="ctlEditScenes" style="float:right;padding:3px 10px;font-size:.75rem;text-transform:none;letter-spacing:0">Choose scenes</button></h3>
     <div id="ctlScenes"></div>
     <h3>Ingests</h3>
     <div id="ctlIngests"></div>
@@ -515,7 +518,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-15c (🎬 stream controls, 🚶 walk tracker)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-15d (🎬 stream controls, 🚶 walk tracker)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -2362,14 +2365,24 @@ button{font:inherit;color:inherit}
       st.textContent = "Not set up"; sub.textContent = "Open Set up below: add the obs-websocket address and password from IRLToolkit, or switch on Twitch chat commands.";
       scenes = []; ingests = [];
     }
-    var sc = $("ctlScenes"); sc.textContent = "";
-    scenes.forEach(function(n){
-      var b = document.createElement("button"); b.textContent = n;
-      if (mode === "obs" && n === ctl.cur) b.className = "cur";
-      b.disabled = mode === "obs" && !ctl.ready;
-      b.addEventListener("click", function(){ ctlScene(n); });
-      sc.appendChild(b);
-    });
+    // 11/15: scenes can be hidden on this phone only (nothing changes in IRLToolkit). Hidden ones
+    // wait under "More scenes"; the scene that's on air always shows.
+    var sc = $("ctlScenes"), hidden = ctlHidden(); sc.textContent = "";
+    $("ctlEditScenes").style.display = scenes.length ? "" : "none";
+    $("ctlEditScenes").textContent = ctl.edit ? "Done" : "Choose scenes";
+    var addBtn = function(n, cls, label, fn){ var b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.disabled = !ctl.edit && mode === "obs" && !ctl.ready; b.addEventListener("click", fn); sc.appendChild(b); };
+    if (ctl.edit) {
+      var h = document.createElement("div"); h.className = "edhint"; h.textContent = "Tap a scene to show or hide it on this phone. IRLToolkit doesn't change."; sc.appendChild(h);
+      scenes.forEach(function(n){ var off = hidden.indexOf(n) >= 0; addBtn(n, off ? "hid" : "", (off ? "\u2715 " : "\u2713 ") + n + (off ? "  (hidden)" : ""), function(){ ctlToggleHidden(n); }); });
+    } else {
+      var shown = scenes.filter(function(n){ return hidden.indexOf(n) < 0 || (mode === "obs" && n === ctl.cur); });
+      var rest = scenes.filter(function(n){ return shown.indexOf(n) < 0; });
+      shown.forEach(function(n){ addBtn(n, mode === "obs" && n === ctl.cur ? "cur" : "", n, function(){ ctlScene(n); }); });
+      if (rest.length) {
+        addBtn("", "more", (ctl.more ? "\u25B4 Fewer scenes" : "\u25BE More scenes (" + rest.length + ")"), function(){ ctl.more = !ctl.more; ctlPaint(); });
+        if (ctl.more) rest.forEach(function(n){ addBtn(n, "hid", n, function(){ ctlScene(n); }); });
+      }
+    }
     var ig = $("ctlIngests"); ig.textContent = "";
     if (!ingests.length && mode === "obs" && ctl.ready){ var nd = document.createElement("div"); nd.className = "small"; nd.textContent = "No inputs with \u201C" + ctlCfg("ingf", "ingest") + "\u201D in the name. Change \u201CIngest names contain\u201D in Set up."; ig.appendChild(nd); }
     ingests.forEach(function(n){
@@ -2387,6 +2400,8 @@ button{font:inherit;color:inherit}
     $("ctlStart").disabled = $("ctlStop").disabled = mode === "none" || (mode === "obs" && !ctl.ready);
     var dash = ctlCfg("dash", ""); $("ctlDash").style.display = dash ? "" : "none";
   }
+  function ctlHidden(){ try { var a = JSON.parse(ctlCfg("hidden", "[]")); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function ctlToggleHidden(n){ var a = ctlHidden(), i = a.indexOf(n); if (i >= 0) a.splice(i, 1); else a.push(n); ctlSet("hidden", JSON.stringify(a)); ctlPaint(); }
   function ctlTw(cmd){
     if (!cfg("purl") || !cfg("pkey")){ tell("Twitch commands need the Chat Poster URL and key in ⚙."); return; }
     postToChat(cmd, 0, "twitch");
@@ -2426,7 +2441,8 @@ button{font:inherit;color:inherit}
     if (ctlMode() === "obs" && !ctl.ws) ctlConnect(); else if (ctl.ready) ctlRefresh();
     ctlPaint();
   });
-  $("ctlClose").addEventListener("click", function(){ $("ctl").classList.remove("open"); });
+  $("ctlEditScenes").addEventListener("click", function(){ ctl.edit = !ctl.edit; ctlPaint(); });
+  $("ctlClose").addEventListener("click", function(){ ctl.edit = false; ctl.more = false; $("ctl").classList.remove("open"); });
   $("ctlSave").addEventListener("click", function(){
     ctlSet("addr", $("ctlAddr").value.trim()); ctlSet("pass", $("ctlPass").value);
     ctlSet("ingf", $("ctlIngFilter").value.trim() || "ingest"); ctlSet("dash", $("ctlDashUrl").value.trim());
