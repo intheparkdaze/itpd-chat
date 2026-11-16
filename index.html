@@ -201,7 +201,7 @@ button{font:inherit;color:inherit}
 #diag{font-size:.75rem;color:var(--muted);white-space:pre-wrap;margin-top:10px;max-height:160px;overflow:auto}
 /* 11/15: 🎬 Stream controls (IRLToolkit Cloud OBS) */
 #ctlFab{position:fixed;right:214px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:#3b6fd8;color:#fff;font-size:1.5rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
-#ctlFab b{position:absolute;top:-4px;right:-6px;padding:0 5px;height:20px;border-radius:10px;font-size:.7rem;line-height:20px;font-weight:800;color:#fff;display:none}
+#ctlFab b{position:absolute;bottom:calc(100% + 4px);right:50%;transform:translateX(50%);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 7px;height:20px;border-radius:10px;font-size:.7rem;line-height:20px;font-weight:800;color:#fff;display:none;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 #ctlFab b.live{display:block;background:var(--bad)}
 #ctlFab b.off{display:block;background:#666}
 #ctl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
@@ -223,6 +223,24 @@ button{font:inherit;color:inherit}
 #ctl .go{background:var(--ok);border-color:var(--ok);color:#fff}
 #ctl .stop{background:var(--bad);border-color:var(--bad);color:#fff}
 #ctl textarea,#ctl input[type=text],#ctl input[type=password]{width:100%;box-sizing:border-box}
+/* 11/15: 🚶 World Showcase walk */
+#walk{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#walk.open{display:flex}
+#walk .card{max-height:90vh;overflow:auto}
+#walk h2{font-size:1.1rem;margin:0 0 4px}
+#walk h3{font-size:.8rem;margin:14px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#wkStats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+#wkStats div{border:2px solid var(--line);border-radius:10px;padding:6px 8px}
+#wkStats small{display:block;font-size:.7rem;color:var(--muted);text-transform:uppercase}
+#wkStats b{font-size:1.35rem;font-variant-numeric:tabular-nums}
+#wkWhere{font-weight:700;margin:4px 0}
+#wkGps{font-size:.85rem;font-weight:700}
+#wkGps.bad{color:var(--bad)} #wkGps.ok{color:var(--ok)}
+#walk .bigbtn{display:block;width:100%;margin-top:8px;padding:13px;font-size:1.05rem}
+#walk .on{background:var(--ok);border-color:var(--ok);color:#fff}
+#walk input,#walk select{box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:1rem}
+#wkPill{position:fixed;left:10px;bottom:calc(84px + env(safe-area-inset-bottom,0px));display:none;padding:7px 11px;border-radius:16px;border:none;background:#1F7A4D;color:#fff;font-weight:800;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.35);z-index:15}
+#wkPill.on{display:block} #wkPill.bad{background:var(--bad)}
 </style>
 </head>
 <body>
@@ -295,6 +313,36 @@ button{font:inherit;color:inherit}
     </details>
   </div>
 </div>
+
+<div id="walk" role="dialog" aria-modal="true" aria-labelledby="wkTitle">
+  <div class="card">
+    <h2 id="wkTitle">&#x1F6B6; World Showcase walk</h2>
+    <div id="wkGps">GPS off</div>
+    <div id="wkStats">
+      <div><small>Laps</small><b id="wkLaps">0</b></div><div><small>Miles</small><b id="wkMiles">0.00</b></div><div><small>Speed</small><b id="wkMph">0.0</b></div>
+      <div><small>Steps (est.)</small><b id="wkSteps">0</b></div><div><small>Time</small><b id="wkTime">0:00</b></div><div><small>Avg mph</small><b id="wkAvg">0.0</b></div>
+    </div>
+    <div id="wkWhere"></div>
+    <div class="small" id="wkSaved"></div>
+    <button class="btn primary bigbtn" id="wkTrack">Start tracking</button>
+    <button class="btn bigbtn" id="wkShow">On stream: OFF</button>
+    <h3>Fix-ups</h3>
+    <div class="grid2"><button class="btn" id="wkLapMinus">Lap &minus;1</button><button class="btn" id="wkLapPlus">Lap +1</button>
+      <button class="btn" id="wkMiMinus">Miles &minus;0.1</button><button class="btn" id="wkMiPlus">Miles +0.1</button></div>
+    <div class="row" style="margin-top:8px;gap:6px"><select id="wkPav" style="flex:1"></select><button class="btn" id="wkCal">I&rsquo;m here now</button></div>
+    <div class="small">Standing in front of a pavilion? Pick it and tap &ldquo;I&rsquo;m here now&rdquo; to correct &ldquo;Now passing&rdquo; for the rest of the day.</div>
+    <h3>Settings</h3>
+    <label class="small" for="wkShowTime">Luminous starts at (countdown on screen)</label>
+    <input type="time" id="wkShowTime" style="width:100%">
+    <label class="small" for="wkSpm">Steps per mile (for the step estimate)</label>
+    <input type="number" id="wkSpm" min="1000" max="4000" step="50" style="width:100%">
+    <div class="small" style="margin-top:6px">Keep this page open and the screen on while walking: the phone only measures while this page is showing. Charge from a battery pack.</div>
+    <h3>Walk</h3>
+    <div class="grid2"><button class="btn" id="wkNew">Start a NEW walk</button><button class="btn" id="wkEnd">End the walk</button></div>
+    <div class="row"><button class="btn" id="wkClose">Close</button></div>
+  </div>
+</div>
+<button id="wkPill" aria-label="Walk tracker"></button>
 
 <div id="drive" role="dialog" aria-modal="true" aria-labelledby="driveTitle">
   <div class="card">
@@ -429,6 +477,7 @@ button{font:inherit;color:inherit}
     <button class="btn primary" id="hypeBtn" style="display:none;width:100%;margin:0 0 10px;font-size:1.05rem">&#x1F3C1; Race to 2K!</button>
     <button class="btn" id="gdsBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F381; Gift Drive numbers</button>
     <button class="btn" id="driveBtn" style="display:none">&#x1F381; Holiday Gift Drive controls (retired)</button>
+    <button class="btn" id="wkBtn" style="width:100%;margin:0 0 8px;font-size:1.05rem">&#x1F6B6; World Showcase walk</button>
     <button class="btn" id="bossBtn" style="width:100%;margin:0 0 10px;font-size:1.05rem">&#x2694;&#xFE0F; Boss Battle controls</button>
     <h2 id="quickTitle">Quick messages</h2>
     <div class="small" style="margin:4px 0 2px">Post to:
@@ -466,7 +515,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-15 (🎬 stream controls)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-15c (🎬 stream controls, 🚶 walk tracker)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -2292,7 +2341,7 @@ button{font:inherit;color:inherit}
   function ctlPaint(msg){
     var mode = ctlMode(), st = $("ctlStatus"), sub = $("ctlSub"), badge = $("ctlBadge");
     var live = mode === "obs" && ctl.ready && ctl.stream && ctl.stream.outputActive;
-    badge.className = mode === "obs" && ctl.ready ? (live ? "live" : "off") : ""; badge.textContent = live ? "LIVE" : "OFF";
+    badge.className = mode === "obs" && ctl.ready ? (live ? "live" : "off") : ""; badge.textContent = (live ? "LIVE" : "OFF") + (ctl.cur ? ":" + ctl.cur : "");
     if (!$("ctl").classList.contains("open")) return;
     var scenes, ingests;
     if (mode === "obs"){
@@ -2344,7 +2393,7 @@ button{font:inherit;color:inherit}
   }
   function ctlScene(n){
     if (ctlMode() === "twitch"){ ctlTw("!ss " + n); return; }
-    ctlReq("SetCurrentProgramScene", { sceneName:n }).then(function(){ ctl.cur = n; ctlPaint(); note("Scene: " + n, "", Date.now()); },
+    ctlReq("SetCurrentProgramScene", { sceneName:n }).then(function(){ ctl.cur = n; ctlPaint(); },
       function(e){ tell("Couldn’t switch to " + n + ": " + e.message); });
   }
   function ctlMute(n, on){
@@ -2388,6 +2437,232 @@ button{font:inherit;color:inherit}
   document.addEventListener("visibilitychange", function(){ if (!document.hidden && ctlMode() === "obs" && !ctl.ready){ ctl.retry = 0; ctlConnect(); } });
   if (ctlMode() === "obs") ctlConnect();
   window.__itpdCtl = ctl;
+
+  // ---------- 11/15: 🚶 WORLD SHOWCASE WALK (Operation Holidaze Drive challenge) ----------
+  // The phone's GPS does all the counting; the overlay and the Daze Bot only read the result
+  // (Upstash itpd_walk_2026). Laps are counted by the angle walked around the World Showcase
+  // Lagoon, so any start point works and side trips into a pavilion don't add laps.
+  // WALK_ENGINE_START
+  var WALK = {
+    CENTER: { lat: 28.3692, lon: -81.5498 },          // middle of World Showcase Lagoon (approx.)
+    // pavilions clockwise from Mexico: bearing in degrees from the lagoon centre (approx.;
+    // the phone's "I'm at…" button corrects any of them on the day)
+    PAVS: [["mexico","Mexico",40],["norway","Norway",68],["china","China",92],["germany","Germany",115],["italy","Italy",142],
+           ["usa","The American Adventure",178],["japan","Japan",212],["morocco","Morocco",238],["france","France",263],
+           ["uk","United Kingdom",298],["canada","Canada",326]],
+    MILES: [[3.107,"5K"],[5,"5 miles"],[6.214,"10K"],[10,"10 miles"],[13.109,"Half marathon"],[15,"15 miles"],[20,"20 miles"],[26.219,"Marathon"],[30,"30 miles"]],
+    MI: 1609.344,
+    xy: function(lat, lon){ var c = WALK.CENTER; return { x: (lon - c.lon) * Math.cos(c.lat * Math.PI / 180) * 111320, y: (lat - c.lat) * 110540 }; },
+    bearing: function(x, y){ var b = Math.atan2(x, y) * 180 / Math.PI; return b < 0 ? b + 360 : b; },
+    wrap: function(d){ while (d > 180) d -= 360; while (d <= -180) d += 360; return d; },
+    fresh: function(id, t){
+      return { v:1, id:id, active:true, show:false, startedAt:t, endedAt:0, at:t, angle:0, lastAng:null, anchor:null, miles:0,
+               lapsDone:0, lapTimes:[], lastLapAt:t, hist:[], trail:[], mph:0, avg:0, heading:null, dir:"", now:null, next:null,
+               ms:{ seq:0 }, msDone:[], steps:0, spm:2250, showAt:0, cal:{}, gps:{ acc:null, at:0 }, glitch:0, extraMi:0, extraLaps:0 };
+    },
+    pavs: function(s){ return WALK.PAVS.map(function(p){ return [p[0], p[1], s.cal && s.cal[p[0]] != null ? s.cal[p[0]] : p[2]]; }); },
+    lapsOf: function(s){ return Math.max(0, Math.floor(Math.abs(s.angle) / 360) + (s.extraLaps || 0)); },
+    // one GPS fix: { lat, lon, acc (m), t (ms) }. Returns the list of events it caused.
+    addFix: function(s, f){
+      var ev = [];
+      s.gps = { acc: Math.round(f.acc || 0), at: f.t };
+      if (!s.active || !(f.acc <= 35)) return ev;           // too vague to use
+      var raw = WALK.xy(f.lat, f.lon);
+      // ---- GPS jumps: a fix implying faster than 10 mph is ignored (3 in a row = we really moved)
+      if (s.last) {
+        var jd = Math.hypot(raw.x - s.last.x, raw.y - s.last.y), jt = Math.max(1, (f.t - s.last.t) / 1000);
+        if (jd > 60 && jd / jt > 4.5 && s.glitch < 3) { s.glitch++; return ev; }
+        if (jd > 60 && jd / jt > 4.5) { s.buf = []; s.anchor = null; }          // settled after a jump: start fresh from here
+      }
+      s.glitch = 0; s.last = { x:raw.x, y:raw.y, t:f.t };
+      // ---- smoothing: average of the last 5 fixes takes out most of the GPS wobble
+      s.buf = (s.buf || []).concat([[raw.x, raw.y]]).slice(-5);
+      var p = { x: s.buf.reduce(function(m, q){ return m + q[0]; }, 0) / s.buf.length, y: s.buf.reduce(function(m, q){ return m + q[1]; }, 0) / s.buf.length };
+      var r = Math.hypot(p.x, p.y), ang = WALK.bearing(p.x, p.y);
+      // ---- laps: angle around the lagoon (only on the promenade ring, 120–900 m out)
+      if (r > 120 && r < 900) {
+        if (s.lastAng != null) {
+          var d = WALK.wrap(ang - s.lastAng);
+          if (Math.abs(d) < 150) s.angle += d;                // a bigger jump is a GPS gap: skip it
+        }
+        s.lastAng = ang;
+        var laps = WALK.lapsOf(s);
+        if (laps > s.lapsDone) {                                // laps only ever go up (fix-ups aside)
+          for (var k = s.lapsDone + 1; k <= laps; k++) { s.lapTimes.push(Math.round((f.t - s.lastLapAt) / 1000)); s.lastLapAt = f.t; ev.push({ type:"lap", n:k }); }
+          s.lapsDone = laps;
+        }
+        s.dir = s.angle - (s.dirRef || 0) > 20 ? "cw" : s.angle - (s.dirRef || 0) < -20 ? "ccw" : s.dir;
+        if (Math.abs(s.angle - (s.dirRef || 0)) > 20) s.dirRef = s.angle;
+        var pv = WALK.pavs(s), best = 0, bd = 999;
+        pv.forEach(function(q, i){ var dd = Math.abs(WALK.wrap(ang - q[2])); if (dd < bd) { bd = dd; best = i; } });
+        s.now = { id: pv[best][0], name: pv[best][1] };
+        var step = s.dir === "ccw" ? -1 : 1, nx = null, nd = 999;
+        pv.forEach(function(q, i){ var a2 = WALK.wrap(q[2] - ang) * step; if (i !== best && a2 > 5 && a2 < nd) { nd = a2; nx = q; } });
+        if (!nx) nx = pv[(best + step + pv.length) % pv.length];
+        s.next = { id: nx[0], name: nx[1] };
+      } else if (r >= 900) s.now = { id:"out", name:"Outside World Showcase" };
+      // ---- distance: only count real moves (bigger than what's left of the wobble)
+      if (!s.anchor) { s.anchor = { x:p.x, y:p.y, t:f.t }; }
+      else {
+        var dx = p.x - s.anchor.x, dy = p.y - s.anchor.y, dist = Math.hypot(dx, dy);
+        if (dist >= Math.max(15, f.acc * 0.5)) {
+          s.miles += dist / WALK.MI; s.heading = Math.round(WALK.bearing(dx, dy));
+          s.anchor = { x:p.x, y:p.y, t:f.t };
+          s.hist.push([f.t, +s.miles.toFixed(4)]); if (s.hist.length > 40) s.hist.shift();
+          var tl = s.trail[s.trail.length - 1];
+          if (!tl || Math.hypot(p.x - tl[0], p.y - tl[1]) >= 25) { s.trail.push([Math.round(p.x), Math.round(p.y)]); if (s.trail.length > 240) s.trail.splice(0, 2); }
+        }
+      }
+      // ---- speed: over the last ~60 s of real moves; 0 when standing still
+      var miles = s.miles + (s.extraMi || 0), h0 = null;
+      for (var i = s.hist.length - 1; i >= 0; i--) { if (f.t - s.hist[i][0] >= 55000) { h0 = s.hist[i]; break; } }
+      if (!h0 && s.hist.length) h0 = s.hist[0];
+      var lastMove = s.hist.length ? s.hist[s.hist.length - 1][0] : 0;
+      s.mph = !h0 || f.t - lastMove > 45000 || f.t - h0[0] < 15000 ? 0 : +((s.miles - h0[1]) / ((f.t - h0[0]) / 3600000)).toFixed(1);
+      s.avg = f.t - s.startedAt > 60000 ? +(miles / ((f.t - s.startedAt) / 3600000)).toFixed(1) : 0;
+      s.steps = Math.round(miles * (s.spm || 2250));
+      // ---- distance milestones
+      WALK.MILES.forEach(function(m){ if (miles >= m[0] && s.msDone.indexOf(m[1]) < 0) { s.msDone.push(m[1]); ev.push({ type:"dist", label:m[1] }); } });
+      ev.forEach(function(e){ s.ms = { seq:(s.ms.seq || 0) + 1, type:e.type, n:e.n || 0, label: e.type === "lap" ? "Lap " + e.n : e.label, at:f.t, miles:+miles.toFixed(2) }; });
+      s.at = f.t;
+      return ev;
+    },
+    // what the overlay and the bot read (no raw history)
+    publish: function(s){
+      var miles = s.miles + (s.extraMi || 0);
+      return { v:1, id:s.id, active:s.active, show:s.show, startedAt:s.startedAt, endedAt:s.endedAt, at:s.at, laps:WALK.lapsOf(s),
+               lapFrac:+((Math.abs(s.angle) % 360) / 360).toFixed(3), miles:+miles.toFixed(2), mph:s.mph, avg:s.avg, steps:s.steps,
+               heading:s.heading, dir:s.dir, now:s.now, next:s.next, lapTimes:s.lapTimes.slice(-50),
+               fastest: s.lapTimes.length ? Math.min.apply(null, s.lapTimes) : 0, ms:s.ms, showAt:s.showAt || 0,
+               trail:s.trail.slice(-120), pos: s.anchor ? [Math.round(s.anchor.x), Math.round(s.anchor.y)] : null,
+               pavs:WALK.pavs(s), gps:s.gps };
+    }
+  };
+  // WALK_ENGINE_END
+  var WK_KEY = "itpd_walk_2026", WK_FULL = "itpd_walk_state_2026", WK_LOCAL = "itpd_phonechat_walk";
+  var WK = { s:null, watch:null, lastPush:0, lastFull:0, lastSaved:0, saveErr:"", dev: store.get("itpd_phonechat_dev") || ("ph" + Math.random().toString(36).slice(2, 8)) };
+  store.set("itpd_phonechat_dev", WK.dev);
+  try { WK.s = JSON.parse(store.get(WK_LOCAL) || "null"); } catch (e) { WK.s = null; }
+  function wkSaveLocal(){ if (WK.s) store.set(WK_LOCAL, JSON.stringify(WK.s)); }
+  function wkPush(force){
+    var s = WK.s, now = Date.now(); if (!s) return Promise.resolve();
+    if (!force && now - WK.lastPush < 10000) return Promise.resolve();
+    WK.lastPush = now;
+    var pub = WALK.publish(s); pub.writer = WK.dev;
+    var cmds = [["SET", WK_KEY, JSON.stringify(pub), "EX", "172800"]];
+    if (force || now - WK.lastFull > 60000) { WK.lastFull = now; cmds.push(["SET", WK_FULL, JSON.stringify(s), "EX", "172800"]); }
+    return dvPipe(cmds).then(function(){ WK.lastSaved = Date.now(); WK.saveErr = ""; wkPaint(); },
+      function(e){ WK.saveErr = e.message; WK.lastPush = 0; wkPaint(); });
+  }
+  function wkDur(ms){ var m = Math.max(0, Math.floor(ms / 60000)); return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0"); }
+  function wkPaint(){
+    var s = WK.s, now = Date.now(), p = s ? WALK.publish(s) : null, tracking = WK.watch != null;
+    var age = s && s.gps && s.gps.at ? Math.round((now - s.gps.at) / 1000) : null, acc = s && s.gps ? s.gps.acc : null;
+    var bad = tracking && (age == null || age > 45 || acc > 35);
+    var pill = $("wkPill");
+    pill.classList.toggle("on", !!(s && s.active && tracking)); pill.classList.toggle("bad", !!bad);
+    if (p) pill.textContent = "\ud83d\udeb6 L" + p.laps + " \u00b7 " + p.miles.toFixed(2) + " mi \u00b7 " + (age == null ? "no GPS yet" : bad ? "GPS \u26a0" : "\u00b1" + acc + " m");
+    if (!$("walk").classList.contains("open")) return;
+    $("wkGps").className = bad ? "bad" : tracking ? "ok" : "";
+    $("wkGps").textContent = !tracking ? (s && s.active ? "Tracking is OFF (tap Start tracking)" : "GPS off") :
+      age == null ? "Waiting for GPS\u2026 (allow location if asked)" :
+      "GPS " + (acc > 35 ? "too vague (\u00b1" + acc + " m), waiting" : "\u00b1" + acc + " m") + " \u00b7 last fix " + age + " s ago";
+    $("wkLaps").textContent = p ? p.laps : 0; $("wkMiles").textContent = p ? p.miles.toFixed(2) : "0.00";
+    $("wkMph").textContent = p ? p.mph.toFixed(1) : "0.0"; $("wkAvg").textContent = p ? p.avg.toFixed(1) : "0.0";
+    $("wkSteps").textContent = p ? p.steps.toLocaleString("en-US") : 0;
+    $("wkTime").textContent = s ? wkDur((s.active ? now : s.endedAt) - s.startedAt) : "0:00";
+    $("wkWhere").textContent = !s ? "No walk yet." : !s.active ? "Walk ended." : s.now ? (s.now.id === "out" ? "Outside World Showcase" : "Now passing " + s.now.name + (s.next ? " \u2192 next " + s.next.name : "")) : "Not on the World Showcase loop yet.";
+    $("wkSaved").textContent = WK.saveErr ? "\u26a0 Not reaching the overlay: " + WK.saveErr : WK.lastSaved ? "Overlay updated " + Math.round((now - WK.lastSaved) / 1000) + " s ago" + (p && p.fastest ? " \u00b7 fastest lap " + wkDur(p.fastest * 1000).replace(/^0:/, "") + " min" : "") : "";
+    $("wkTrack").textContent = tracking ? "Pause tracking" : (s && s.active ? "Start tracking (continue this walk)" : "Start tracking (new walk)");
+    $("wkTrack").classList.toggle("on", tracking);
+    $("wkShow").textContent = "On stream: " + (s && s.show ? "ON (tap to hide)" : "OFF (tap to show)");
+    $("wkShow").classList.toggle("on", !!(s && s.show));
+  }
+  function wkNewWalk(){
+    var t = Date.now(); WK.s = WALK.fresh("walk-" + t, t);
+    WK.s.spm = Number(store.get("itpd_phonechat_walkspm")) || 2250; wkApplyShowTime();
+    wkSaveLocal(); wkPush(true);
+  }
+  function wkApplyShowTime(){
+    var v = store.get("itpd_phonechat_walkshow") || "";
+    if (!WK.s) return;
+    if (!/^\d\d:\d\d$/.test(v)) { WK.s.showAt = 0; return; }
+    var d = new Date(); d.setHours(Number(v.slice(0, 2)), Number(v.slice(3)), 0, 0); WK.s.showAt = d.getTime();
+  }
+  function wkOnPos(pos){
+    if (!WK.s || !WK.s.active) return;
+    var c = pos.coords, ev = WALK.addFix(WK.s, { lat:c.latitude, lon:c.longitude, acc:c.accuracy, t:pos.timestamp || Date.now() });
+    wkSaveLocal();
+    ev.forEach(function(e){ note(e.type === "lap" ? "\ud83d\udeb6 Lap " + e.n + " done! " + (WK.s.miles + (WK.s.extraMi || 0)).toFixed(2) + " miles" : "\ud83c\udf89 " + e.label + " walked!", "", Date.now()); });
+    wkPush(ev.length > 0); wkPaint();
+  }
+  function wkOnErr(e){
+    $("wkGps").className = "bad";
+    $("wkGps").textContent = e.code === 1 ? "Location is blocked for this page: allow it in the browser's site settings, then tap Start tracking." : "GPS problem: " + e.message + " (still trying)";
+  }
+  function wkStartTracking(){
+    if (!navigator.geolocation) { tell("This browser can't share location."); return; }
+    if (WK.watch != null) return;
+    WK.watch = navigator.geolocation.watchPosition(wkOnPos, wkOnErr, { enableHighAccuracy:true, maximumAge:0, timeout:30000 });
+    store.set("itpd_phonechat_walktrack", "1");
+    if (typeof requestWake === "function") requestWake();
+    wkPaint();
+  }
+  function wkStopTracking(){
+    if (WK.watch != null) navigator.geolocation.clearWatch(WK.watch);
+    WK.watch = null; store.set("itpd_phonechat_walktrack", "0"); wkPaint();
+  }
+  $("wkTrack").addEventListener("click", function(){
+    if (WK.watch != null) { wkStopTracking(); return; }
+    if (WK.s && WK.s.active) { wkStartTracking(); return; }
+    // no walk on this phone: continue one that another phone is running, or start a new one
+    dvPipe([["GET", WK_FULL]]).then(function(j){
+      var o = null; try { o = j[0].result ? JSON.parse(j[0].result) : null; } catch(e){}
+      if (o && o.active && Date.now() - (o.at || 0) < 12 * 3600000 &&
+          confirm("A walk is already running (" + WALK.lapsOf(o) + " laps, " + (o.miles + (o.extraMi || 0)).toFixed(2) + " miles). Continue it on this phone?")) { WK.s = o; wkSaveLocal(); }
+      else wkNewWalk();
+      wkStartTracking();
+    }, function(e){ tell("Can't reach Upstash (" + e.message + "). Add the Upstash URL and alerts token in \u2699."); });
+  });
+  $("wkShow").addEventListener("click", function(){
+    if (!WK.s) { tell("Start a walk first."); return; }
+    WK.s.show = !WK.s.show; wkSaveLocal(); wkPush(true); wkPaint();
+    note(WK.s.show ? "\ud83d\udeb6 Walk overlay ON stream" : "\ud83d\udeb6 Walk overlay hidden", "", Date.now());
+  });
+  function wkFix(fn){ if (!WK.s) { tell("Start a walk first."); return; } fn(WK.s); WK.s.lapsDone = WALK.lapsOf(WK.s); WK.s.at = Date.now(); wkSaveLocal(); wkPush(true); wkPaint(); }
+  $("wkLapPlus").addEventListener("click", function(){ wkFix(function(s){ s.extraLaps = (s.extraLaps || 0) + 1; }); });
+  $("wkLapMinus").addEventListener("click", function(){ wkFix(function(s){ if (WALK.lapsOf(s) > 0) s.extraLaps = (s.extraLaps || 0) - 1; }); });
+  $("wkMiPlus").addEventListener("click", function(){ wkFix(function(s){ s.extraMi = +((s.extraMi || 0) + 0.1).toFixed(2); }); });
+  $("wkMiMinus").addEventListener("click", function(){ wkFix(function(s){ if (s.miles + (s.extraMi || 0) >= 0.1) s.extraMi = +((s.extraMi || 0) - 0.1).toFixed(2); }); });
+  WALK.PAVS.forEach(function(p){ var o = document.createElement("option"); o.value = p[0]; o.textContent = p[1]; $("wkPav").appendChild(o); });
+  $("wkCal").addEventListener("click", function(){
+    if (!WK.s || WK.s.lastAng == null) { tell("Start tracking and wait for GPS on the World Showcase loop first."); return; }
+    var id = $("wkPav").value, name = $("wkPav").selectedOptions[0].textContent;
+    WK.s.cal[id] = Math.round(WK.s.lastAng); WK.s.now = { id:id, name:name }; wkSaveLocal(); wkPush(true); wkPaint();
+    note("\ud83d\udccd " + name + " position saved for \u201cNow passing\u201d.", "", Date.now());
+  });
+  $("wkShowTime").addEventListener("change", function(){ store.set("itpd_phonechat_walkshow", this.value); wkApplyShowTime(); wkSaveLocal(); wkPush(true); });
+  $("wkSpm").addEventListener("change", function(){ var v = Math.min(4000, Math.max(1000, Number(this.value) || 2250)); store.set("itpd_phonechat_walkspm", String(v)); if (WK.s) { WK.s.spm = v; wkSaveLocal(); wkPush(true); } });
+  $("wkNew").addEventListener("click", function(){
+    if (WK.s && WK.s.active && !confirm("Start a NEW walk? Laps, miles and time go back to zero.")) return;
+    wkNewWalk(); wkPaint(); note("\ud83d\udeb6 New walk started (overlay still " + (WK.s.show ? "ON" : "OFF") + ")", "", Date.now());
+  });
+  $("wkEnd").addEventListener("click", function(){
+    if (!WK.s || !WK.s.active) return;
+    if (!confirm("End the walk? The final numbers stay on the overlay for 10 minutes.")) return;
+    WK.s.active = false; WK.s.endedAt = Date.now(); wkStopTracking(); wkSaveLocal(); wkPush(true); wkPaint();
+  });
+  $("wkBtn").addEventListener("click", function(){
+    closeQuick(); $("walk").classList.add("open");
+    $("wkShowTime").value = store.get("itpd_phonechat_walkshow") || ""; $("wkSpm").value = store.get("itpd_phonechat_walkspm") || 2250;
+    wkPaint();
+  });
+  $("wkPill").addEventListener("click", function(){ $("walk").classList.add("open"); wkPaint(); });
+  $("wkClose").addEventListener("click", function(){ $("walk").classList.remove("open"); });
+  setInterval(function(){ wkPaint(); if (WK.watch != null) wkPush(false); }, 5000);
+  // a reload or a phone restart mid-walk picks the tracking straight back up
+  if (WK.s && WK.s.active && store.get("itpd_phonechat_walktrack") === "1") wkStartTracking();
+  wkPaint();
 
   if ($("wake").checked) requestWake();
   connect();
