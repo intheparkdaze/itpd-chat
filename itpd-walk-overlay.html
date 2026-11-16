@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>ITPD World Showcase Walk</title>
+<!--
+  ITPD World Showcase Walk overlay. Operation Holidaze Drive challenge (Sat 11/21).
+  DATA + SCRIPT: Stream Engineering (2026-11-15). LOOK + PLACEMENT: Broadcast UI/UX (2026-11-15).
+  Display only: the phone's GPS tracker (phone chat page > Walk challenge) does all the counting and
+  saves it to Upstash itpd_walk_2026; this page shows it.
+
+  IRLToolkit browser source, 1920x1080, MAIN WALKING SCENE ONLY:
+    itpd-walk-overlay.html#url=https://charming-worm-109173.upstash.io&tok=READ_ONLY_TOKEN
+  Options:
+    &test        a scripted walk, no Upstash (laps come every ~77 s so you can see the celebration)
+    &preview     show even while "On stream" is OFF on the phone (for checking before the reveal)
+    &debug       status box, bottom-left
+    &scale=0.85  size (1 = default; the panel is about 610 x 330 px at 1080p)
+    &nomap       numbers only, no mini-map
+    &compact     slim card: laps, miles and Now passing only (for busy scenes)
+    &pos=right   put the panel top-right instead (only if the like counter is off that scene)
+
+  PLACEMENT (UI/UX): top-left, 24 px in. Clear of the park ticket (bottom-left), the like counter and
+  Twitch bar (top-right), the Gift Drive meter (right edge from 35% down), the Boss Battle panel
+  (bottom centre) and the chat card / alerts. Lap celebration: centre of screen, 8 s.
+
+  Stable ids (Stream Engineering edits the script in this copy): wk-root, wk-panel, wk-laps, wk-lapbar,
+  wk-miles, wk-mph, wk-steps, wk-time, wk-show, wk-show-v, wk-now, wk-next, wk-map, wk-pavs, wk-trail,
+  wk-dot, wk-arrow, wk-ms, wk-ms-title, wk-ms-sub, wk-gps
+  Awareness only: no amounts, no give/donate wording, no Disney map art.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#FFFBF3;--ink:#17152A;--navy:#22306B;--muted:#6B6780;--gold:#FFD34E;--goldDeep:#B07A00;--red:#B3202D;--green:#1F7A4D;
+        --teal:#1B9C9C;--tealDeep:#127272;--water:#BFE3EE;--water2:#A5D6E6;--path:#EADFC6;--rule:#E2D9C6;--wk-scale:1}
+  html,body{margin:0;background:transparent;overflow:hidden;font-family:"Baloo 2","Trebuchet MS",system-ui,sans-serif;color:var(--ink)}
+
+  /* ---------- the ticket panel (top-left) ---------- */
+  #wk-root{position:fixed;left:1.25vw;top:2.2vh;font-size:calc(.86vw * var(--wk-scale));
+    opacity:0;transform:translateX(-115%);transition:opacity .6s,transform .8s cubic-bezier(.2,.9,.3,1.08)}
+  body.pos-right #wk-root{left:auto;right:1.25vw;transform:translateX(115%)}
+  #wk-root.on{opacity:1;transform:none}
+  #wk-panel{display:flex;background:var(--paper);border-radius:1.05em;overflow:hidden;
+    box-shadow:0 0 0 .18em var(--navy),0 .7em 1.8em rgba(0,0,0,.42)}
+
+  .wk-stub{position:relative;width:3.6em;flex-shrink:0;background:linear-gradient(180deg,var(--teal),var(--tealDeep));
+    border-right:.22em dashed rgba(255,251,243,.75);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:.9em 0}
+  .wk-stub svg{width:2.3em;height:2.3em}
+  .wk-stub .rot{writing-mode:vertical-rl;transform:rotate(180deg);font:500 .78em/1 "DM Mono",monospace;letter-spacing:.24em;color:#FFFBF3;white-space:nowrap}
+  .wk-stub .hole{width:1.1em;height:1.1em;border-radius:50%;background:rgba(0,0,0,.18)}
+
+  .wk-main{width:21em;display:flex;flex-direction:column}
+  .wk-h{padding:.75em 1em .5em;border-bottom:.2em solid var(--gold)}
+  .wk-h b{display:block;font-weight:800;font-size:1.35em;line-height:1;color:var(--teal);letter-spacing:.02em}
+  .wk-h span{display:block;font:500 .72em/1.2 "DM Mono",monospace;letter-spacing:.08em;margin-top:.35em;color:var(--goldDeep);text-transform:uppercase}
+
+  .wk-big{display:flex;align-items:flex-end;gap:1.3em;padding:.55em 1em .1em}
+  .lab{font:500 .66em/1.2 "DM Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .wk-big .num{font-weight:800;font-size:3.5em;line-height:.9;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .wk-big .mi .num{font-size:2.6em;color:var(--navy)}
+  .wk-big .mi .unit{font-size:.4em;color:var(--muted);margin-left:.15em;font-weight:700}
+
+  .wk-lap{padding:.35em 1em .3em}
+  #wk-lapbar{position:relative;height:.7em;border-radius:.35em;background:#EDE5D6;overflow:hidden;box-shadow:inset 0 0 0 .08em rgba(23,21,42,.08)}
+  #wk-lapbar i{display:block;height:100%;width:0;border-radius:.35em;transition:width 2.5s linear;
+    background:repeating-linear-gradient(135deg,var(--gold) 0 .55em,#FFE58F .55em 1.1em)}
+  .wk-lap .lab{margin-top:.25em}
+
+  .wk-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.4em;padding:.35em 1em .5em}
+  .wk-row .v{font-weight:800;font-size:1.3em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  #wk-show{margin:.05em 1em .55em;padding:.32em .8em;border-radius:2em;background:var(--navy);color:#fff;display:flex;align-items:center;gap:.6em}
+  #wk-show .lab{color:#C9CFF0}
+  #wk-show .v{font-weight:800;font-size:1.15em;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+  #wk-show svg{width:1.1em;height:1.1em;flex-shrink:0}
+  #wk-show.off{display:none}
+
+  .wk-where{margin-top:auto;border-top:.16em dashed var(--rule);padding:.5em 1em .65em;font-size:1em;line-height:1.25}
+  #wk-now{font-weight:800;color:var(--ink)}
+  #wk-next{color:var(--muted);font-weight:700;font-size:.92em}
+  #wk-gps{display:none;font:500 .66em/1 "DM Mono",monospace;color:var(--red);padding:0 1.5em .6em}
+  #wk-gps.on{display:block}
+
+  /* ---------- the mini-map (original drawing: lagoon, promenade, neutral markers) ---------- */
+  .wk-mapbox{width:16em;flex-shrink:0;border-left:.16em solid var(--rule);background:#F4EEDF;display:flex;flex-direction:column}
+  .wk-mapbox .lab{padding:.75em .9em 0}
+  #wk-map{display:block;width:100%;height:auto;margin:auto 0}
+  #wk-pavs circle{fill:#fff;stroke:var(--navy);stroke-width:6}
+  #wk-pavs text{font-family:"DM Mono",monospace;font-weight:500;font-size:34px;fill:var(--navy);paint-order:stroke;stroke:#F4EEDF;stroke-width:8px}
+  #wk-dot{transition:transform 3s linear}
+  #wk-dot .pulse{transform-origin:center;animation:wkpulse 2.4s ease-out infinite}
+  @keyframes wkpulse{0%{transform:scale(.6);opacity:.55}100%{transform:scale(1.9);opacity:0}}
+
+  body.nomap .wk-mapbox{display:none}
+  body.compact .wk-main{width:17em}
+  body.compact .wk-h span,body.compact .wk-row,body.compact #wk-show,body.compact #wk-next{display:none}
+  body.compact .wk-stub .rot{display:none}
+  body.compact .wk-stub{width:3em;padding:.7em 0}
+  body.compact .wk-big .num{font-size:2.8em}
+  body.compact .wk-big .mi .num{font-size:2.2em}
+
+  /* ---------- lap / milestone celebration (centre, 8 s; clear of the panel and the Boss Battle panel) ---------- */
+  #wk-ms{position:fixed;left:50%;top:34vh;display:flex;transform:translate(-50%,-40%) scale(.82);opacity:0;pointer-events:none;
+    transition:opacity .5s,transform .65s cubic-bezier(.2,.9,.3,1.3);background:var(--paper);border-radius:1.1vw;overflow:hidden;
+    box-shadow:0 0 0 .22vw var(--gold),0 1vw 2.8vw rgba(0,0,0,.45)}
+  #wk-ms.on{opacity:1;transform:translate(-50%,0) scale(1)}
+  #wk-ms .ms-stub{width:5.2vw;background:linear-gradient(180deg,var(--teal),var(--tealDeep));border-right:.25vw dashed rgba(255,251,243,.8);
+    display:flex;align-items:center;justify-content:center}
+  #wk-ms .ms-stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:500 .85vw/1 "DM Mono",monospace;letter-spacing:.3em;color:#FFFBF3;white-space:nowrap}
+  #wk-ms .ms-body{position:relative;padding:1.2vw 9vw 1.3vw 6vw;text-align:center;min-width:26vw}
+  #wk-ms .ms-eyebrow{font:500 .8vw/1 "DM Mono",monospace;letter-spacing:.3em;color:var(--goldDeep)}
+  #wk-ms-title{font-weight:800;font-size:3.9vw;line-height:1;color:var(--navy);margin-top:.5vw;white-space:nowrap}
+  #wk-ms .ms-rule{height:.3vw;width:60%;margin:.7vw auto .55vw;border-radius:.2vw;background:repeating-linear-gradient(90deg,var(--gold) 0 1.2vw,transparent 1.2vw 1.6vw)}
+  #wk-ms-sub{font-weight:700;font-size:1.35vw;color:var(--ink)}
+  #wk-ms .stamp{position:absolute;right:1vw;top:1.1vw;transform:rotate(9deg);border:.2vw solid var(--red);color:var(--red);border-radius:.5vw;
+    padding:.2vw .7vw;font:500 .72vw/1.15 "DM Mono",monospace;letter-spacing:.14em;text-align:center;background:rgba(255,251,243,.85)}
+  .spark{position:absolute;width:1vw;height:1vw;opacity:0}
+  #wk-ms.on .spark{animation:wkspark 1.6s ease-out .3s 2}
+  @keyframes wkspark{0%{opacity:0;transform:scale(.3) rotate(0)}30%{opacity:1}100%{opacity:0;transform:scale(1.3) rotate(90deg)}}
+
+  #dbg{position:fixed;left:8px;bottom:8px;background:rgba(0,0,0,.78);color:#fff;font:13px/1.4 monospace;padding:6px 9px;border-radius:6px;display:none;max-width:40vw;white-space:pre-wrap;z-index:9}
+</style>
+</head><body>
+<div id="wk-root" aria-hidden="true">
+  <div id="wk-panel">
+    <div class="wk-stub">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#FFFBF3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="13" cy="4" r="2" fill="#FFFBF3" stroke="none"/><path d="M11.5 8.5 9 21M11.5 8.5l2.5 4 3 1.5M11.5 8.5 8 11l-1 3.5M10 15l3.5 2 1 4"/></svg>
+      <div class="rot">WORLD SHOWCASE WALK</div>
+      <div class="hole"></div>
+    </div>
+    <div class="wk-main">
+      <div class="wk-h"><b>World Showcase Walk</b><span>for Operation Holidaze Drive</span></div>
+      <div class="wk-big">
+        <div><div class="lab">Laps</div><div class="num" id="wk-laps">0</div></div>
+        <div class="mi"><div class="lab">Miles</div><div class="num" id="wk-miles">0.00</div></div>
+      </div>
+      <div class="wk-lap"><div id="wk-lapbar"><i></i></div><div class="lab">This lap</div></div>
+      <div class="wk-row">
+        <div><div class="lab">Speed</div><div class="v" id="wk-mph">--</div></div>
+        <div><div class="lab">Steps (est.)</div><div class="v" id="wk-steps">0</div></div>
+        <div><div class="lab">Time</div><div class="v" id="wk-time">0:00</div></div>
+      </div>
+      <div id="wk-show"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 6.2L21 9l-5 4.4L17.5 20 12 16.6 6.5 20 8 13.4 3 9l6.6-.8z" fill="#FFD34E"/></svg><span class="lab">Luminous in</span><span class="v" id="wk-show-v">--</span></div>
+      <div class="wk-where"><div id="wk-now">Getting ready…</div><div id="wk-next"></div></div>
+      <div id="wk-gps">GPS catching up…</div>
+    </div>
+    <div class="wk-mapbox">
+      <div class="lab">Where we are</div>
+      <svg id="wk-map" viewBox="-430 -350 860 700" aria-hidden="true">
+        <ellipse cx="0" cy="0" rx="340" ry="270" fill="none" stroke="var(--path)" stroke-width="46"/>
+        <ellipse cx="0" cy="0" rx="340" ry="270" fill="none" stroke="#fff" stroke-width="4" stroke-dasharray="14 18" opacity=".8"/>
+        <ellipse cx="0" cy="0" rx="292" ry="226" fill="var(--water)"/>
+        <ellipse cx="0" cy="0" rx="230" ry="172" fill="none" stroke="var(--water2)" stroke-width="10" opacity=".7"/>
+        <ellipse cx="-40" cy="20" rx="34" ry="22" fill="#CFE0B8"/>
+        <g id="wk-pavs"></g>
+        <polyline id="wk-trail" fill="none" stroke="var(--gold)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/>
+        <g id="wk-dot"><circle class="pulse" r="30" fill="var(--red)" opacity=".4"/><circle r="24" fill="var(--red)" stroke="#fff" stroke-width="7"/><path id="wk-arrow" d="M0,-58 L19,-30 L-19,-30 Z" fill="var(--red)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></g>
+      </svg>
+    </div>
+  </div>
+</div>
+<div id="wk-ms" aria-hidden="true">
+  <div class="ms-stub"><span>WORLD SHOWCASE</span></div>
+  <div class="ms-body">
+    <svg class="spark" style="left:1.2vw;top:1vw" viewBox="0 0 24 24"><path d="M12 0l3 9 9 3-9 3-3 9-3-9-9-3 9-3z" fill="#FFD34E"/></svg>
+    <svg class="spark" style="right:3.4vw;bottom:.9vw" viewBox="0 0 24 24"><path d="M12 0l3 9 9 3-9 3-3 9-3-9-9-3 9-3z" fill="#1B9C9C"/></svg>
+    <div class="ms-eyebrow">OPERATION HOLIDAZE DRIVE</div>
+    <div id="wk-ms-title"></div>
+    <div class="ms-rule"></div>
+    <div id="wk-ms-sub"></div>
+    <div class="stamp">DAZE CREW<br>STRONG</div>
+  </div>
+</div>
+<div id="dbg"></div>
+<script>
+(function(){
+  "use strict";
+  var H = new URLSearchParams(location.hash.slice(1));
+  var URL_ = (H.get("url") || "").replace(/\/+$/, ""), TOK = H.get("tok") || "", KEY = "itpd_walk_2026";
+  var TEST = H.has("test"), PREVIEW = H.has("preview") || TEST, DEBUG = H.has("debug");
+  var $ = function(id){ return document.getElementById(id); }, lastOk = 0, lastErr = "", lastMsSeq = null, msTimer = null, D = null;
+  /* UI/UX 11/15: size via a CSS variable so the slide-in still works; layout options as body classes */
+  if (H.get("scale")) document.documentElement.style.setProperty("--wk-scale", Number(H.get("scale")) || 1);
+  if (H.has("nomap")) document.body.classList.add("nomap");
+  if (H.has("compact")) document.body.classList.add("compact", "nomap");
+  if (H.get("pos") === "right") document.body.classList.add("pos-right");
+  if (DEBUG) $("dbg").style.display = "block";
+
+  // map: the phone sends positions in metres from the lagoon centre (x east, y north); SVG y is down
+  function sx(x){ return x; } function sy(y){ return -y; }
+  function drawPavs(pavs){
+    var g = $("wk-pavs"); if (g.dataset.k === JSON.stringify(pavs)) return; g.dataset.k = JSON.stringify(pavs); g.innerHTML = "";
+    (pavs || []).forEach(function(p){
+      var b = p[2] * Math.PI / 180, x = Math.sin(b), y = Math.cos(b);
+      var px = x * 340, py = y * 270, lx = x * 385, ly = y * 315;
+      var short = { mexico:"MEX", norway:"NOR", china:"CHN", germany:"GER", italy:"ITA", usa:"USA", japan:"JPN", morocco:"MAR", france:"FRA", uk:"UK", canada:"CAN" }[p[0]] || p[1].slice(0, 3).toUpperCase();
+      g.insertAdjacentHTML("beforeend", '<circle cx="' + sx(px) + '" cy="' + sy(py) + '" r="9" fill="#22306B"/>' +
+        '<text x="' + sx(lx) + '" y="' + (sy(ly) + 10) + '" text-anchor="middle" font-family="DM Mono,monospace" font-size="30" fill="#22306B">' + short + '</text>');
+    });
+  }
+  function fmtDur(ms){ var m = Math.max(0, Math.floor(ms / 60000)); return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0"); }
+  function paint(d, now){
+    D = d;
+    var visible = d && (d.show || PREVIEW) && (d.active || (d.endedAt && now - d.endedAt < 600000));
+    $("wk-root").classList.toggle("on", !!visible);
+    if (!d) return;
+    $("wk-laps").textContent = d.laps || 0;
+    $("wk-lapbar").firstChild.style.width = Math.round((d.lapFrac || 0) * 100) + "%";
+    $("wk-miles").textContent = (d.miles || 0).toFixed(2);
+    var stale = d.active && now - (d.at || 0) > 120000;
+    $("wk-mph").textContent = stale || !d.mph ? (stale ? "--" : "0.0") + " mph" : d.mph.toFixed(1) + " mph";
+    $("wk-steps").textContent = (d.steps || 0).toLocaleString("en-US");
+    $("wk-time").textContent = fmtDur((d.active ? now : (d.endedAt || now)) - (d.startedAt || now));
+    $("wk-gps").classList.toggle("on", !!stale);
+    var showOn = d.showAt && d.showAt > now;
+    $("wk-show").classList.toggle("off", !showOn);
+    if (showOn) { var mm = Math.floor((d.showAt - now) / 60000); $("wk-show-v").textContent = (mm >= 60 ? Math.floor(mm / 60) + "h " : "") + (mm % 60) + "m"; }
+    $("wk-now").textContent = !d.active ? "Walk complete! Thank you, Daze Crew 💛" : d.now ? (d.now.id === "out" ? "Taking a quick break" : "Now passing: " + d.now.name) : "Getting ready…";
+    $("wk-next").textContent = d.active && d.next && d.now && d.now.id !== "out" ? "Next: " + d.next.name + (d.dir === "ccw" ? " ⟲" : " ⟳") : "";
+    drawPavs(d.pavs);
+    $("wk-trail").setAttribute("points", (d.trail || []).map(function(p){ return sx(p[0]) + "," + sy(p[1]); }).join(" "));
+    if (d.pos) $("wk-dot").setAttribute("transform", "translate(" + sx(d.pos[0]) + "," + sy(d.pos[1]) + ")");
+    $("wk-arrow").style.display = d.heading == null || !d.mph ? "none" : "";
+    if (d.heading != null) $("wk-arrow").setAttribute("transform", "rotate(" + d.heading + ")");
+    // milestones: lap done / 5K etc. (never on the first read, so a reload doesn't replay an old one)
+    var ms = d.ms || {};
+    if (lastMsSeq === null) lastMsSeq = ms.seq || 0;
+    else if ((ms.seq || 0) > lastMsSeq) {
+      lastMsSeq = ms.seq;
+      if (visible && now - (ms.at || 0) < 180000) {
+        $("wk-ms-title").textContent = ms.type === "lap" ? "LAP " + ms.n + " COMPLETE!" : "🎉 " + String(ms.label || "").toUpperCase() + "!";
+        $("wk-ms-sub").textContent = ms.type === "lap" ? (ms.miles || d.miles).toFixed(2) + " miles around World Showcase" : (d.laps || 0) + " laps of World Showcase · thank you, Daze Crew!";
+        $("wk-ms").classList.add("on"); clearTimeout(msTimer); msTimer = setTimeout(function(){ $("wk-ms").classList.remove("on"); }, 8000);
+      }
+    }
+    if (DEBUG) $("dbg").textContent = "walk " + (d.id || "-") + " · show " + !!d.show + " · active " + !!d.active + "\nlast phone update " + Math.round((now - (d.at || 0)) / 1000) + " s ago · GPS ±" + (d.gps && d.gps.acc) + " m\nread " + (lastOk ? Math.round((now - lastOk) / 1000) + " s ago" : "never") + (lastErr ? "\nerror: " + lastErr : "") + (visible ? "" : "\nhidden: " + (!d.show ? "On stream is OFF on the phone (use &preview to check)" : "walk not active"));
+  }
+
+  // ---- test: a scripted walk around the lagoon (no Upstash)
+  var T0 = Date.now();
+  function testState(){
+    var now = Date.now(), el = (now - T0) / 1000, speed = 25;            // fast-forward: 25 m/s
+    var dist = el * speed, per = 1928, th = (40 * Math.PI / 180) + dist / per * 2 * Math.PI;
+    var laps = Math.floor(dist / per), pts = [];
+    for (var k = Math.max(0, dist - per * 0.9); k <= dist; k += 40) { var t2 = (40 * Math.PI / 180) + k / per * 2 * Math.PI; pts.push([Math.round(340 * Math.sin(t2)), Math.round(270 * Math.cos(t2))]); }
+    var pavs = [["mexico","Mexico",40],["norway","Norway",68],["china","China",92],["germany","Germany",115],["italy","Italy",142],["usa","The American Adventure",178],["japan","Japan",212],["morocco","Morocco",238],["france","France",263],["uk","United Kingdom",298],["canada","Canada",326]];
+    var b = (th * 180 / Math.PI) % 360, ni = 0, bi = 0, bd = 999;
+    pavs.forEach(function(p, i){ var d = Math.abs(((b - p[2] + 540) % 360) - 180); if (d < bd) { bd = d; bi = i; } });
+    for (var j = 1; j <= pavs.length; j++) { var q = pavs[(bi + j) % pavs.length]; if (((q[2] - b + 360) % 360) > 5) { ni = (bi + j) % pavs.length; break; } }
+    var miles = dist / 1609.344 * 1.0;
+    return { v:1, id:"test", active:true, show:true, startedAt:T0 - 3 * 3600000, at:now, laps:laps, lapFrac:(dist % per) / per, miles:miles, mph:2.9, avg:2.8,
+      steps:Math.round(miles * 2250), heading:Math.round((Math.atan2(340 * Math.cos(th), -270 * Math.sin(th)) * 180 / Math.PI + 360) % 360), dir:"cw",
+      now:{ id:pavs[bi][0], name:pavs[bi][1] }, next:{ id:pavs[ni][0], name:pavs[ni][1] }, ms: laps ? { seq:laps, type:"lap", n:laps, label:"Lap " + laps, at:now, miles:miles } : { seq:0 },
+      showAt: T0 + 5 * 3600000, trail:pts, pos:[Math.round(340 * Math.sin(th)), Math.round(270 * Math.cos(th))], pavs:pavs, gps:{ acc:8, at:now } };
+  }
+
+  function poll(){
+    var now = Date.now();
+    if (TEST) { lastOk = now; paint(testState(), now); return; }
+    if (!URL_ || !TOK) { lastErr = "add #url=…&tok=… to the link"; paint(D, now); return; }
+    fetch(URL_ + "/get/" + KEY, { cache:"no-store", headers:{ Authorization:"Bearer " + TOK } })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status + (r.status === 401 ? " (token refused)" : "")); return r.json(); })
+      .then(function(j){ lastOk = Date.now(); lastErr = ""; paint(j && j.result ? JSON.parse(j.result) : null, Date.now()); })
+      .catch(function(e){ lastErr = e.message; if (Date.now() - lastOk > 300000) $("wk-root").classList.remove("on"); if (DEBUG) paint(D, Date.now()); });
+  }
+  poll(); setInterval(poll, 3000);
+  setInterval(function(){ if (D) paint(D, Date.now()); }, 1000);     // clocks tick between reads
+})();
+</script>
+</body></html>
