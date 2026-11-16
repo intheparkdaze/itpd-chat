@@ -199,6 +199,30 @@ button{font:inherit;color:inherit}
 .check input{width:22px;height:22px}
 .small{font-size:.8rem;color:var(--muted);margin-top:6px}
 #diag{font-size:.75rem;color:var(--muted);white-space:pre-wrap;margin-top:10px;max-height:160px;overflow:auto}
+/* 11/15: 🎬 Stream controls (IRLToolkit Cloud OBS) */
+#ctlFab{position:fixed;right:214px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;border:none;background:#3b6fd8;color:#fff;font-size:1.5rem;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:15}
+#ctlFab b{position:absolute;top:-4px;right:-6px;padding:0 5px;height:20px;border-radius:10px;font-size:.7rem;line-height:20px;font-weight:800;color:#fff;display:none}
+#ctlFab b.live{display:block;background:var(--bad)}
+#ctlFab b.off{display:block;background:#666}
+#ctl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
+#ctl.open{display:flex}
+#ctl .card{max-height:90vh;overflow:auto}
+#ctl h2{font-size:1.05rem;margin:0 0 4px}
+#ctl h3{font-size:.8rem;margin:14px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#ctlStatus{font-weight:800;margin:2px 0 4px}
+#ctlSub{font-size:.8rem;color:var(--muted)}
+#ctlScenes button{display:block;width:100%;margin-top:6px;padding:12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem;text-align:left}
+#ctlScenes button.cur{border-color:var(--ok);background:rgba(46,160,67,.15)}
+#ctlScenes button.cur:after{content:"  \2713 on air";color:var(--ok);font-size:.8rem}
+#ctlIngests .ing{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--line)}
+#ctlIngests .ing span{flex:1;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ctlIngests .ing i{font-style:normal;font-size:.75rem;font-weight:800;padding:2px 6px;border-radius:8px;margin-left:6px}
+#ctlIngests .ing i.m{background:var(--bad);color:#fff}
+#ctlIngests .ing i.u{background:var(--ok);color:#fff}
+#ctlIngests .ing button{padding:9px 10px;border-radius:9px;border:2px solid var(--line);background:transparent;font-weight:700}
+#ctl .go{background:var(--ok);border-color:var(--ok);color:#fff}
+#ctl .stop{background:var(--bad);border-color:var(--bad);color:#fff}
+#ctl textarea,#ctl input[type=text],#ctl input[type=password]{width:100%;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -233,6 +257,42 @@ button{font:inherit;color:inherit}
     <div id="venueNow">Loading&hellip;</div>
     <div id="venueList"></div>
     <div class="row"><button class="btn" id="venueBack" style="display:none">Back</button><button class="btn" id="venueClose">Close</button></div>
+  </div>
+</div>
+
+<!-- 11/15: 🎬 Stream controls for IRLToolkit's Cloud OBS -->
+<button id="ctlFab" aria-label="Stream controls">&#x1F3AC;<b id="ctlBadge"></b></button>
+<div id="ctl" role="dialog" aria-modal="true" aria-labelledby="ctlTitle">
+  <div class="card">
+    <h2 id="ctlTitle">&#x1F3AC; Stream controls</h2>
+    <div id="ctlStatus">Not set up</div>
+    <div id="ctlSub"></div>
+    <h3>Scenes</h3>
+    <div id="ctlScenes"></div>
+    <h3>Ingests</h3>
+    <div id="ctlIngests"></div>
+    <h3>Stream</h3>
+    <div class="row" style="margin-top:4px"><button class="btn go" id="ctlStart">Start stream</button><button class="btn stop" id="ctlStop">Stop stream</button></div>
+    <div class="row"><button class="btn" id="ctlDash" style="display:none">Open IRLToolkit dashboard</button><button class="btn" id="ctlClose">Close</button></div>
+    <details style="margin-top:12px" id="ctlSetupBox"><summary class="small">Set up (saved only on this phone)</summary>
+      <label for="ctlAddr">IRLToolkit obs-websocket address (from IRLToolkit support)</label>
+      <input type="text" id="ctlAddr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="wss://…">
+      <label for="ctlPass">obs-websocket password</label>
+      <input type="password" id="ctlPass" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Password">
+      <div class="small">This password can start and stop the stream: treat this phone like the alert tokens. Leave the address empty to use Twitch chat commands instead (below).</div>
+      <label for="ctlIngFilter">Ingest names contain</label>
+      <input type="text" id="ctlIngFilter" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ingest">
+      <label for="ctlDashUrl">IRLToolkit dashboard link (optional)</label>
+      <input type="text" id="ctlDashUrl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…">
+      <h3>Without obs-websocket: Twitch chat commands</h3>
+      <div class="small">With no address above, buttons post IRLToolkit's chat-bot commands in Twitch chat as the channel (!ss scene, !m / !f ingest, !startstream, !stopstream), through your Chat Poster. Viewers on Twitch see the command. Needs IRLToolkit's Twitch bot in your channel.</div>
+      <label class="check"><input type="checkbox" id="ctlTwitchOn"> Use Twitch chat commands when obs-websocket isn't set up</label>
+      <label for="ctlScenesList">Scenes (one per line, as named in IRLToolkit)</label>
+      <textarea id="ctlScenesList" rows="6"></textarea>
+      <label for="ctlIngList">Ingests (one per line)</label>
+      <textarea id="ctlIngList" rows="3"></textarea>
+      <div class="row"><button class="btn primary" id="ctlSave">Save and connect</button></div>
+    </details>
   </div>
 </div>
 
@@ -406,7 +466,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-14 (Daze Bot log, posts before going live)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-15 (🎬 stream controls)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -2141,6 +2201,193 @@ button{font:inherit;color:inherit}
   bindCheck("wake", "wake", false, function(on){ if (on) requestWake(); else releaseWake(); });
   bindCheck("showGone", "showgone", true, function(on){ logEl.querySelectorAll(".msg.gone").forEach(function(n){ n.style.display = on ? "" : "none"; }); });
   bindCheck("showGifts", "showgifts", false);
+
+  // ---------- 11/15: 🎬 STREAM CONTROLS for IRLToolkit's Cloud OBS ----------
+  // Two ways in: (1) obs-websocket v5 (IRLToolkit gives access on request): live scene list,
+  // current scene, ingest mute state, start/stop and status, straight from the cloud OBS;
+  // (2) without it: IRLToolkit's Twitch chat-bot commands posted as the channel.
+  // Address and password are kept only on this phone (localStorage), never in the page.
+  var CTL_DEFAULT_SCENES = ["Ingest", "BRB", "Show/Ride", "Starting Soon", "Stream Starting", "Stream Ending", "1-Commercial", "Concert", "Second Ingest", "Third Ingest", "Ingest Low-bitrate", "Ingest Offline"];
+  var CTL_DEFAULT_INGESTS = ["First Ingest", "Second Ingest", "Third Ingest"];
+  var ctl = { ws:null, ready:false, nextId:1, pending:{}, scenes:[], cur:"", inputs:[], mute:{}, stream:null, irltk:null, retry:0, timer:null, poll:null, err:"" };
+  function ctlCfg(k, d){ var v = store.get("itpd_phonechat_ctl_" + k); return v == null ? d : v; }
+  function ctlSet(k, v){ store.set("itpd_phonechat_ctl_" + k, v); }
+  function ctlLines(k, d){ var v = ctlCfg(k, ""); var a = String(v).split(/\n/).map(function(s){ return s.trim(); }).filter(Boolean); return a.length ? a : d; }
+  function ctlMode(){ return ctlCfg("addr", "") ? "obs" : (ctlCfg("twitch", "0") === "1" ? "twitch" : "none"); }
+  function b64sha(str){
+    return crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)).then(function(buf){
+      var s = "", b = new Uint8Array(buf); for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s);
+    });
+  }
+  function ctlReq(type, data){
+    return new Promise(function(res, rej){
+      if (!ctl.ws || !ctl.ready) return rej(new Error("not connected"));
+      var id = "r" + (ctl.nextId++);
+      ctl.pending[id] = { res:res, rej:rej, t:setTimeout(function(){ delete ctl.pending[id]; rej(new Error(type + " timed out")); }, 8000) };
+      ctl.ws.send(JSON.stringify({ op:6, d:{ requestType:type, requestId:id, requestData:data || {} } }));
+    });
+  }
+  function ctlConnect(){
+    clearTimeout(ctl.timer);
+    var addr = ctlCfg("addr", "");
+    if (ctl.ws){ try { ctl.ws.onclose = null; ctl.ws.close(); } catch(e){} ctl.ws = null; }
+    ctl.ready = false;
+    if (!addr){ ctlPaint(); return; }
+    if (location.protocol === "https:" && /^ws:\/\//i.test(addr)){ ctl.err = "This page is https, so it needs a wss:// address (ask IRLToolkit support for the secure one)."; ctlPaint(); return; }
+    ctl.err = ""; ctlPaint("Connecting…");
+    var ws;
+    try { ws = new WebSocket(addr, "obswebsocket.json"); } catch (e){ ctl.err = "Bad address: " + e.message; ctlPaint(); return; }
+    ctl.ws = ws;
+    ws.onmessage = function(ev){
+      var m; try { m = JSON.parse(ev.data); } catch(e){ return; }
+      if (m.op === 0){                                     // Hello
+        var a = m.d && m.d.authentication, pass = ctlCfg("pass", "");
+        var ident = function(auth){ ws.send(JSON.stringify({ op:1, d:{ rpcVersion:1, authentication:auth, eventSubscriptions: 1 | 4 | 8 | 64 | 512 } })); };
+        if (a){
+          if (!pass){ ctl.err = "obs-websocket wants a password: add it in Set up."; ws.close(); return; }
+          b64sha(pass + a.salt).then(function(secret){ return b64sha(secret + a.challenge); }).then(ident);
+        } else ident(undefined);
+      } else if (m.op === 2){                              // Identified
+        ctl.ready = true; ctl.retry = 0; ctl.err = ""; ctlRefresh();
+        clearInterval(ctl.poll); ctl.poll = setInterval(ctlStatus, 5000);
+      } else if (m.op === 7){                              // RequestResponse
+        var p = ctl.pending[m.d.requestId]; if (!p) return;
+        clearTimeout(p.t); delete ctl.pending[m.d.requestId];
+        if (m.d.requestStatus && m.d.requestStatus.result) p.res(m.d.responseData || {});
+        else p.rej(new Error((m.d.requestStatus && (m.d.requestStatus.comment || ("code " + m.d.requestStatus.code))) || "failed"));
+      } else if (m.op === 5){                              // Event
+        var e = m.d || {}, d = e.eventData || {};
+        if (e.eventType === "CurrentProgramSceneChanged"){ ctl.cur = d.sceneName; ctlPaint(); }
+        else if (e.eventType === "SceneListChanged" || e.eventType === "SceneCreated" || e.eventType === "SceneRemoved" || e.eventType === "SceneNameChanged" || e.eventType === "InputCreated" || e.eventType === "InputRemoved" || e.eventType === "InputNameChanged") ctlRefresh();
+        else if (e.eventType === "InputMuteStateChanged"){ ctl.mute[d.inputName] = d.inputMuted; ctlPaint(); }
+        else if (e.eventType === "StreamStateChanged"){ ctlStatus(); }
+        else if (/IRLTK/i.test(e.eventType) || (e.eventType === "CustomEvent" && /IRLTK/i.test(JSON.stringify(d).slice(0, 200))) || e.eventType === "VendorEvent"){ ctl.irltk = { at:Date.now(), d:d }; ctlPaint(); }
+      }
+    };
+    ws.onerror = function(){ ctl.err = ctl.err || "Couldn’t reach obs-websocket (check the address, and that IRLToolkit has turned it on)."; };
+    ws.onclose = function(ev){
+      ctl.ready = false; clearInterval(ctl.poll);
+      Object.keys(ctl.pending).forEach(function(k){ clearTimeout(ctl.pending[k].t); ctl.pending[k].rej(new Error("connection closed")); }); ctl.pending = {};
+      if (ev && ev.code === 4009) ctl.err = "obs-websocket refused the password.";
+      ctlPaint();
+      if (ev && ev.code === 4009) return;                  // don't hammer a wrong password
+      ctl.retry = Math.min(ctl.retry + 1, 6);
+      ctl.timer = setTimeout(function(){ if (!document.hidden) ctlConnect(); }, 1000 * Math.pow(2, ctl.retry));
+    };
+  }
+  function ctlRefresh(){
+    if (!ctl.ready) return;
+    Promise.all([ctlReq("GetSceneList"), ctlReq("GetInputList")]).then(function(r){
+      ctl.scenes = (r[0].scenes || []).slice().sort(function(a, b){ return b.sceneIndex - a.sceneIndex; }).map(function(s){ return s.sceneName; });
+      ctl.cur = r[0].currentProgramSceneName || ctl.cur;
+      var f = String(ctlCfg("ingf", "ingest")).toLowerCase().trim();
+      ctl.inputs = (r[1].inputs || []).map(function(i){ return i.inputName; }).filter(function(n){ return !f || n.toLowerCase().indexOf(f) >= 0; });
+      return Promise.all(ctl.inputs.map(function(n){ return ctlReq("GetInputMute", { inputName:n }).then(function(x){ ctl.mute[n] = x.inputMuted; }, function(){ ctl.mute[n] = null; }); }));
+    }).then(function(){ ctlStatus(); ctlPaint(); }).catch(function(e){ ctl.err = "Couldn’t read OBS: " + e.message; ctlPaint(); });
+  }
+  function ctlStatus(){
+    if (!ctl.ready) return;
+    ctlReq("GetStreamStatus").then(function(s){ ctl.stream = s; ctlPaint(); }, function(){});
+  }
+  function ctlPaint(msg){
+    var mode = ctlMode(), st = $("ctlStatus"), sub = $("ctlSub"), badge = $("ctlBadge");
+    var live = mode === "obs" && ctl.ready && ctl.stream && ctl.stream.outputActive;
+    badge.className = mode === "obs" && ctl.ready ? (live ? "live" : "off") : ""; badge.textContent = live ? "LIVE" : "OFF";
+    if (!$("ctl").classList.contains("open")) return;
+    var scenes, ingests;
+    if (mode === "obs"){
+      st.textContent = msg || (ctl.ready ? (live ? "● LIVE " + String(ctl.stream.outputTimecode || "").replace(/\.\d+$/, "") : "Connected · stream is OFF") + (ctl.cur ? " · on air: " + ctl.cur : "") : (ctl.err || "Not connected (retrying)"));
+      var bits = [];
+      if (ctl.ready && ctl.stream && ctl.stream.outputActive){
+        if (ctl.stream.outputSkippedFrames != null && ctl.stream.outputTotalFrames) bits.push("dropped " + (100 * ctl.stream.outputSkippedFrames / ctl.stream.outputTotalFrames).toFixed(1) + "%");
+        if (ctl.stream.outputReconnecting) bits.push("RECONNECTING");
+      }
+      if (ctl.irltk) bits.push("IRLToolkit: " + JSON.stringify(ctl.irltk.d).replace(/[{}"]/g, "").slice(0, 140));
+      sub.textContent = bits.join(" · ");
+      scenes = ctl.scenes; ingests = ctl.inputs;
+    } else if (mode === "twitch"){
+      st.textContent = "Twitch chat commands (obs-websocket not set up)";
+      sub.textContent = "Taps post IRLToolkit's bot commands in Twitch chat as the channel. The on-air scene isn't shown in this mode.";
+      scenes = ctlLines("scenes", CTL_DEFAULT_SCENES); ingests = ctlLines("ings", CTL_DEFAULT_INGESTS);
+    } else {
+      st.textContent = "Not set up"; sub.textContent = "Open Set up below: add the obs-websocket address and password from IRLToolkit, or switch on Twitch chat commands.";
+      scenes = []; ingests = [];
+    }
+    var sc = $("ctlScenes"); sc.textContent = "";
+    scenes.forEach(function(n){
+      var b = document.createElement("button"); b.textContent = n;
+      if (mode === "obs" && n === ctl.cur) b.className = "cur";
+      b.disabled = mode === "obs" && !ctl.ready;
+      b.addEventListener("click", function(){ ctlScene(n); });
+      sc.appendChild(b);
+    });
+    var ig = $("ctlIngests"); ig.textContent = "";
+    if (!ingests.length && mode === "obs" && ctl.ready){ var nd = document.createElement("div"); nd.className = "small"; nd.textContent = "No inputs with \u201C" + ctlCfg("ingf", "ingest") + "\u201D in the name. Change \u201CIngest names contain\u201D in Set up."; ig.appendChild(nd); }
+    ingests.forEach(function(n){
+      var row = document.createElement("div"); row.className = "ing";
+      var lab = document.createElement("span"); lab.textContent = n;
+      if (mode === "obs" && ctl.mute[n] != null){ var t = document.createElement("i"); t.className = ctl.mute[n] ? "m" : "u"; t.textContent = ctl.mute[n] ? "MUTED" : "LIVE MIC"; lab.appendChild(t); }
+      row.appendChild(lab);
+      var mk = function(label, fn){ var b = document.createElement("button"); b.textContent = label; b.disabled = mode === "obs" && !ctl.ready; b.addEventListener("click", fn); row.appendChild(b); };
+      if (mode === "obs"){
+        mk(ctl.mute[n] ? "Unmute" : "Mute", function(){ ctlMute(n, !ctl.mute[n]); });
+      } else mk("Mute/Unmute", function(){ ctlTw("!m " + n); });
+      mk("Fix", function(){ ctlFix(n); });
+      ig.appendChild(row);
+    });
+    $("ctlStart").disabled = $("ctlStop").disabled = mode === "none" || (mode === "obs" && !ctl.ready);
+    var dash = ctlCfg("dash", ""); $("ctlDash").style.display = dash ? "" : "none";
+  }
+  function ctlTw(cmd){
+    if (!cfg("purl") || !cfg("pkey")){ tell("Twitch commands need the Chat Poster URL and key in ⚙."); return; }
+    postToChat(cmd, 0, "twitch");
+  }
+  function ctlScene(n){
+    if (ctlMode() === "twitch"){ ctlTw("!ss " + n); return; }
+    ctlReq("SetCurrentProgramScene", { sceneName:n }).then(function(){ ctl.cur = n; ctlPaint(); note("Scene: " + n, "", Date.now()); },
+      function(e){ tell("Couldn’t switch to " + n + ": " + e.message); });
+  }
+  function ctlMute(n, on){
+    ctlReq("SetInputMute", { inputName:n, inputMuted:on }).then(function(){ ctl.mute[n] = on; ctlPaint(); },
+      function(e){ tell("Couldn’t " + (on ? "mute " : "unmute ") + n + ": " + e.message); });
+  }
+  function ctlFix(n){
+    if (ctlMode() === "twitch"){ ctlTw("!f " + n); return; }
+    // IRLToolkit's own Fix isn't documented for obs-websocket; restarting the ingest's player is the closest
+    ctlReq("TriggerMediaInputAction", { inputName:n, mediaAction:"OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART" }).then(function(){ note("Restarted " + n + " (Fix).", "", Date.now()); },
+      function(e){ tell("Fix didn’t work for " + n + " (" + e.message + "). Use Fix on the IRLToolkit dashboard, or !f " + n + " in Twitch chat."); });
+  }
+  $("ctlStart").addEventListener("click", function(){
+    if (!confirm("Start the stream now? Viewers will see it go live.")) return;
+    if (ctlMode() === "twitch"){ ctlTw("!startstream"); return; }
+    ctlReq("StartStream").then(function(){ note("Stream starting…", "", Date.now()); setTimeout(ctlStatus, 2000); }, function(e){ tell("Couldn’t start: " + e.message); });
+  });
+  $("ctlStop").addEventListener("click", function(){
+    if (!confirm("STOP the stream? This ends the live stream for everyone.")) return;
+    if (ctlMode() === "twitch"){ ctlTw("!stopstream"); return; }
+    ctlReq("StopStream").then(function(){ note("Stream stopping…", "", Date.now()); setTimeout(ctlStatus, 2000); }, function(e){ tell("Couldn’t stop: " + e.message); });
+  });
+  $("ctlDash").addEventListener("click", function(){ var u = ctlCfg("dash", ""); if (/^https:\/\//i.test(u)) window.open(u, "_blank", "noopener"); });
+  $("ctlFab").addEventListener("click", function(){
+    $("ctl").classList.add("open");
+    $("ctlAddr").value = ctlCfg("addr", ""); $("ctlPass").value = ctlCfg("pass", ""); $("ctlIngFilter").value = ctlCfg("ingf", "ingest");
+    $("ctlDashUrl").value = ctlCfg("dash", ""); $("ctlTwitchOn").checked = ctlCfg("twitch", "0") === "1";
+    $("ctlScenesList").value = ctlLines("scenes", CTL_DEFAULT_SCENES).join("\n"); $("ctlIngList").value = ctlLines("ings", CTL_DEFAULT_INGESTS).join("\n");
+    if (ctlMode() === "none") $("ctlSetupBox").open = true;
+    if (ctlMode() === "obs" && !ctl.ws) ctlConnect(); else if (ctl.ready) ctlRefresh();
+    ctlPaint();
+  });
+  $("ctlClose").addEventListener("click", function(){ $("ctl").classList.remove("open"); });
+  $("ctlSave").addEventListener("click", function(){
+    ctlSet("addr", $("ctlAddr").value.trim()); ctlSet("pass", $("ctlPass").value);
+    ctlSet("ingf", $("ctlIngFilter").value.trim() || "ingest"); ctlSet("dash", $("ctlDashUrl").value.trim());
+    ctlSet("twitch", $("ctlTwitchOn").checked ? "1" : "0");
+    ctlSet("scenes", $("ctlScenesList").value); ctlSet("ings", $("ctlIngList").value);
+    $("ctlSetupBox").open = false; ctl.retry = 0; ctlConnect(); ctlPaint();
+  });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden && ctlMode() === "obs" && !ctl.ready){ ctl.retry = 0; ctlConnect(); } });
+  if (ctlMode() === "obs") ctlConnect();
+  window.__itpdCtl = ctl;
 
   if ($("wake").checked) requestWake();
   connect();
