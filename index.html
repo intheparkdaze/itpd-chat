@@ -204,6 +204,16 @@ button{font:inherit;color:inherit}
 #ctlFab b{position:absolute;bottom:calc(100% + 4px);right:50%;transform:translateX(50%);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 7px;height:20px;border-radius:10px;font-size:.7rem;line-height:20px;font-weight:800;color:#fff;display:none;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 #ctlFab b.live{display:block;background:var(--bad)}
 #ctlFab b.off{display:block;background:#666}
+/* 11/21: ingest bitrates beside 🎬 (from IRLToolkit's status event, every ~2 s) */
+#brw{position:fixed;left:10px;right:280px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:none;gap:3px;align-content:end;z-index:15}
+#brw.on{display:grid}
+#brw .br{display:flex;align-items:center;gap:4px;min-width:0;padding:0 6px;border-radius:9px;color:#fff;font-weight:800;font-size:11px;line-height:17px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35);
+  background:linear-gradient(90deg,var(--c) 0 var(--f),rgba(23,21,42,.82) var(--f))}
+#brw .br span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#brw.stale{opacity:.45}
+#brw.n4 .br{font-size:10.5px;line-height:15px}
+#brw.n7 .br{font-size:9.5px;line-height:13px;padding:0 5px}
+#brw.n4{gap:2px}
 #ctl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:29}
 #ctl.open{display:flex}
 #ctl .card{max-height:90vh;overflow:auto}
@@ -283,6 +293,7 @@ button{font:inherit;color:inherit}
 
 <!-- 11/15: 🎬 Stream controls for IRLToolkit's Cloud OBS -->
 <button id="ctlFab" aria-label="Stream controls">&#x1F3AC;<b id="ctlBadge"></b></button>
+<div id="brw" role="button" aria-label="Ingest bitrates (tap for stream controls)"></div>
 <div id="ctl" role="dialog" aria-modal="true" aria-labelledby="ctlTitle">
   <div class="card">
     <h2 id="ctlTitle">&#x1F3AC; Stream controls</h2>
@@ -518,7 +529,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-15d (🎬 stream controls, 🚶 walk tracker)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21 (🎬 stream controls + ingest bitrates, 🚶 walk tracker)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -2313,7 +2324,7 @@ button{font:inherit;color:inherit}
         else if (e.eventType === "SceneListChanged" || e.eventType === "SceneCreated" || e.eventType === "SceneRemoved" || e.eventType === "SceneNameChanged" || e.eventType === "InputCreated" || e.eventType === "InputRemoved" || e.eventType === "InputNameChanged") ctlRefresh();
         else if (e.eventType === "InputMuteStateChanged"){ ctl.mute[d.inputName] = d.inputMuted; ctlPaint(); }
         else if (e.eventType === "StreamStateChanged"){ ctlStatus(); }
-        else if (/IRLTK/i.test(e.eventType) || (e.eventType === "CustomEvent" && /IRLTK/i.test(JSON.stringify(d).slice(0, 200))) || e.eventType === "VendorEvent"){ ctl.irltk = { at:Date.now(), d:d }; ctlPaint(); }
+        else { var stt = ctlFindStatus(d); if (stt) { ctl.irl = { at:Date.now(), d:stt }; ctlStatusIn(stt); } }
       }
     };
     ws.onerror = function(){ ctl.err = ctl.err || "Couldn’t reach obs-websocket (check the address, and that IRLToolkit has turned it on)."; };
@@ -2354,7 +2365,6 @@ button{font:inherit;color:inherit}
         if (ctl.stream.outputSkippedFrames != null && ctl.stream.outputTotalFrames) bits.push("dropped " + (100 * ctl.stream.outputSkippedFrames / ctl.stream.outputTotalFrames).toFixed(1) + "%");
         if (ctl.stream.outputReconnecting) bits.push("RECONNECTING");
       }
-      if (ctl.irltk) bits.push("IRLToolkit: " + JSON.stringify(ctl.irltk.d).replace(/[{}"]/g, "").slice(0, 140));
       sub.textContent = bits.join(" · ");
       scenes = ctl.scenes; ingests = ctl.inputs;
     } else if (mode === "twitch"){
@@ -2389,6 +2399,8 @@ button{font:inherit;color:inherit}
       var row = document.createElement("div"); row.className = "ing";
       var lab = document.createElement("span"); lab.textContent = n;
       if (mode === "obs" && ctl.mute[n] != null){ var t = document.createElement("i"); t.className = ctl.mute[n] ? "m" : "u"; t.textContent = ctl.mute[n] ? "MUTED" : "LIVE MIC"; lab.appendChild(t); }
+      var ii = mode === "obs" ? ctlIngestInfo(n) : null;
+      if (ii) { var bt = document.createElement("small"); bt.style.cssText = "display:block;font-weight:700;font-size:.75rem;color:" + ii.color; bt.textContent = ii.text + (ii.rtt != null ? " \u00b7 " + ii.rtt + " ms" : ""); lab.appendChild(bt); }
       row.appendChild(lab);
       var mk = function(label, fn){ var b = document.createElement("button"); b.textContent = label; b.disabled = mode === "obs" && !ctl.ready; b.addEventListener("click", fn); row.appendChild(b); };
       if (mode === "obs"){
@@ -2400,6 +2412,53 @@ button{font:inherit;color:inherit}
     $("ctlStart").disabled = $("ctlStop").disabled = mode === "none" || (mode === "obs" && !ctl.ready);
     var dash = ctlCfg("dash", ""); $("ctlDash").style.display = dash ? "" : "none";
   }
+  // ---- 11/21: ingest bitrates. IRLToolkit's status event (IRLTKStatusUpdate) comes over
+  // obs-websocket every ~2 s with every ingest's router_bitrate (kbps, judging by its own
+  // 1000/150 low/offline triggers), state and SRT round-trip time. It's found by shape (an
+  // "ingests" list), wherever IRLToolkit puts it in the event.
+  function ctlFindStatus(d){
+    var c = [d, d && d.eventData, d && d.detail, d && d.data, d && d.eventData && d.eventData.detail];
+    for (var i = 0; i < c.length; i++) if (c[i] && Array.isArray(c[i].ingests)) return c[i];
+    return null;
+  }
+  function ctlStatusIn(st){
+    st.ingests.forEach(function(g){ if (g && g.name && typeof g.muted === "boolean" && ctl.mute.hasOwnProperty(g.name)) ctl.mute[g.name] = g.muted; });
+    ctlBitrates(); if ($("ctl").classList.contains("open")) ctlPaint();
+  }
+  function ctlKb(k){ k = Math.max(0, Math.round(Number(k) || 0)); return k >= 1000 ? (k / 1000).toFixed(1) + " Mb" : k + " kb"; }
+  function ctlIngInfoOf(g, st){
+    var low = Number(st.low_bitrate_trigger) || 1000, off = Number(st.offline_bitrate_trigger) || 150, br = Number(g.router_bitrate) || 0;
+    var playing = /PLAYING/i.test(String(g.media_state || ""));
+    var level = !playing || br < off ? "off" : br < low ? "low" : "ok";
+    return { br:br, level:level, color: level === "ok" ? "#1F9D55" : level === "low" ? "#C98A00" : "#C62828",
+             text: level === "off" && br < off ? "OFFLINE" + (br ? " (" + ctlKb(br) + "ps)" : "") : ctlKb(br) + "ps" + (level === "low" ? " (low)" : ""),
+             rtt: g.type === "srt" && Number(g.router_rtt) >= 0 ? Math.round(g.router_rtt) : null,
+             fill: Math.min(100, Math.round(br / Math.max(4000, low * 4) * 100)) };
+  }
+  function ctlIngestInfo(name){
+    if (!ctl.irl || Date.now() - ctl.irl.at > 30000) return null;
+    var g = ctl.irl.d.ingests.filter(function(x){ return x && String(x.name || "").toLowerCase() === String(name).toLowerCase(); })[0];
+    return g ? ctlIngInfoOf(g, ctl.irl.d) : null;
+  }
+  function ctlBitrates(){
+    var w = $("brw"), st = ctl.irl && ctl.irl.d, age = ctl.irl ? Date.now() - ctl.irl.at : 1e9;
+    if (!st || !ctl.ready || age > 30000 || !st.ingests.length) { w.className = ""; return; }
+    var list = st.ingests, n = list.length;
+    w.className = "on" + (n >= 7 ? " n7" : n >= 4 ? " n4" : "") + (age > 10000 ? " stale" : "");
+    w.textContent = "";
+    list.forEach(function(g, i){
+      var info = ctlIngInfoOf(g, st), el = document.createElement("div");
+      el.className = "br"; el.style.setProperty("--c", info.color); el.style.setProperty("--f", Math.max(info.level === "off" ? 100 : 6, info.fill) + "%");
+      var nm = document.createElement("span");
+      nm.textContent = (g.id && g.id === st.main_ingest_id ? "\u2605" : "") + (String(g.name || "").replace(/\s*ingest\s*/i, " ").trim() || "#" + (i + 1));
+      var v = document.createElement("b"); v.textContent = info.level === "off" && info.br < (Number(st.offline_bitrate_trigger) || 150) ? "OFF" : ctlKb(info.br);
+      el.appendChild(nm); el.appendChild(v); w.appendChild(el);
+    });
+    // more ingests = a taller stack (rows get slimmer); the walk pill moves up out of the way
+    var pill = $("wkPill"); if (pill) pill.style.bottom = w.offsetHeight > 58 ? (w.offsetHeight + 28) + "px" : "";
+  }
+  setInterval(ctlBitrates, 2000);
+  $("brw").addEventListener("click", function(){ $("ctlFab").click(); });
   function ctlHidden(){ try { var a = JSON.parse(ctlCfg("hidden", "[]")); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
   function ctlToggleHidden(n){ var a = ctlHidden(), i = a.indexOf(n); if (i >= 0) a.splice(i, 1); else a.push(n); ctlSet("hidden", JSON.stringify(a)); ctlPaint(); }
   function ctlTw(cmd){
