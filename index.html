@@ -529,7 +529,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21 (🎬 stream controls + ingest bitrates, 🚶 walk tracker)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21b (wave = welcomed; 🎬 bitrates; 🚶 walk)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -949,7 +949,12 @@ button{font:inherit;color:inherit}
     $("actsTitle").textContent = name + (pf === "twitch" ? " (Twitch)" : "");
     $("actsList").textContent = "";
     addAct("\ud83d\udc4b Wave in " + where, "Posts: \ud83d\udc4b " + h + (canPost ? "" : " (add the Chat Poster in \u2699)"), canPost,
-      function(){ postToChat("\ud83d\udc4b " + h, 0, pf); });
+      function(){
+        postToChat("\ud83d\udc4b " + h, 0, pf);
+        // 11/21: a wave counts as welcoming them: ticked off the 👋 In chat today list (shared with every phone)
+        var low = name.trim().replace(/^@/, "").toLowerCase();
+        if (low) rosterTick(pf + ":" + low, true, true).then(rosterRefresh);
+      });
     var what = whatFor(m);
     if (cls.kind === "paid" && what){
       addAct("\ud83d\udc9b Thank in chat for " + what, canPost ? "You can edit the message first" : "Add the Chat Poster in \u2699", canPost, function(){
@@ -1287,11 +1292,11 @@ button{font:inherit;color:inherit}
     if (done.length){ var sp = document.createElement("div"); sp.className = "sep"; sp.textContent = "Welcomed (" + done.length + ")"; box.appendChild(sp); done.forEach(row); }
     box.scrollTop = keep;
   }
-  function rosterTick(k, on){
+  function rosterTick(k, on, quiet){
     var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
-    if (!url || !tok){ tell("To tick names, add the Upstash URL and the alerts token in \u2699."); return; }
+    if (!url || !tok){ if (!quiet) tell("To tick names, add the Upstash URL and the alerts token in \u2699."); return Promise.resolve(); }
     var key = WELCOMED_PREFIX + streamDay();
-    fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
+    return fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
       body: JSON.stringify(on ? [["HSET", key, k, "1"], ["EXPIRE", key, "259200"]] : [["HDEL", key, k]]) }).catch(function(){});
   }
   // chats this page sees are added too (only once each per day)
