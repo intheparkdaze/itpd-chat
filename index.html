@@ -123,6 +123,10 @@ button{font:inherit;color:inherit}
 #venueList .vg{font-size:.78rem;font-weight:800;color:var(--muted);margin:12px 0 4px;letter-spacing:.04em;text-transform:uppercase}
 #venueList .vb{display:block;width:100%;text-align:left;margin-top:6px;padding:11px 12px;border-radius:10px;border:2px solid var(--line);background:transparent;font-weight:700;font-size:1rem}
 #venueList .vb.cur{border-color:var(--ok)}
+#venueList .lh{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:8px;padding:11px 12px;border-radius:10px;border:2px solid var(--line);background:rgba(127,127,127,.08);font-weight:800;font-size:1rem;text-align:left}
+#venueList .lh.cur{border-color:var(--ok)}
+#venueList .lh small{font-weight:400;color:var(--muted)}
+#venueList .lb{padding-left:12px;border-left:3px solid var(--line);margin:2px 0 6px 6px}
 #venueList .vb small{font-weight:400;color:var(--muted);margin-left:6px}
 #venueList .cf{display:grid;gap:6px;margin-top:8px}
 #venueList .cf label{display:grid;gap:3px;font-size:.85rem;color:var(--muted)}
@@ -529,7 +533,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21d (📍 land & ride; mod log; wave = welcomed)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21f (🎢 ride asked on Show/Ride; 📍 land & ride; mod log)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -1444,11 +1448,29 @@ button{font:inherit;color:inherit}
     }
     poSpotSave(spot);
   }
-  function poSpot(v){
-    $("venueBack").style.display = ""; $("venueList").textContent = ""; poHeader(v.name + ": where in the park?");
+  function rideAsk(){
+    poLoad().then(function(){
+      if (!poCat || !poState) return;
+      var v = poCat.venues[poState.venue || 0];
+      if (!v || v.kind !== "park" || !v.waitPark || QT_PARKS.indexOf(v.waitPark) < 0) return;   // only in a park we have rides for
+      $("ctl").classList.remove("open"); $("venue").classList.add("open");
+      poSpot(v, "ride");
+    }).catch(function(){});
+  }
+  function rideClear(){
+    poLoad().then(function(){
+      var sp = poSpotNow; if (!sp || !sp.ride) return;
+      var was = sp.ride;
+      poSpotSave({ park: sp.park, land: sp.land || "", ride: "", other: "" }, true).then(function(){ note("\ud83c\udfa2 Back from " + was + ": ride cleared (still in " + (sp.land || "the park") + ").", "", Date.now()); });
+    }).catch(function(){});
+  }
+  function poSpot(v, mode){
+    var ask = mode === "ride";
+    $("venueBack").style.display = ask ? "none" : ""; $("venueList").textContent = ""; poHeader(ask ? "\ud83c\udfa2 Which ride? (Show/Ride scene is on)" : v.name + ": where in the park?");
     $("venueNow").textContent = "Now: " + poDescribe(poState);
-    poButton("Just " + v.name, "no land or ride", false, function(){ poSpotPick(v, "", "", ""); });
-    poButton("\u270f\ufe0f Somewhere else", "type a show, restaurant or spot", false, function(){
+    if (ask) poButton("Skip", "not a ride, or don't change it", false, closeVenue);
+    else poButton("Just " + v.name, "no land or ride", false, function(){ poSpotPick(v, "", "", ""); });
+    poButton("\u270f\ufe0f " + (ask ? "A show or something else" : "Somewhere else"), "type a show, restaurant or spot", false, function(){
       compose("Where in " + v.name + "?", "", "Save", function(t){ if (t && t.trim()) poSpotPick(v, (poSpotNow && poSpotNow.park === v.waitPark && poSpotNow.land) || "", "", t.trim().slice(0, 60)); });
     });
     var url = cfg("purl"), key = cfg("pkey");
@@ -1461,12 +1483,22 @@ button{font:inherit;color:inherit}
         if (!j.rides.some(function(x){ return "l" in x; })) poHeader("Your Chat Poster is older than 2026-11-21b, so rides aren\u2019t grouped by land yet.");
         var lands = [];
         j.rides.forEach(function(rd){ var l = rd.l || "Other rides"; if (lands.indexOf(l) < 0) lands.push(l); });
+        // 11/21: each land folds open; the land we're in starts open
+        var curLand = poSpotNow && poSpotNow.park === v.waitPark ? poSpotNow.land : "";
         lands.forEach(function(l){
-          poHeader(l);
-          if (l !== "Other rides") poButton("Whole land: " + l, "", poSpotNow && poSpotNow.park === v.waitPark && poSpotNow.land === l && !poSpotNow.ride, function(){ poSpotPick(v, l, "", ""); });
-          j.rides.filter(function(rd){ return (rd.l || "Other rides") === l; }).forEach(function(rd){
-            poButton("\ud83c\udfa2 " + rd.n, rd.o ? (rd.w ? rd.w + " min" : "open") : "closed", poSpotNow && poSpotNow.ride === rd.n, function(){ poSpotPick(v, l === "Other rides" ? "" : l, rd.n, ""); });
+          var rides = j.rides.filter(function(rd){ return (rd.l || "Other rides") === l; });
+          var head = document.createElement("button"); head.className = "lh" + (l === curLand ? " cur" : "");
+          var box = document.createElement("div"); box.className = "lb";
+          var open = l === curLand;
+          var paint = function(){ head.textContent = (open ? "\u25be " : "\u25b8 ") + l; var sm = document.createElement("small"); sm.textContent = rides.length + (rides.length === 1 ? " ride" : " rides"); head.appendChild(sm); box.style.display = open ? "" : "none"; };
+          head.addEventListener("click", function(){ open = !open; paint(); });
+          $("venueList").appendChild(head); $("venueList").appendChild(box);
+          var add = function(label, sub, cur, fn){ poButton(label, sub, cur, fn); box.appendChild($("venueList").lastChild); };
+          if (l !== "Other rides") add("Whole land: " + l, "", curLand === l && !(poSpotNow && poSpotNow.ride), function(){ poSpotPick(v, l, "", ""); });
+          rides.forEach(function(rd){
+            add("\ud83c\udfa2 " + rd.n, rd.o ? (rd.w ? rd.w + " min" : "open") : "closed", poSpotNow && poSpotNow.ride === rd.n, function(){ poSpotPick(v, l === "Other rides" ? "" : l, rd.n, ""); });
           });
+          paint();
         });
         var cr = document.createElement("div"); cr.className = "small"; cr.textContent = "Ride list: Powered by Queue-Times.com"; $("venueList").appendChild(cr);
       }).catch(function(e){ wait.textContent = "Couldn\u2019t load the rides: " + e.message; });
@@ -2405,7 +2437,7 @@ button{font:inherit;color:inherit}
         else p.rej(new Error((m.d.requestStatus && (m.d.requestStatus.comment || ("code " + m.d.requestStatus.code))) || "failed"));
       } else if (m.op === 5){                              // Event
         var e = m.d || {}, d = e.eventData || {};
-        if (e.eventType === "CurrentProgramSceneChanged"){ ctl.cur = d.sceneName; ctlPaint(); }
+        if (e.eventType === "CurrentProgramSceneChanged"){ ctlSetCur(d.sceneName); ctlPaint(); }
         else if (e.eventType === "SceneListChanged" || e.eventType === "SceneCreated" || e.eventType === "SceneRemoved" || e.eventType === "SceneNameChanged" || e.eventType === "InputCreated" || e.eventType === "InputRemoved" || e.eventType === "InputNameChanged") ctlRefresh();
         else if (e.eventType === "InputMuteStateChanged"){ ctl.mute[d.inputName] = d.inputMuted; ctlPaint(); }
         else if (e.eventType === "StreamStateChanged"){ ctlStatus(); }
@@ -2550,9 +2582,18 @@ button{font:inherit;color:inherit}
     if (!cfg("purl") || !cfg("pkey")){ tell("Twitch commands need the Chat Poster URL and key in ⚙."); return; }
     postToChat(cmd, 0, "twitch");
   }
+  // 11/21: switching to the Show/Ride scene asks "Which ride?"; switching back clears the ride
+  // (not when IRLToolkit drops to a low-bitrate / offline / BRB scene mid-ride)
+  var RIDE_SCENE = /show|ride/i, KEEP_RIDE = /low.?bitrate|offline|brb/i;
+  function ctlSetCur(n){ var p = ctl.cur; if (p === n) return; ctl.cur = n; if (p) ctlSceneHook(p, n); }
+  function ctlSceneHook(prev, next){
+    var isRide = RIDE_SCENE.test(next);
+    if (isRide) { if (!ctl.rideOn) rideAsk(); ctl.rideOn = true; }          // a ride starts
+    else if (ctl.rideOn && !KEEP_RIDE.test(next)) { ctl.rideOn = false; rideClear(); }   // back to walking
+  }
   function ctlScene(n){
-    if (ctlMode() === "twitch"){ ctlTw("!ss " + n); return; }
-    ctlReq("SetCurrentProgramScene", { sceneName:n }).then(function(){ ctl.cur = n; ctlPaint(); },
+    if (ctlMode() === "twitch"){ ctlTw("!ss " + n); var tp = ctl.twCur; ctl.twCur = n; if (tp !== n) ctlSceneHook(tp || "", n); return; }
+    ctlReq("SetCurrentProgramScene", { sceneName:n }).then(function(){ ctlSetCur(n); ctlPaint(); },
       function(e){ tell("Couldn’t switch to " + n + ": " + e.message); });
   }
   function ctlMute(n, on){
