@@ -529,7 +529,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21c (mod log; wave = welcomed; 🎬 bitrates; 🚶 walk)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21d (📍 land & ride; mod log; wave = welcomed)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -1335,11 +1335,15 @@ button{font:inherit;color:inherit}
   // writes the overlay's state like its own editor does, and the "where we are" record the
   // Daze Bot reads for !park, !weather and !wait.
   var PO_STATE = "itpd_parkoverlay_state_2026", PO_CAT = "itpd_parkoverlay_catalog_2026", PO_NOW = "itpd_parkoverlay_now_2026";
+  // 11/21: the land and ride we're at (names from Queue-Times through the Chat Poster). The Daze Bot
+  // posts arrivals in chat and picks !lettuce puns for that ride / land. Not shown on screen.
+  var PO_SPOT = "itpd_location_spot_2026", poSpotNow = null, QT_PARKS = ["mk", "epcot", "hs", "ak", "usf", "ioa", "epic"];
   var poCat = null, poState = null;
   function poLoad(){
-    return Promise.all([upstash("/get/" + PO_CAT), upstash("/get/" + PO_STATE)]).then(function(r){
+    return Promise.all([upstash("/get/" + PO_CAT), upstash("/get/" + PO_STATE), upstash("/get/" + PO_SPOT)]).then(function(r){
       try { poCat = r[0] ? JSON.parse(r[0]) : null; } catch(e){ poCat = null; }
       try { poState = r[1] ? JSON.parse(r[1]) : {}; } catch(e){ poState = {}; }
+      try { poSpotNow = r[2] ? JSON.parse(r[2]) : null; } catch(e){ poSpotNow = null; }
     });
   }
   function poDescribe(st){
@@ -1349,9 +1353,15 @@ button{font:inherit;color:inherit}
     if (v.id === "mk" && st.land > 0 && st.land < poCat.lands.length - 1) extra = " \u00b7 " + poCat.lands[st.land];
     if (v.kind === "transit"){ var sl = poCat.sublines[st.sub || 0]; if (sl && sl.dest) extra = " \u00b7 " + sl.label; }
     if (v.id === "monorail" && st.mono > 0 && poCat.monorails[st.mono]) extra += " \u00b7 " + poCat.monorails[st.mono].name + " monorail";
+    var sp = poSpotNow;
+    if (sp && v.waitPark && sp.park === v.waitPark) {
+      if (sp.land && v.id !== "mk") extra += " \u00b7 " + sp.land;
+      if (sp.ride && Date.now() - (sp.at || 0) < 40 * 60000) extra += " \u00b7 \ud83c\udfa2 " + sp.ride;
+      if (sp.other) extra += " \u00b7 " + sp.other;
+    }
     return v.name + extra;
   }
-  function poApply(patch){
+  function poApply(patch, after){
     var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
     if (!url || !tok){ tell("To change where we are, add the Upstash URL and the alerts token in \u2699."); return; }
     var H = { Authorization:"Bearer " + tok };
@@ -1366,7 +1376,7 @@ button{font:inherit;color:inherit}
       var now = { id:v.id, name:nm, kind:v.kind, company:v.company, park:park, parkName: pv ? pv.name : "", land:land, at:Date.now() };
       return fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
         body:JSON.stringify([["SET", PO_STATE, JSON.stringify(st)], ["SET", PO_NOW, JSON.stringify(now)]]) })
-        .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); poState = st; note("\ud83d\udccd Now showing: " + poDescribe(st), "", Date.now()); closeVenue(); });
+        .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); poState = st; if (after) { after(); return; } note("\ud83d\udccd Now showing: " + poDescribe(st), "", Date.now()); closeVenue(); });
     }).catch(function(e){ tell("Couldn\u2019t change where we are: " + e.message); });
   }
   function poButton(label, sub, cur, fn){
@@ -1381,6 +1391,7 @@ button{font:inherit;color:inherit}
     $("venueBack").style.display = "none"; $("venueList").textContent = "";
     $("venueNow").textContent = poState ? "Now: " + poDescribe(poState) : "";
     var curV = poState ? (poState.venue || 0) : -1, cur = poCat.venues[curV], groups = [];
+    if (cur && cur.waitPark && QT_PARKS.indexOf(cur.waitPark) >= 0) poButton("\ud83c\udfa2 Land or ride at " + cur.name, "where in the park we are", false, function(){ poSpot(cur); });
     poCat.venues.forEach(function(v){ if (groups.indexOf(v.group) < 0) groups.push(v.group); });
     groups.forEach(function(g){
       var n = poCat.venues.filter(function(v){ return v.group === g; }).length;
@@ -1398,9 +1409,67 @@ button{font:inherit;color:inherit}
   }
   function poPick(v){
     if (v.kind === "custom") return poCustom(v);
-    if (v.id === "mk") return poLands(v);
     if (v.kind === "transit") return poDests(v);
+    if (v.waitPark && QT_PARKS.indexOf(v.waitPark) >= 0 && v.kind === "park") {
+      // a park: change the ticket now, then ask where in the park (a new park starts with no land or ride)
+      return poApply(v.id === "mk" ? { venue: v.i, land: 0, landSeq: ((poState && poState.landSeq) || 0) + 1 } : { venue: v.i }, function(){
+        poSpotSave({ park: v.waitPark, land: "", ride: "", other: "" }, true).then(function(){ poSpot(v); });
+      });
+    }
+    if (v.id === "mk") return poLands(v);
     poApply({ venue: v.i });
+  }
+  // ---- 11/21: land and ride ----
+  function poSpotSave(spot, quiet){
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok");
+    if (!url || !tok){ tell("To change where we are, add the Upstash URL and the alerts token in \u2699."); return Promise.resolve(); }
+    spot.at = Date.now();
+    return fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
+      body: JSON.stringify([["SET", PO_SPOT, JSON.stringify(spot)]]) }).then(function(r){
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        poSpotNow = spot;
+        if (!quiet) { note("\ud83d\udccd Now: " + poDescribe(poState), "", Date.now()); closeVenue(); }
+      }).catch(function(e){ tell("Couldn\u2019t save the land or ride: " + e.message); });
+  }
+  function poMkLand(name){
+    var flat = function(x){ return String(x || "").toLowerCase().replace(/[^a-z]/g, ""); }, f = flat(name);
+    for (var i = 1; i < poCat.lands.length - 1; i++) if (flat(poCat.lands[i]) === f) return i;
+    return -1;
+  }
+  function poSpotPick(v, land, ride, other){
+    var spot = { park: v.waitPark, land: land || "", ride: ride || "", other: other || "" };
+    if (v.id === "mk") {                       // the ticket's Magic Kingdom land follows too
+      var li = land ? poMkLand(land) : 0;
+      if (li >= 0 && (!poState || poState.land !== li)) return poApply({ venue: v.i, land: li, landSeq: ((poState && poState.landSeq) || 0) + 1 }, function(){ poSpotSave(spot); });
+    }
+    poSpotSave(spot);
+  }
+  function poSpot(v){
+    $("venueBack").style.display = ""; $("venueList").textContent = ""; poHeader(v.name + ": where in the park?");
+    $("venueNow").textContent = "Now: " + poDescribe(poState);
+    poButton("Just " + v.name, "no land or ride", false, function(){ poSpotPick(v, "", "", ""); });
+    poButton("\u270f\ufe0f Somewhere else", "type a show, restaurant or spot", false, function(){
+      compose("Where in " + v.name + "?", "", "Save", function(t){ if (t && t.trim()) poSpotPick(v, (poSpotNow && poSpotNow.park === v.waitPark && poSpotNow.land) || "", "", t.trim().slice(0, 60)); });
+    });
+    var url = cfg("purl"), key = cfg("pkey");
+    if (!url || !key){ poHeader("Add the Chat Poster in \u2699 to list this park's lands and rides."); return; }
+    var wait = document.createElement("div"); wait.className = "small"; wait.textContent = "Loading lands and rides\u2026"; $("venueList").appendChild(wait);
+    fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify({ key:key, action:"waits", park:v.waitPark }), redirect:"follow", cache:"no-store" })
+      .then(function(r){ return r.json(); }).then(function(j){
+        wait.remove();
+        if (!j || !j.ok || !j.rides) { poHeader("Couldn\u2019t load the rides (" + ((j && j.reason) || "no answer") + ")."); return; }
+        if (!j.rides.some(function(x){ return "l" in x; })) poHeader("Your Chat Poster is older than 2026-11-21b, so rides aren\u2019t grouped by land yet.");
+        var lands = [];
+        j.rides.forEach(function(rd){ var l = rd.l || "Other rides"; if (lands.indexOf(l) < 0) lands.push(l); });
+        lands.forEach(function(l){
+          poHeader(l);
+          if (l !== "Other rides") poButton("Whole land: " + l, "", poSpotNow && poSpotNow.park === v.waitPark && poSpotNow.land === l && !poSpotNow.ride, function(){ poSpotPick(v, l, "", ""); });
+          j.rides.filter(function(rd){ return (rd.l || "Other rides") === l; }).forEach(function(rd){
+            poButton("\ud83c\udfa2 " + rd.n, rd.o ? (rd.w ? rd.w + " min" : "open") : "closed", poSpotNow && poSpotNow.ride === rd.n, function(){ poSpotPick(v, l === "Other rides" ? "" : l, rd.n, ""); });
+          });
+        });
+        var cr = document.createElement("div"); cr.className = "small"; cr.textContent = "Ride list: Powered by Queue-Times.com"; $("venueList").appendChild(cr);
+      }).catch(function(e){ wait.textContent = "Couldn\u2019t load the rides: " + e.message; });
   }
   function poLands(v){
     $("venueBack").style.display = ""; $("venueList").textContent = ""; poHeader("Magic Kingdom: which land?");
