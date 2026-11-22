@@ -529,7 +529,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21b (wave = welcomed; 🎬 bitrates; 🚶 walk)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21c (mod log; wave = welcomed; 🎬 bitrates; 🚶 walk)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -927,10 +927,21 @@ button{font:inherit;color:inherit}
         if (!j.op){ tell("Your Chat Poster is out of date: it doesn\u2019t know how to remove messages and may have posted the text instead. In the Chat Poster project: Deploy \u2192 Manage deployments \u2192 edit \u2192 New version \u2192 Deploy."); return; }
         note(op === "delete" ? "Message from " + name + " removed." : op === "timeout" ? name + " timed out for 5 minutes." : name + " banned from chat.", "", Date.now());
         if (op === "delete") markDeleted({ type:m.type, id:m.id });
+        modlogPhone(op, m, name);
       })
       .catch(function(e){ tell("Couldn\u2019t reach the Chat Poster: " + e.message); });
   }
 
+  // 11/21: every removal / timeout / ban done from this phone goes into the stream's mod log
+  // (Upstash itpd_modlog_2026_<stream>), because YouTube never says who removed a message.
+  function modlogPhone(op, m, name){
+    var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok"); if (!url || !tok) return;
+    var ses = streamDay(), key = "itpd_modlog_2026_" + ses, now = Date.now();
+    var e = { id:"ph:" + now, src:"phone", kind: op === "delete" ? "deleted" : op === "timeout" ? "timeout" : "ban", at:now,
+              who:String(name || ""), text:plainText(m).slice(0, 300), by:"Michael (phone)", secs: op === "timeout" ? 300 : 0, plat:platOf(m) };
+    fetch(url + "/pipeline", { method:"POST", headers:{ Authorization:"Bearer " + tok, "Content-Type":"application/json" }, cache:"no-store",
+      body: JSON.stringify([["HSETNX", key, e.id, JSON.stringify(e)], ["EXPIRE", key, "7776000"], ["ZADD", "itpd_modlog_sessions_2026", "NX", String(sessionCur && sessionCur.startedAt || now), ses]]) }).catch(function(){});
+  }
   function addAct(label, why, enabled, fn){
     var b = document.createElement("button");
     b.className = "act"; b.textContent = label; b.disabled = !enabled;
