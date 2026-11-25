@@ -79,6 +79,9 @@ button{font:inherit;color:inherit}
 .paid-line{font-weight:800;color:var(--gold);font-size:.9rem}
 .follow .paid-line{color:var(--ok)}
 .msg.gone .text{text-decoration:line-through;opacity:.5}
+.msg .amTag{font-size:12px;margin-top:3px;color:#8A5A00;font-weight:600}
+.msg .amTag.care{color:#2F6FB0}
+.msg.amHit{box-shadow:inset 3px 0 0 #D4A100}
 .msg.maybesub{background:color-mix(in srgb,var(--yt) 12%,transparent);border-radius:8px;padding:8px;border:none;margin:4px 0}
 .subtag{font-size:.7rem;font-weight:800;color:var(--yt)}
 .nm.tap{text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
@@ -533,7 +536,7 @@ button{font:inherit;color:inherit}
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="card">
     <h2 id="sheetTitle">Chat settings</h2>
-    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-21f (🎢 ride asked on Show/Ride; 📍 land & ride; mod log)</div>
+    <div class="small" id="pageVersion" style="margin:-4px 0 8px">Page version: 2026-11-25 (auto-mod shadow marks; bot never on the 👋 list; welcome back; Twitch wording; ingest colours)</div>
     <label for="sid">Social Stream Ninja session ID</label>
     <input type="password" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Same ID as the alerts controller">
     <h3>Catch-up when you switch tabs</h3>
@@ -760,7 +763,7 @@ button{font:inherit;color:inherit}
   var NOT_SUBBERS = ["itpd.dazebot", "itpd_dazebot", "intheparkdaze", "in the park daze"];
   function couldBeSubber(m){
     var n = String(m.chatname || "").trim().replace(/^@/, "").toLowerCase();
-    if (NOT_SUBBERS.indexOf(n) >= 0) return false;
+    if (NOT_SUBBERS.indexOf(n) >= 0 || isSelfName(n)) return false;
     if (/^\s*!/.test(plainText(m))) return false;          // a command, not a statement
     return true;
   }
@@ -970,6 +973,17 @@ button{font:inherit;color:inherit}
         var low = name.trim().replace(/^@/, "").toLowerCase();
         if (low) rosterTick(pf + ":" + low, true, true).then(rosterRefresh);
       });
+    // 11/24: welcome back (wording: the "Welcome back" item in the ⚡ list); also ticks them off the 👋 list
+    var wbFor = function(){
+      var it = (quick && quick.items || []).filter(function(x){ return x.id === "welcome_back"; })[0];
+      return String((it && (pf === "twitch" && it.tw && it.tw.trim() && it.tw.trim() !== "-" ? it.tw : it.text)) || "Welcome back, {name}! So good to see you again \ud83d\udc9b").split("{name}").join(h);
+    };
+    addAct("\ud83c\udfe0 Welcome back in " + where, "Posts: " + wbFor() + (canPost ? "" : " (add the Chat Poster in \u2699)"), canPost,
+      function(){
+        loadQuick().then(function(){ postToChat(wbFor(), 0, pf); }, function(){ postToChat(wbFor(), 0, pf); });
+        var low = name.trim().replace(/^@/, "").toLowerCase();
+        if (low) rosterTick(pf + ":" + low, true, true).then(rosterRefresh);
+      });
     var what = whatFor(m);
     if (cls.kind === "paid" && what){
       addAct("\ud83d\udc9b Thank in chat for " + what, canPost ? "You can edit the message first" : "Add the Chat Poster in \u2699", canPost, function(){
@@ -1092,12 +1106,13 @@ button{font:inherit;color:inherit}
         d.innerHTML = '<div class="r"><input data-f="emoji" placeholder="Emoji" style="flex:0 0 70px"><input data-f="label" placeholder="Button name"><input data-f="cmd" placeholder="command (no !)"></div>' +
                       '<textarea data-f="text" maxlength="200" placeholder="Message"></textarea>' +
                       '<textarea data-f="alt" maxlength="200" placeholder="Alternative wording (optional: the two take turns)"></textarea>' +
+                      '<textarea data-f="tw" maxlength="200" placeholder="Twitch version (optional: used in Twitch chat; - = never post it on Twitch)"></textarea>' +
                       '<textarea data-f="lines" placeholder="Random lines (optional, one per line): the command picks one each time; use {line} in the message"></textarea>' +
                       '<label class="small" style="display:block;margin-top:6px">Topic <select data-f="cat">' + QCATS.map(function(c){ return '<option>' + c + '</option>'; }).join("") + '</select></label>' +
                       '<label class="small" style="display:block;margin-top:6px">Who can use the command <select data-f="access"><option value="everyone">Everyone</option><option value="mods">Mods</option><option value="host">Only us</option></select></label>' +
                       (it.builtin ? '<div class="small" style="margin-top:4px">' + builtinHint(it.builtin) + '</div>' : '') +
                       '<button class="btn" data-del style="margin-top:6px">Delete</button>';
-        ["emoji","label","cmd","text","alt"].forEach(function(f){ d.querySelector('[data-f="' + f + '"]').value = it[f] || ""; });
+        ["emoji","label","cmd","text","alt","tw"].forEach(function(f){ d.querySelector('[data-f="' + f + '"]').value = it[f] || ""; });
         d.querySelector('[data-f="lines"]').value = (it.lines || []).join("\n");
         d.querySelector('[data-f="access"]').value = accessOf(it);
         d.querySelector('[data-f="cat"]').value = catOf(it);
@@ -1144,10 +1159,15 @@ button{font:inherit;color:inherit}
   var confirmDel = {};
   // 11/04: where ⚡ quick messages go (remembered on this phone)
   function quickDest(){ var v = store.get("itpd_phonechat_qdest") || "youtube"; return /^(youtube|twitch|both)$/.test(v) ? v : "youtube"; }
-  function postQuick(text){
-    var d = quickDest();
+  // 11/24: Twitch gets the item's Twitch version when it has one (Follow instead of like/subscribe);
+  // "-" = this message never goes to Twitch
+  function postQuick(text, it){
+    var d = quickDest(), tw = it && typeof it.tw === "string" ? it.tw.trim() : "";
     if (d !== "twitch") postToChat(text, 0, "youtube");
-    if (d !== "youtube") postToChat(text, 0, "twitch");
+    if (d !== "youtube") {
+      if (tw === "-") { if (d === "twitch") tell("\u201c" + it.label + "\u201d is set to never post on Twitch."); return; }
+      postToChat(tw ? tw.replace(/\{name\}\s*/g, "") : text, 0, "twitch");
+    }
   }
   [].forEach.call(document.querySelectorAll('input[name="qdest"]'), function(r){
     r.checked = r.value === quickDest();
@@ -1160,6 +1180,7 @@ button{font:inherit;color:inherit}
          : b === "wait" ? "Built in: !wait = longest waits, !wait tron = one ride. Wording is fixed because Queue-Times' credit must be included."
          : b === "commands" ? "Built in: {list} = every command set to Everyone."
          : b === "modsonly" ? "Sent once per viewer per stream when they try a mods-only command. {name} = their handle."
+         : b === "welcome_back" ? "Posted when you tap a name and choose Welcome back (also ticks them off the In chat today list). {name} = their handle. Twitch version optional."
          : b === "subthanks" ? "Posted in chat as In The Park Daze whenever you send a NEW SUBSCRIBER alert from this phone. {name} = their handle. Empty = off."
          : b === "thx_support" ? "Posted by the Daze Bot for YouTube Super Chats, Super Stickers, Jewels and gifted memberships. {name} = their handle, {what} = what they sent. No amounts. Empty = off."
          : b === "thx_member" ? "Posted by the Daze Bot when someone becomes a member. {name} = their handle. Empty = off."
@@ -1173,7 +1194,7 @@ button{font:inherit;color:inherit}
     if (it.lines && it.lines.length){
       var line = it.lines[Math.floor(Math.random() * it.lines.length)];
       closeQuick();
-      compose(it.label, (it.text || "{line}").replace(/\{line\}/g, line).replace(/\{name\}\s*/g, ""), "Post", function(txt){ if (txt && txt.trim()) postQuick(txt.trim()); });
+      compose(it.label, (it.text || "{line}").replace(/\{line\}/g, line).replace(/\{name\}\s*/g, ""), "Post", function(txt){ if (txt && txt.trim()) postQuick(txt.trim(), it); });
       return;
     }
     pickWording(it).then(function(pw){ return fillQuick(pw.text).then(function(t){ return { t:t, idx:pw.idx }; }); }).then(function(res){
@@ -1186,7 +1207,7 @@ button{font:inherit;color:inherit}
         if (/\{(likes|nextgoal)\}/.test(txt)){ tell("The likes numbers aren't available yet (is the records overlay running?). Edit them in before posting."); return; }
         quickPosted[it.id] = Date.now(); store.set("itpd_phonechat_quickposted", JSON.stringify(quickPosted));
         rememberWording(it, res.idx);
-        postQuick(txt.trim());
+        postQuick(txt.trim(), it);
       });
     });
   }
@@ -1269,6 +1290,17 @@ button{font:inherit;color:inherit}
   // Not-yet-welcomed people stay at the top, oldest first; the 👋 button shows how many.
   var ROSTER_PREFIX = "itpd_chat_roster_2026_", WELCOMED_PREFIX = "itpd_chat_welcomed_2026_", rosterTimer = null, rosterSeenHere = {};
   var ROSTER_SELF = { "itpd.dazebot":1, "itpd_dazebot":1, "dazebot":1, "intheparkdaze":1, "in the park daze":1 };
+  // 11/24 (Michael): the Daze Bot (and the channel) never appear on the 👋 list. Names compared with
+  // spaces/dots/dashes/underscores removed; anything with "dazebot" in it; plus names the bot learned
+  // it posts under (Upstash itpd_self_names_2026).
+  var selfLearned = [];
+  function selfSquash(n){ return String(n || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+  function isSelfName(n){
+    var q = selfSquash(n); if (!q) return false;
+    if (q.indexOf("dazebot") >= 0 || q === "intheparkdaze") return true;
+    return selfLearned.some(function(x){ return selfSquash(x) === q; });
+  }
+  function loadSelfNames(){ return upstash("/get/itpd_self_names_2026").then(function(v){ try { var a = JSON.parse(v || "[]"); if (Array.isArray(a)) selfLearned = a; } catch(e){} }, function(){}); }
   function streamDay(){
     if (sessionCur && sessionCur.id) return sessionCur.id;      // 11/12: one list per stream
     return new Intl.DateTimeFormat("en-CA", { timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(Date.now() - 4 * 3600000));
@@ -1276,10 +1308,10 @@ button{font:inherit;color:inherit}
   function hashToObj(arr){ var o = {}; for (var i = 0; arr && i < arr.length; i += 2) o[arr[i]] = arr[i + 1]; return o; }
   function rosterLoad(){
     var day = streamDay();
-    return Promise.all([upstash("/hgetall/" + ROSTER_PREFIX + day), upstash("/hgetall/" + WELCOMED_PREFIX + day)]).then(function(r){
+    return Promise.all([upstash("/hgetall/" + ROSTER_PREFIX + day), upstash("/hgetall/" + WELCOMED_PREFIX + day), loadSelfNames()]).then(function(r){
       var people = [], done = hashToObj(r[1]);
       var raw = hashToObj(r[0]);
-      Object.keys(raw).forEach(function(k){ var v = null; try { v = JSON.parse(raw[k]); } catch(e){} if (v) people.push({ k:k, n:v.n, p:v.p, t:v.t || 0, done:!!done[k] }); });
+      Object.keys(raw).forEach(function(k){ var v = null; try { v = JSON.parse(raw[k]); } catch(e){} if (v && !isSelfName(v.n) && !isSelfName(k.replace(/^(youtube|twitch):/, ""))) people.push({ k:k, n:v.n, p:v.p, t:v.t || 0, done:!!done[k] }); });
       return people;
     });
   }
@@ -1318,7 +1350,7 @@ button{font:inherit;color:inherit}
   function rosterNote(m){
     var plat = platOf(m); if (plat !== "youtube" && plat !== "twitch") return;
     var n = String(m.chatname || "").trim(), low = n.replace(/^@/, "").toLowerCase();
-    if (!n || ROSTER_SELF[low]) return;
+    if (!n || ROSTER_SELF[low] || isSelfName(n)) return;
     var day = streamDay(), k = plat + ":" + low;
     if (rosterSeenHere[day + k]) return; rosterSeenHere[day + k] = 1;
     var url = cfg("rurl").replace(/\/+$/,""), tok = cfg("wtok"); if (!url || !tok) return;
@@ -1360,7 +1392,7 @@ button{font:inherit;color:inherit}
     var sp = poSpotNow;
     if (sp && v.waitPark && sp.park === v.waitPark) {
       if (sp.land && v.id !== "mk") extra += " \u00b7 " + sp.land;
-      if (sp.ride && Date.now() - (sp.at || 0) < 40 * 60000) extra += " \u00b7 \ud83c\udfa2 " + sp.ride;
+      if (sp.ride && (sp.phase === "line" ? Date.now() - (sp.lineAt || sp.at || 0) < 3 * 3600000 : Date.now() - (sp.rideAt || sp.at || 0) < 40 * 60000)) extra += (sp.phase === "line" ? " \u00b7 \ud83d\udd52 in line for " : " \u00b7 \ud83c\udfa2 ") + sp.ride;
       if (sp.other) extra += " \u00b7 " + sp.other;
     }
     return v.name + extra;
@@ -1440,8 +1472,13 @@ button{font:inherit;color:inherit}
     for (var i = 1; i < poCat.lands.length - 1; i++) if (flat(poCat.lands[i]) === f) return i;
     return -1;
   }
-  function poSpotPick(v, land, ride, other){
-    var spot = { park: v.waitPark, land: land || "", ride: ride || "", other: other || "" };
+  // 11/21: a ride picked while walking = we're getting in line (phase "line": viewers can !guess the
+  // wait); picked from the Show/Ride prompt = we're riding now (phase "riding": the wait is over)
+  function poSpotPick(v, land, ride, other, riding){
+    var spot = { park: v.waitPark, land: land || "", ride: ride || "", other: other || "" }, t = Date.now();
+    if (ride && riding) { spot.phase = "riding"; spot.rideAt = t;
+      if (poSpotNow && poSpotNow.ride === ride && poSpotNow.phase === "line") spot.lineAt = poSpotNow.lineAt; }
+    else if (ride) { spot.phase = "line"; spot.lineAt = t; }
     if (v.id === "mk") {                       // the ticket's Magic Kingdom land follows too
       var li = land ? poMkLand(land) : 0;
       if (li >= 0 && (!poState || poState.land !== li)) return poApply({ venue: v.i, land: li, landSeq: ((poState && poState.landSeq) || 0) + 1 }, function(){ poSpotSave(spot); });
@@ -1453,7 +1490,17 @@ button{font:inherit;color:inherit}
       if (!poCat || !poState) return;
       var v = poCat.venues[poState.venue || 0];
       if (!v || v.kind !== "park" || !v.waitPark || QT_PARKS.indexOf(v.waitPark) < 0) return;   // only in a park we have rides for
-      $("ctl").classList.remove("open"); $("venue").classList.add("open");
+      $("ctl").classList.remove("open");
+      var sp = poSpotNow;
+      if (sp && sp.park === v.waitPark && sp.ride && sp.phase === "line") {
+        // we were in line for it: boarding now, no tap needed (the wait clock stops here)
+        poSpotSave({ park: sp.park, land: sp.land || "", ride: sp.ride, other: "", phase: "riding", lineAt: sp.lineAt, rideAt: Date.now() }, true).then(function(){
+          var mins = Math.round((Date.now() - (sp.lineAt || Date.now())) / 60000);
+          note("\ud83c\udfa2 Riding " + sp.ride + " (waited " + mins + " min). Different ride? Tap \ud83d\udccd.", "", Date.now());
+        });
+        return;
+      }
+      $("venue").classList.add("open");
       poSpot(v, "ride");
     }).catch(function(){});
   }
@@ -1466,7 +1513,9 @@ button{font:inherit;color:inherit}
   }
   function poSpot(v, mode){
     var ask = mode === "ride";
-    $("venueBack").style.display = ask ? "none" : ""; $("venueList").textContent = ""; poHeader(ask ? "\ud83c\udfa2 Which ride? (Show/Ride scene is on)" : v.name + ": where in the park?");
+    $("venueBack").style.display = ask ? "none" : ""; $("venueList").textContent = "";
+    poHeader(ask ? "\ud83c\udfa2 Which ride? (Show/Ride scene is on)" : v.name + ": where in the park?");
+    if (!ask) { var hint = document.createElement("div"); hint.className = "small"; hint.textContent = "Pick a ride as you get in line (\ud83d\udd52): viewers can guess the wait until the Show/Ride scene starts."; $("venueList").appendChild(hint); }
     $("venueNow").textContent = "Now: " + poDescribe(poState);
     if (ask) poButton("Skip", "not a ride, or don't change it", false, closeVenue);
     else poButton("Just " + v.name, "no land or ride", false, function(){ poSpotPick(v, "", "", ""); });
@@ -1496,7 +1545,7 @@ button{font:inherit;color:inherit}
           var add = function(label, sub, cur, fn){ poButton(label, sub, cur, fn); box.appendChild($("venueList").lastChild); };
           if (l !== "Other rides") add("Whole land: " + l, "", curLand === l && !(poSpotNow && poSpotNow.ride), function(){ poSpotPick(v, l, "", ""); });
           rides.forEach(function(rd){
-            add("\ud83c\udfa2 " + rd.n, rd.o ? (rd.w ? rd.w + " min" : "open") : "closed", poSpotNow && poSpotNow.ride === rd.n, function(){ poSpotPick(v, l === "Other rides" ? "" : l, rd.n, ""); });
+            add((ask ? "\ud83c\udfa2 " : "\ud83d\udd52 ") + rd.n, rd.o ? (rd.w ? rd.w + " min" : "open") : "closed", poSpotNow && poSpotNow.ride === rd.n, function(){ poSpotPick(v, l === "Other rides" ? "" : l, rd.n, "", ask); });
           });
           paint();
         });
@@ -2544,14 +2593,15 @@ button{font:inherit;color:inherit}
   }
   function ctlKb(k){ k = Math.max(0, Math.round(Number(k) || 0)); return k >= 1000 ? (k / 1000).toFixed(1) + " Mb" : k + " kb"; }
   function ctlIngInfoOf(g, st){
-    var low = Number(st.low_bitrate_trigger) || 1000, off = Number(st.offline_bitrate_trigger) || 150, br = Number(g.router_bitrate) || 0;
-    var playing = /PLAYING/i.test(String(g.media_state || ""));
-    var level = !playing || br < off ? "off" : br < low ? "low" : "ok";
-    return { br:br, level:level, color: level === "ok" ? "#1F9D55" : level === "low" ? "#C98A00" : "#C62828",
-             text: level === "off" && br < off ? "OFFLINE" + (br ? " (" + ctlKb(br) + "ps)" : "") : ctlKb(br) + "ps" + (level === "low" ? " (low)" : ""),
+    // 11/24 (Michael): green above 5 Mbps, yellow 1–5 Mbps, red under 1 Mbps
+    var br = Number(g.router_bitrate) || 0, playing = ctlIngActive(g);
+    var level = !playing ? "off" : br > 5000 ? "ok" : br >= 1000 ? "low" : "bad";
+    return { br:br, level:level, color: level === "ok" ? "#1F9D55" : level === "low" ? "#D4A100" : "#C62828",
+             text: level === "off" ? "OFFLINE" : ctlKb(br) + "ps",
              rtt: g.type === "srt" && Number(g.router_rtt) >= 0 ? Math.round(g.router_rtt) : null,
-             fill: Math.min(100, Math.round(br / Math.max(4000, low * 4) * 100)) };
+             fill: Math.min(100, Math.round(br / 8000 * 100)) };   // full bar at 8 Mbps
   }
+  function ctlIngActive(g){ return /PLAYING/i.test(String(g && g.media_state || "")) || Number(g && g.router_bitrate) > 0; }
   function ctlIngestInfo(name){
     if (!ctl.irl || Date.now() - ctl.irl.at > 30000) return null;
     var g = ctl.irl.d.ingests.filter(function(x){ return x && String(x.name || "").toLowerCase() === String(name).toLowerCase(); })[0];
@@ -2560,15 +2610,16 @@ button{font:inherit;color:inherit}
   function ctlBitrates(){
     var w = $("brw"), st = ctl.irl && ctl.irl.d, age = ctl.irl ? Date.now() - ctl.irl.at : 1e9;
     if (!st || !ctl.ready || age > 30000 || !st.ingests.length) { w.className = ""; return; }
-    var list = st.ingests, n = list.length;
+    var list = st.ingests.filter(ctlIngActive), n = list.length;      // 11/24: only ingests that are live
+    if (!n) { w.className = ""; return; }
     w.className = "on" + (n >= 7 ? " n7" : n >= 4 ? " n4" : "") + (age > 10000 ? " stale" : "");
     w.textContent = "";
     list.forEach(function(g, i){
       var info = ctlIngInfoOf(g, st), el = document.createElement("div");
-      el.className = "br"; el.style.setProperty("--c", info.color); el.style.setProperty("--f", Math.max(info.level === "off" ? 100 : 6, info.fill) + "%");
+      el.className = "br"; el.style.setProperty("--c", info.color); el.style.setProperty("--f", Math.max(info.level === "bad" ? 100 : 6, info.fill) + "%");
       var nm = document.createElement("span");
       nm.textContent = (g.id && g.id === st.main_ingest_id ? "\u2605" : "") + (String(g.name || "").replace(/\s*ingest\s*/i, " ").trim() || "#" + (i + 1));
-      var v = document.createElement("b"); v.textContent = info.level === "off" && info.br < (Number(st.offline_bitrate_trigger) || 150) ? "OFF" : ctlKb(info.br);
+      var v = document.createElement("b"); v.textContent = ctlKb(info.br);
       el.appendChild(nm); el.appendChild(v); w.appendChild(el);
     });
     // more ingests = a taller stack (rows get slimmer); the walk pill moves up out of the way
@@ -2864,6 +2915,40 @@ button{font:inherit;color:inherit}
   // a reload or a phone restart mid-walk picks the tracking straight back up
   if (WK.s && WK.s.active && store.get("itpd_phonechat_walktrack") === "1") wkStartTracking();
   wkPaint();
+
+  // 11/25: Daze Bot auto-moderation marks (shadow mode: it only says what it WOULD do).
+  // The bot writes Upstash itpd_automod_recent_2026; this phone tags the messages in the chat list.
+  var amSeen = {}, amFirst = true, amPend = [];
+  var AM_WORDS = { remove:"would remove", remove_t60:"would remove + 60-second timeout", remove_t300:"would remove + 5-minute timeout", flag:"flag", care:"check on them", name:"name looks offensive" };
+  function amTagRows(e){
+    var rows = logEl.querySelectorAll(".msg"), hits = [];
+    for (var i = 0; i < rows.length; i++){ if (rows[i].dataset.type && rows[i].dataset.type.indexOf("youtube") !== 0) continue; if ((e.ids || []).indexOf(rows[i].dataset.id) >= 0) hits.push(rows[i]); }
+    if (!hits.length && (!e.ids || !e.ids.length)){
+      for (var j = rows.length - 1; j >= 0; j--){ if (rows[j].dataset.name === e.who){ hits.push(rows[j]); break; } }
+    }
+    hits.forEach(function(r){
+      if (r.querySelector(".amTag[data-e='" + e.id + "']")) return;
+      var d = document.createElement("div"); d.className = "amTag" + (e.act === "care" ? " care" : ""); d.dataset.e = e.id;
+      d.textContent = (e.act === "care" ? "\ud83d\udc9b Daze Bot: " : "\ud83d\udee1 Daze Bot" + (e.shadow ? " (shadow)" : "") + ": ") + (AM_WORDS[e.act] || e.act) + " \u00b7 " + e.why + (e.cat ? " (" + e.cat + ")" : "");
+      (r.querySelector(".body") || r).appendChild(d); if (e.act !== "care") r.classList.add("amHit");
+    });
+    return hits.length > 0;
+  }
+  function amTick(){
+    if (!cfg("rurl") || !cfg("rtok")) return;
+    upstash("/lrange/itpd_automod_recent_2026/0/-1").then(function(list){
+      (list || []).forEach(function(raw){
+        var e = null; try { e = JSON.parse(raw); } catch(x){} if (!e || !e.id || amSeen[e.id]) return;
+        amSeen[e.id] = 1;
+        if (Date.now() - (e.at || 0) > 6 * 3600000) return;
+        e.tries = 0; amPend.push(e);
+        if (!amFirst && e.act === "care") note("\ud83d\udc9b Daze Bot: " + e.who + " used self-harm words. Check on them kindly (nothing was removed).", "", Date.now());
+      });
+      amFirst = false;
+      amPend = amPend.filter(function(e){ return !amTagRows(e) && ++e.tries < 12; });
+    }).catch(function(){});
+  }
+  setInterval(amTick, 8000); setTimeout(amTick, 3000);
 
   if ($("wake").checked) requestWake();
   connect();
